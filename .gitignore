@@ -1,0 +1,23 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# build output
+dist
+dist-ssr
+.vite
+
+# editor / os
+.DS_Store
+*.local
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log

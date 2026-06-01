@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#05060a" />
+
+    <title>Cameron Micka — Principal Software Engineer</title>
+    <meta
+      name="description"
+      content="Cameron Micka — Principal Software Engineer (Microsoft Mesh, MRTK, HoloLens). A WebGPU 'Time Machine' career timeline."
+    />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cameron Micka — Principal Software Engineer" />
+    <meta
+      property="og:description"
+      content="A WebGPU 'Time Machine' career timeline. Microsoft · Fun Bits · LucasArts · DigiPen."
+    />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="/og.png" />
+
+    <style>
+      /* Boot skeleton — replaced once React hydrates. Keeps first paint instant. */
+      html,
+      body,
+      #root {
+        margin: 0;
+        height: 100%;
+        background: #05060a;
+        color: #e8ecf4;
+        font-family:
+          system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+          sans-serif;
+      }
+      #boot-skeleton {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(
+            120% 120% at 50% 35%,
+            #0b1430 0%,
+            #06070d 55%,
+            #04050a 100%
+          );
+        z-index: 9999;
+        transition: opacity 0.6s ease;
+      }
+      #boot-skeleton .pulse {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 35%, #7ad6ff, #2a5cff 60%, #0a1840);
+        box-shadow: 0 0 48px 8px rgba(90, 160, 255, 0.35);
+        animation: bootpulse 1.8s ease-in-out infinite;
+      }
+      @keyframes bootpulse {
+        0%, 100% { transform: scale(0.85); opacity: 0.65; }
+        50% { transform: scale(1.05); opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-skeleton .pulse { animation: none; }
+        #boot-skeleton { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div id="boot-skeleton" aria-hidden="true"><div class="pulse"></div></div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

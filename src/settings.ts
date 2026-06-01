@@ -1,0 +1,48 @@
+import type { QualityPreference } from './engine/QualityManager';
+
+export type ReducedMotionPref = 'auto' | 'on' | 'off';
+
+export interface PersistedSettings {
+  quality: QualityPreference;
+  sound: boolean;
+  reducedMotion: ReducedMotionPref;
+  debugHud: boolean;
+  forceBackend: 'auto' | 'webgpu' | 'webgl2';
+}
+
+const KEY = 'cm-portfolio-settings';
+
+const DEFAULTS: PersistedSettings = {
+  quality: 'auto',
+  sound: false,
+  reducedMotion: 'auto',
+  debugHud: false,
+  forceBackend: 'auto',
+};
+
+export function loadSettings(): PersistedSettings {
+  if (typeof localStorage === 'undefined') return { ...DEFAULTS };
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return { ...DEFAULTS };
+    return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<PersistedSettings>) };
+  } catch {
+    return { ...DEFAULTS };
+  }
+}
+
+export function saveSettings(s: PersistedSettings): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(s));
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+}
+
+export function resolveReducedMotion(pref: ReducedMotionPref): boolean {
+  if (pref === 'on') return true;
+  if (pref === 'off') return false;
+  if (typeof matchMedia === 'undefined') return false;
+  return matchMedia('(prefers-reduced-motion: reduce)').matches;
+}

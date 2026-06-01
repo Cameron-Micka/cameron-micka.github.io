@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cameron Micka</title>
+    <!--
+      GitHub Pages SPA fallback. With vite-react-ssg most routes are
+      prerendered to real HTML, but the client-rendered landing route and any
+      deep-linked hash paths rely on this redirect so refreshes/deep links work.
+    -->
+    <script>
+      (function () {
+        var l = window.location;
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect !== l.href) {
+          history.replaceState(null, '', redirect);
+        } else {
+          sessionStorage.redirect = l.href;
+          l.replace('/');
+        }
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

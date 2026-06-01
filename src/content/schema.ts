@@ -1,0 +1,74 @@
+import { z } from 'zod';
+
+export const mediaSchema = z.object({
+  type: z.enum(['image', 'video']),
+  src: z.string(),
+  alt: z.string().optional(),
+  poster: z.string().optional(),
+});
+
+export const poiSchema = z.object({
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, 'POI slug must be url-safe (a-z, 0-9, -)'),
+  title: z.string(),
+  accent: z.string().regex(/^#([0-9a-fA-F]{6})$/),
+  // Short markdown body shown in the modal.
+  body: z.string(),
+  media: z.array(mediaSchema).default([]),
+});
+
+export const companySchema = z.object({
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, 'Company slug must be url-safe (a-z, 0-9, -)'),
+  name: z.string(),
+  role: z.string(),
+  // YYYY or YYYY-MM. `end` null means present.
+  start: z.string(),
+  end: z.string().nullable(),
+  location: z.string().optional(),
+  summary: z.string(),
+  seed: z.string(),
+  // Palette anchors as #rrggbb (low / mid / high terrain bands).
+  palette: z.object({
+    low: z.string().regex(/^#([0-9a-fA-F]{6})$/),
+    mid: z.string().regex(/^#([0-9a-fA-F]{6})$/),
+    high: z.string().regex(/^#([0-9a-fA-F]{6})$/),
+  }),
+  features: z.object({
+    clouds: z.boolean(),
+    rings: z.boolean(),
+    ringTilt: z.number().default(0.4),
+    moons: z.number().int().min(0).max(6),
+  }),
+  pois: z.array(poiSchema),
+});
+
+export type Media = z.infer<typeof mediaSchema>;
+export type Poi = z.infer<typeof poiSchema>;
+export type Company = z.infer<typeof companySchema>;
+
+export const companiesSchema = z.array(companySchema);
+
+// Convert #rrggbb to a linear-ish RGB triple in 0..1 for shader palettes.
+export function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  // Approximate sRGB -> linear.
+  const toLinear = (c: number) =>
+    c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  return [toLinear(r), toLinear(g), toLinear(b)];
+}
+
+// Tenure in years from start/end strings (end null = now).
+export function tenureYears(start: string, end: string | null): number {
+  const parse = (s: string) => {
+    const [y, m] = s.split('-').map(Number);
+    return (y ?? 2000) + ((m ?? 1) - 1) / 12;
+  };
+  const e = end ? parse(end) : new Date().getFullYear() + new Date().getMonth() / 12;
+  return Math.max(0.5, e - parse(start));
+}
