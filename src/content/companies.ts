@@ -158,7 +158,10 @@ const raw: Company[] = [
 ];
 
 // Validate at module load so malformed content fails fast in dev and build.
-export const companies: Company[] = companiesSchema.parse(raw);
+// Reversed so the timeline runs farthest ("Past") -> closest-to-camera ("Now"),
+// i.e. Microsoft (the current role) is the last planet in the sequence. The
+// engine still opens focused on the current role — see Engine's initial index.
+export const companies: Company[] = companiesSchema.parse(raw).reverse();
 
 export function findCompany(slug: string): Company | undefined {
   return companies.find((c) => c.slug === slug);

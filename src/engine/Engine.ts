@@ -9,13 +9,18 @@ import type {
 import { WebGPURenderer } from './WebGPURenderer';
 import { WebGL2Renderer } from './WebGL2Renderer';
 import { Camera } from './Camera';
-import { buildPlanetModels, instanceFromModel, type PlanetModel } from './Scene';
+import {
+  buildPlanetModels,
+  instanceFromModel,
+  poiMarkerDistance,
+  type PlanetModel,
+} from './Scene';
 import { QualityManager, QUALITY_PRESETS, type QualityPreference } from './QualityManager';
 import { InputController } from './InputController';
 import { TinyEventEmitter } from './TinyEventEmitter';
 import { clamp, damp, easing, lerp } from './math/easing';
 import { rayFromNDC, raySphere } from './math/raycast';
-import { quat } from './math/quat';
+import { quat, type Quat } from './math/quat';
 import { vec3, type Vec3 } from './math/vec3';
 import type { Company } from '@/content/schema';
 import {
@@ -72,7 +77,7 @@ export class Engine {
   private activeQuality: QualitySettings;
   private activeTier: QualityTier = 'high';
 
-  private rotations: number[];
+  private orientations: Quat[];
   private scrubCurrent = 0;
   private scrubTarget = 0;
   private zoomTarget = 1;
@@ -106,7 +111,19 @@ export class Engine {
   constructor(canvas: HTMLCanvasElement, companies: Company[]) {
     this.canvas = canvas;
     this.models = buildPlanetModels(companies);
-    this.rotations = this.models.map((_, i) => i * 0.7);
+    this.orientations = this.models.map((_, i) =>
+      quat.fromAxisAngle([0, 1, 0], i * 0.7),
+    );
+    // Open focused on the current role (the one still ongoing) rather than the
+    // first planet in the sequence, so e.g. a reversed timeline still starts on
+    // "Now". Falls back to the first planet if none is marked current.
+    const startIndex = Math.max(
+      0,
+      this.models.findIndex((m) => m.company.end === null),
+    );
+    this.scrubCurrent = startIndex;
+    this.scrubTarget = startIndex;
+    this.focusedIndex = startIndex;
     this.settings = loadSettings();
     this.activeQuality = QUALITY_PRESETS.high;
     this.coarsePointer =
@@ -116,7 +133,7 @@ export class Engine {
     this.input = new InputController({
       onScrub: (d) => this.onScrub(d),
       onScrubEnd: () => this.onScrubEnd(),
-      onOrbit: (dx) => this.onOrbit(dx),
+      onOrbit: (dx, dy) => this.onOrbit(dx, dy),
       onZoom: (f) => this.onZoom(f),
       onPick: (x, y) => this.handlePick(x, y),
       onKeyStep: (dir) => this.jumpToPlanet(this.focusedIndex + dir),
@@ -259,11 +276,14 @@ export class Engine {
   private updateRotations(dt: number, ts: number): void {
     if (this.reducedMotion()) return;
     const recentlyOrbited = ts / 1000 - this.lastInteract < 2.5;
-    for (let i = 0; i < this.rotations.length; i++) {
+    for (let i = 0; i < this.orientations.length; i++) {
       if (recentlyOrbited && i === this.lastOrbitIndex) continue;
       const focusDist = Math.abs(i - this.scrubCurrent);
       const speed = 0.06 + 0.04 / (1 + focusDist);
-      this.rotations[i] = (this.rotations[i] ?? 0) + dt * speed;
+      const spin = quat.fromAxisAngle([0, 1, 0], dt * speed);
+      this.orientations[i] = quat.normalize(
+        quat.multiply(this.orientations[i]!, spin),
+      );
     }
   }
 
@@ -284,7 +304,7 @@ export class Engine {
       return instanceFromModel(
         m,
         this.time,
-        this.rotations[i] ?? 0,
+        this.orientations[i] ?? quat.identity(),
         focus,
         this.planetVisibility(i),
       );
@@ -341,12 +361,20 @@ export class Engine {
     );
   }
 
-  private onOrbit(dx: number): void {
+  private onOrbit(dx: number, dy: number): void {
     if (this.openPoi) return;
     const idx = clamp(Math.round(this.scrubCurrent), 0, this.models.length - 1);
     this.lastOrbitIndex = idx;
     this.lastInteract = performance.now() / 1000;
-    this.rotations[idx] = (this.rotations[idx] ?? 0) + dx * 0.01;
+    // Trackball: premultiply by screen-relative axes so dragging rotates the
+    // planet about the camera's right (horizontal) and up (vertical) axes,
+    // letting the user spin it in any direction.
+    const qy = quat.fromAxisAngle([0, 1, 0], dx * 0.01);
+    const qx = quat.fromAxisAngle([1, 0, 0], dy * 0.01);
+    const delta = quat.multiply(qy, qx);
+    this.orientations[idx] = quat.normalize(
+      quat.multiply(delta, this.orientations[idx] ?? quat.identity()),
+    );
   }
 
   private onZoom(factor: number): void {
@@ -373,21 +401,26 @@ export class Engine {
 
     const model = this.models[hitIndex]!;
     const center: Vec3 = [0, 0, model.z];
-    const rot = quat.fromAxisAngle([0, 1, 0], this.rotations[hitIndex] ?? 0);
+    const rot = this.orientations[hitIndex] ?? quat.identity();
     const pickR = model.radius * 0.16 * (this.coarsePointer ? 1.8 : 1);
 
+    // POIs are only active on the focused ("current") planet, matching what's
+    // rendered. Clicking any other planet simply navigates to it.
     let bestPoi = -1;
     let bestT = Infinity;
-    for (let i = 0; i < model.poiDirs.length; i++) {
-      const poi = model.poiDirs[i]!;
-      const dir = quat.rotateVec3(rot, poi.dir);
-      const world = vec3.add(center, vec3.scale(dir, model.radius * 1.01));
-      const toCam = vec3.normalize(vec3.sub(this.camera.position, world));
-      if (vec3.dot(dir, toCam) <= 0.05) continue; // camera-facing only
-      const t = raySphere(ray, world, pickR);
-      if (t >= 0 && t < bestT) {
-        bestT = t;
-        bestPoi = i;
+    if (hitIndex === this.focusedIndex) {
+      const markerDist = poiMarkerDistance(model.radius);
+      for (let i = 0; i < model.poiDirs.length; i++) {
+        const poi = model.poiDirs[i]!;
+        const dir = quat.rotateVec3(rot, poi.dir);
+        const world = vec3.add(center, vec3.scale(dir, markerDist));
+        const toCam = vec3.normalize(vec3.sub(this.camera.position, world));
+        if (vec3.dot(dir, toCam) <= 0.05) continue; // camera-facing only
+        const t = raySphere(ray, world, pickR);
+        if (t >= 0 && t < bestT) {
+          bestT = t;
+          bestPoi = i;
+        }
       }
     }
 
@@ -480,10 +513,11 @@ export class Engine {
     return resolveReducedMotion(this.settings.reducedMotion);
   }
 
-  // Planets more recent than the focused one (lower index, nearer the camera)
-  // fade out so only the selected planet and older ones behind it remain.
+  // Planets more recent than the focused one (higher index after the timeline
+  // was reversed) fade out so only the selected planet and older ones receding
+  // behind it remain.
   private planetVisibility(i: number): number {
-    const rel = this.scrubCurrent - i; // > 0 => planet i is more recent
+    const rel = i - this.scrubCurrent; // > 0 => planet i is more recent
     if (rel <= 0.2) return 1;
     return clamp(1 - (rel - 0.2) / 0.7, 0, 1);
   }

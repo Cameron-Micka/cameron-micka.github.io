@@ -9,11 +9,13 @@ import { mat4 } from './math/mat4';
 import { quat } from './math/quat';
 import { vec3 } from './math/vec3';
 import { mulberry32 } from './math/rng';
+import { poiMarkerDistance, poiFocusFade } from './Scene';
 
 import planetWGSL from './shaders/planet.wgsl?raw';
 import nebulaWGSL from './shaders/nebula.wgsl?raw';
 import starfieldWGSL from './shaders/starfield.wgsl?raw';
 import poiWGSL from './shaders/poi.wgsl?raw';
+import poiLineWGSL from './shaders/poi_line.wgsl?raw';
 import ringWGSL from './shaders/ring.wgsl?raw';
 import compositeWGSL from './shaders/composite.wgsl?raw';
 
@@ -93,6 +95,7 @@ export class WebGPURenderer implements SceneRenderer {
     ring: GPURenderPipeline;
     star: GPURenderPipeline;
     poi: GPURenderPipeline;
+    poiLine: GPURenderPipeline;
     composite: GPURenderPipeline;
   };
   private frameLayout!: GPUBindGroupLayout;
@@ -269,6 +272,7 @@ export class WebGPURenderer implements SceneRenderer {
     const nebulaMod = d.createShaderModule({ code: nebulaWGSL });
     const starMod = d.createShaderModule({ code: starfieldWGSL });
     const poiMod = d.createShaderModule({ code: poiWGSL });
+    const poiLineMod = d.createShaderModule({ code: poiLineWGSL });
     const compositeMod = d.createShaderModule({ code: compositeWGSL });
 
     const addBlend: GPUBlendState = {
@@ -292,7 +296,7 @@ export class WebGPURenderer implements SceneRenderer {
         entryPoint: 'fs',
         targets: [{ format: HDR_FORMAT }],
       },
-      primitive: { topology: 'triangle-list', cullMode: 'back' },
+      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
       depthStencil: {
         format: 'depth24plus',
         depthWriteEnabled: true,
@@ -308,7 +312,7 @@ export class WebGPURenderer implements SceneRenderer {
         entryPoint: 'fs',
         targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
       },
-      primitive: { topology: 'triangle-list', cullMode: 'back' },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
       depthStencil: {
         format: 'depth24plus',
         depthWriteEnabled: false,
@@ -382,12 +386,12 @@ export class WebGPURenderer implements SceneRenderer {
     });
 
     const poiInstanceLayout: GPUVertexBufferLayout = {
-      arrayStride: 8 * 4,
+      arrayStride: 12 * 4,
       stepMode: 'instance',
       attributes: [
-        { shaderLocation: 1, offset: 0, format: 'float32x3' },
-        { shaderLocation: 2, offset: 12, format: 'float32x4' },
-        { shaderLocation: 3, offset: 28, format: 'float32' },
+        { shaderLocation: 1, offset: 12, format: 'float32x3' }, // outer (marker)
+        { shaderLocation: 2, offset: 24, format: 'float32x4' }, // size,dim,accentRG
+        { shaderLocation: 3, offset: 40, format: 'float32' }, // accentB
       ],
     };
 
@@ -407,7 +411,38 @@ export class WebGPURenderer implements SceneRenderer {
       depthStencil: {
         format: 'depth24plus',
         depthWriteEnabled: false,
-        depthCompare: 'always',
+        depthCompare: 'less-equal',
+      },
+    });
+
+    const poiLineInstanceLayout: GPUVertexBufferLayout = {
+      arrayStride: 12 * 4,
+      stepMode: 'instance',
+      attributes: [
+        { shaderLocation: 0, offset: 0, format: 'float32x3' }, // inner (surface)
+        { shaderLocation: 1, offset: 12, format: 'float32x3' }, // outer (marker)
+        { shaderLocation: 2, offset: 24, format: 'float32x4' }, // size,dim,accentRG
+        { shaderLocation: 3, offset: 40, format: 'float32' }, // accentB
+      ],
+    };
+
+    const poiLine = d.createRenderPipeline({
+      layout: sceneFramePL,
+      vertex: {
+        module: poiLineMod,
+        entryPoint: 'vs',
+        buffers: [poiLineInstanceLayout],
+      },
+      fragment: {
+        module: poiLineMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+      },
+      primitive: { topology: 'triangle-list' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: false,
+        depthCompare: 'less-equal',
       },
     });
 
@@ -425,7 +460,7 @@ export class WebGPURenderer implements SceneRenderer {
       primitive: { topology: 'triangle-list' },
     });
 
-    this.pipelines = { nebula, planet, clouds, ring, star, poi, composite };
+    this.pipelines = { nebula, planet, clouds, ring, star, poi, poiLine, composite };
   }
 
   private buildStars(count: number): void {
@@ -547,7 +582,7 @@ export class WebGPURenderer implements SceneRenderer {
     f[24] = frame.time;
     f[25] = frame.reducedMotion ? 1 : 0;
     f[26] = 1;
-    f[27] = 0;
+    f[27] = this.width / this.height;
     d.queue.writeBuffer(this.frameUBO, 0, f, 0, 28);
 
     // Build per-object uniforms + collect POI billboards.
@@ -561,7 +596,7 @@ export class WebGPURenderer implements SceneRenderer {
       const vis = p.visibility;
       if (vis <= 0.02) continue; // fully hidden — skip planet, POIs, moons
       const er = p.radius * vis;
-      const rot = quat.fromAxisAngle([0, 1, 0], p.rotationY);
+      const rot = p.orientation;
       mat4.fromRotationTranslationScale(model, rot, p.center, er);
       this.writeObject(
         objIndex,
@@ -575,17 +610,20 @@ export class WebGPURenderer implements SceneRenderer {
         p.paletteHigh,
         p.focus,
         1,
-        p.rotationY,
+        0,
       );
       objects.push({ kind: 0, index: objIndex });
       objIndex++;
 
-      this.collectPois(frame, p, poiData, er, vis);
+      this.collectPois(p, poiData, er, vis);
 
       if (p.hasClouds && frame.quality.clouds) {
         mat4.fromRotationTranslationScale(
           model,
-          quat.fromAxisAngle([0, 1, 0], p.rotationY * 0.6),
+          quat.multiply(
+            p.orientation,
+            quat.fromAxisAngle([0, 1, 0], frame.time * 0.03),
+          ),
           p.center,
           er * 1.04,
         );
@@ -601,7 +639,7 @@ export class WebGPURenderer implements SceneRenderer {
           p.paletteHigh,
           p.focus,
           0,
-          p.rotationY,
+          0,
         );
         objects.push({ kind: 1, index: objIndex });
         objIndex++;
@@ -761,6 +799,16 @@ export class WebGPURenderer implements SceneRenderer {
       this.stats.triangles += this.ring.count / 3;
     }
 
+    // POI connector lines (additive), drawn under the markers.
+    if (this.poiCount > 0) {
+      scenePass.setPipeline(this.pipelines.poiLine);
+      scenePass.setBindGroup(0, this.frameBG);
+      scenePass.setVertexBuffer(0, this.poiBuf);
+      scenePass.draw(6, this.poiCount);
+      this.stats.drawCalls++;
+      this.stats.triangles += this.poiCount * 2;
+    }
+
     // POIs (additive billboards).
     if (this.poiCount > 0) {
       scenePass.setPipeline(this.pipelines.poi);
@@ -800,35 +848,42 @@ export class WebGPURenderer implements SceneRenderer {
   private poiCount = 0;
 
   private collectPois(
-    frame: FrameState,
     p: PlanetInstance,
     out: number[],
     effectiveRadius: number,
     vis: number,
   ): void {
-    const rot = quat.fromAxisAngle([0, 1, 0], p.rotationY);
+    // Only the focused ("current") planet shows its POIs.
+    const fade = poiFocusFade(p.focus);
+    if (fade <= 0.001) return;
+    const rot = p.orientation;
+    const markerDist = poiMarkerDistance(effectiveRadius);
     for (const poi of p.pois) {
       const dir = quat.rotateVec3(rot, poi.dir);
-      const world = vec3.add(p.center, vec3.scale(dir, effectiveRadius * 1.01));
-      const toCam = vec3.normalize(vec3.sub(frame.cameraPos, world));
-      const facing = vec3.dot(dir, toCam);
-      const dim = facing > 0 ? 1.0 : 0.32; // backside dimmed but visible
-      const size = (0.05 + 0.04 * p.focus) * vis;
+      const surfDir = quat.rotateVec3(rot, poi.surfaceDir);
+      const inner = vec3.add(p.center, vec3.scale(surfDir, effectiveRadius));
+      const outer = vec3.add(p.center, vec3.scale(dir, markerDist));
+      const dim = fade;
+      const size = (0.038 + 0.03 * p.focus) * vis;
       out.push(
-        world[0],
-        world[1],
-        world[2],
+        inner[0],
+        inner[1],
+        inner[2],
+        outer[0],
+        outer[1],
+        outer[2],
         size,
         dim,
         poi.accent[0],
         poi.accent[1],
         poi.accent[2],
+        0,
       );
     }
   }
 
   private uploadPois(data: number[]): void {
-    const count = data.length / 8;
+    const count = data.length / 12;
     this.poiCount = count;
     if (count === 0) return;
     const arr = new Float32Array(data);
@@ -836,7 +891,7 @@ export class WebGPURenderer implements SceneRenderer {
       this.poiBuf?.destroy();
       this.poiCapacity = Math.max(count, 32);
       this.poiBuf = this.device.createBuffer({
-        size: this.poiCapacity * 8 * 4,
+        size: this.poiCapacity * 12 * 4,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       });
     }

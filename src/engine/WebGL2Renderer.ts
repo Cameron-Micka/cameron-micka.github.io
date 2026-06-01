@@ -1,9 +1,10 @@
 import type { FrameState, PlanetInstance, RenderStats, SceneRenderer } from './types';
 import { createSphere, interleave } from './geometry';
 import { mat4 } from './math/mat4';
-import { quat } from './math/quat';
+import { quat, type Quat } from './math/quat';
 import { vec3 } from './math/vec3';
 import { mulberry32 } from './math/rng';
+import { poiMarkerDistance, poiFocusFade } from './Scene';
 
 // Lower-fidelity mirror of the WebGPU experience: procedural planets, a nebula
 // backdrop, additive star + POI points. No HDR/bloom post — rendered directly.
@@ -121,14 +122,66 @@ void main(){
   vec2 uv=gl_PointCoord*2.0-1.0;
   float d=length(uv);
   if(vAttr.z>0.5){
-    float ring=smoothstep(0.85,0.6,d)-smoothstep(0.5,0.3,d);
-    float glow=smoothstep(1.0,0.0,d)*0.5;
-    float a=clamp((ring+glow)*vAttr.y,0.0,1.0);
-    frag=vec4((vColor+0.2)*a*2.0,a);
+    float radius=0.85;
+    float aa=fwidth(d);
+    float a=(1.0-smoothstep(aa,aa+aa,abs(d-radius)))*vAttr.y;
+    frag=vec4(vec3(a),a);
   }else{
     float core=pow(smoothstep(1.0,0.0,d),4.0)*vAttr.x;
     frag=vec4(mix(vec3(0.7,0.8,1.0),vColor,0.5)*core*1.6,core);
   }
+}`;
+
+// Thick connector "lines" from planet surface to floating POI markers, drawn as
+// camera-facing quads (GL line width is effectively 1px on most drivers). Built
+// in aspect-corrected NDC for constant on-screen thickness, with screen-space
+// derivative AA across the width. The outer end stops at the marker circle rim.
+const LINE_VERT = `#version 300 es
+layout(location=0) in vec3 aInner;
+layout(location=1) in vec3 aOuter;
+layout(location=2) in vec3 aParam; // x=side(-1/1) y=end(0 inner / 1 outer) z=pointSizePx
+layout(location=3) in vec4 aColor;
+uniform mat4 uViewProj;
+uniform float uAspect;
+uniform float uThick;  // half-thickness in aspect-corrected NDC
+uniform float uHeight; // viewport height in pixels
+out vec4 vColor;
+out float vEdge;
+void main(){
+  vec2 ac=vec2(uAspect,1.0);
+  vec4 ci=uViewProj*vec4(aInner,1.0);
+  vec4 co=uViewProj*vec4(aOuter,1.0);
+  vec2 ai=(ci.xy/ci.w)*ac;
+  vec2 ao=(co.xy/co.w)*ac;
+  vec2 dir=ao-ai;
+  float len=length(dir);
+  dir=len>1e-6?dir/len:vec2(0.0,1.0);
+  vec2 perp=vec2(-dir.y,dir.x);
+  // Marker point size matches the POINT shader's clamp; rim sits at uv 0.85.
+  float pointPx=clamp(aParam.z/max(co.w,0.001),1.0,64.0);
+  float circleR=0.85*pointPx/uHeight;
+  ao=ao-dir*circleR;
+  bool isOuter=aParam.y>0.5;
+  vec2 chosen=isOuter?ao:ai;
+  float z=isOuter?co.z:ci.z;
+  float w=isOuter?co.w:ci.w;
+  vec2 p=chosen+perp*aParam.x*uThick;
+  vec2 ndc=vec2(p.x/uAspect,p.y);
+  gl_Position=vec4(ndc*w,z,w);
+  vColor=aColor;
+  vEdge=aParam.x;
+}`;
+
+const LINE_FRAG = `#version 300 es
+precision highp float;
+in vec4 vColor;
+in float vEdge;
+out vec4 frag;
+void main(){
+  float aa=fwidth(vEdge);
+  float cov=1.0-smoothstep(1.0-aa,1.0,abs(vEdge));
+  float a=vColor.a*cov;
+  frag=vec4((vColor.rgb+0.15)*a,a);
 }`;
 
 interface Program {
@@ -146,6 +199,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private nebula!: Program;
   private planet!: Program;
   private point!: Program;
+  private line!: Program;
 
   private sphereVao!: WebGLVertexArrayObject;
   private sphereCount = 0;
@@ -158,6 +212,9 @@ export class WebGL2Renderer implements SceneRenderer {
   private poiAttr!: WebGLBuffer;
   private poiColor!: WebGLBuffer;
   private poiCount = 0;
+  private poiLineVao!: WebGLVertexArrayObject;
+  private poiLineBuf!: WebGLBuffer;
+  private poiLineVerts = 0;
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
@@ -184,6 +241,9 @@ export class WebGL2Renderer implements SceneRenderer {
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
       'uViewProj', 'uTime', 'uMode',
+    ]);
+    this.line = this.makeProgram(LINE_VERT, LINE_FRAG, [
+      'uViewProj', 'uAspect', 'uThick', 'uHeight',
     ]);
 
     this.buildSphere();
@@ -306,6 +366,24 @@ export class WebGL2Renderer implements SceneRenderer {
     this.poiPos = bufs.pos;
     this.poiAttr = bufs.attr;
     this.poiColor = bufs.color;
+
+    const lineVao = gl.createVertexArray()!;
+    gl.bindVertexArray(lineVao);
+    const lb = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, lb);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(0), gl.DYNAMIC_DRAW);
+    const stride = 13 * 4; // inner3 + outer3 + param3 + color4
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, stride, 0);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, stride, 12);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 3, gl.FLOAT, false, stride, 24);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 4, gl.FLOAT, false, stride, 36);
+    gl.bindVertexArray(null);
+    this.poiLineVao = lineVao;
+    this.poiLineBuf = lb;
   }
 
   resize(width: number, height: number): void {
@@ -357,13 +435,13 @@ export class WebGL2Renderer implements SceneRenderer {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
       const er = p.radius * vis;
-      this.drawSphere(p, p.center, er, p.rotationY, 0, p.paletteLow, p.paletteMid, p.paletteHigh, model, idxType);
+      this.drawSphere(p, p.center, er, p.orientation, 0, p.paletteLow, p.paletteMid, p.paletteHigh, model, idxType);
       for (const m of p.moons) {
         const orbit = m.orbitRadius * vis;
         const mx = p.center[0] + Math.cos(m.angle) * orbit;
         const mz = p.center[2] + Math.sin(m.angle) * orbit;
         const my = p.center[1] + Math.sin(m.angle * 0.5) * orbit * 0.2;
-        this.drawSphere(p, [mx, my, mz], m.size * vis, frame.time * 0.3, 0, p.paletteMid, p.paletteLow, p.paletteHigh, model, idxType);
+        this.drawSphere(p, [mx, my, mz], m.size * vis, quat.fromAxisAngle([0, 1, 0], frame.time * 0.3), 0, p.paletteMid, p.paletteLow, p.paletteHigh, model, idxType);
       }
     }
 
@@ -375,23 +453,36 @@ export class WebGL2Renderer implements SceneRenderer {
       for (const p of frame.planets) {
         if (!p.hasClouds) continue;
         if (p.visibility <= 0.02) continue;
-        this.drawSphere(p, p.center, p.radius * p.visibility * 1.04, p.rotationY * 0.6, 1, p.paletteHigh, p.paletteHigh, p.paletteHigh, model, idxType);
+        this.drawSphere(p, p.center, p.radius * p.visibility * 1.04, quat.multiply(p.orientation, quat.fromAxisAngle([0, 1, 0], frame.time * 0.03)), 1, p.paletteHigh, p.paletteHigh, p.paletteHigh, model, idxType);
       }
       gl.depthMask(true);
     }
 
-    // POIs (additive points, no depth test so they always show).
+    // POIs (additive points, depth-tested so planets occlude them).
     this.uploadPois(frame);
     if (this.poiCount > 0) {
-      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthMask(false);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
+      // Connector lines first, markers on top.
+      if (this.poiLineVerts > 0) {
+        gl.useProgram(this.line.prog);
+        gl.uniformMatrix4fv(this.line.uniforms.uViewProj!, false, frame.viewProj);
+        gl.uniform1f(this.line.uniforms.uAspect!, this.width / this.height);
+        gl.uniform1f(this.line.uniforms.uThick!, 0.0035);
+        gl.uniform1f(this.line.uniforms.uHeight!, this.height);
+        gl.bindVertexArray(this.poiLineVao);
+        gl.drawArrays(gl.TRIANGLES, 0, this.poiLineVerts);
+        this.stats.drawCalls++;
+      }
       gl.useProgram(this.point.prog);
       gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 1);
       gl.bindVertexArray(this.poiVao);
       gl.drawArrays(gl.POINTS, 0, this.poiCount);
+      gl.depthMask(true);
       this.stats.drawCalls++;
     }
 
@@ -403,7 +494,7 @@ export class WebGL2Renderer implements SceneRenderer {
     p: PlanetInstance,
     center: [number, number, number],
     radius: number,
-    rotationY: number,
+    rotation: Quat,
     kind: number,
     low: [number, number, number],
     mid: [number, number, number],
@@ -412,7 +503,7 @@ export class WebGL2Renderer implements SceneRenderer {
     idxType: number,
   ): void {
     const gl = this.gl;
-    mat4.fromRotationTranslationScale(model, quat.fromAxisAngle([0, 1, 0], rotationY), center, radius);
+    mat4.fromRotationTranslationScale(model, rotation, center, radius);
     gl.uniformMatrix4fv(this.planet.uniforms.uModel!, false, model);
     gl.uniform3fv(this.planet.uniforms.uLow!, low);
     gl.uniform3fv(this.planet.uniforms.uMid!, mid);
@@ -429,21 +520,46 @@ export class WebGL2Renderer implements SceneRenderer {
     const pos: number[] = [];
     const attr: number[] = [];
     const color: number[] = [];
+    const line: number[] = [];
+    // 6 vertices per connector quad: (side, end) pairs forming two triangles.
+    const ends = [0, 1, 1, 0, 1, 0];
+    const sides = [-1, -1, 1, -1, 1, 1];
     for (const p of frame.planets) {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
-      const rot = quat.fromAxisAngle([0, 1, 0], p.rotationY);
+      // Only the focused ("current") planet shows its POIs.
+      const fade = poiFocusFade(p.focus);
+      if (fade <= 0.001) continue;
+      const er = p.radius * vis;
+      const markerDist = poiMarkerDistance(er);
+      const rot = p.orientation;
       for (const poi of p.pois) {
         const dir = quat.rotateVec3(rot, poi.dir);
-        const world = vec3.add(p.center, vec3.scale(dir, p.radius * vis * 1.01));
-        const toCam = vec3.normalize(vec3.sub(frame.cameraPos, world));
-        const dim = vec3.dot(dir, toCam) > 0 ? 1.0 : 0.32;
-        pos.push(world[0], world[1], world[2]);
-        attr.push(120 * (0.7 + p.focus) * vis, dim, 0, 0);
+        const surfDir = quat.rotateVec3(rot, poi.surfaceDir);
+        const inner = vec3.add(p.center, vec3.scale(surfDir, er));
+        const outer = vec3.add(p.center, vec3.scale(dir, markerDist));
+        const dim = fade;
+        const sizePx = 90 * (0.7 + p.focus) * vis;
+        pos.push(outer[0], outer[1], outer[2]);
+        attr.push(sizePx, dim, 0, 0);
         color.push(poi.accent[0], poi.accent[1], poi.accent[2]);
+        // Connector quad: surface vertex (faint) -> rim vertex (bright).
+        const ar = poi.accent[0];
+        const ag = poi.accent[1];
+        const ab = poi.accent[2];
+        for (let v = 0; v < 6; v++) {
+          const isOuter = ends[v]! > 0.5;
+          line.push(
+            inner[0], inner[1], inner[2],
+            outer[0], outer[1], outer[2],
+            sides[v]!, ends[v]!, sizePx,
+            ar, ag, ab, dim * (isOuter ? 0.9 : 0.25),
+          );
+        }
       }
     }
     this.poiCount = pos.length / 3;
+    this.poiLineVerts = line.length / 13;
     if (this.poiCount === 0) return;
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.poiPos);
@@ -452,6 +568,8 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(attr), gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.poiColor);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(color), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.poiLineBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(line), gl.DYNAMIC_DRAW);
   }
 
   private estimateMemoryMB(): number {

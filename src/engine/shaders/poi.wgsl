@@ -24,7 +24,11 @@ fn vs(
 ) -> VSOut {
   var out : VSOut;
   let clip = frame.viewProj * vec4<f32>(center, 1.0);
-  out.pos = clip + vec4<f32>(corner * attribs.x * clip.w, 0.0, 0.0);
+  // Aspect-correct the x offset (misc.w = width/height) so the billboard
+  // stays a circle instead of stretching into an ellipse on resize.
+  let aspect = frame.misc.w;
+  let offset = vec2<f32>(corner.x / aspect, corner.y) * attribs.x * clip.w;
+  out.pos = clip + vec4<f32>(offset, 0.0, 0.0);
   out.uv = corner;
   out.accent = vec3<f32>(attribs.z, attribs.w, accentB);
   out.dim = attribs.y;
@@ -34,11 +38,10 @@ fn vs(
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let d = length(in.uv);
-  // Ring-like marker: bright rim, soft center, outer glow.
-  let ring = smoothstep(0.85, 0.6, d) - smoothstep(0.5, 0.3, d);
-  let glow = smoothstep(1.0, 0.0, d) * 0.5;
-  let pulse = 0.75 + 0.25 * sin(frame.misc.x * 3.0);
-  let a = clamp((ring + glow) * in.dim * pulse, 0.0, 1.0);
-  let col = (in.accent + vec3<f32>(0.2)) * a * 2.0;
-  return vec4<f32>(col, a);
+  // Thin white circle outline with screen-space derivative anti-aliasing.
+  let radius = 0.85;
+  let aa = fwidth(d);
+  let halfWidth = aa;
+  let alpha = (1.0 - smoothstep(halfWidth, halfWidth + aa, abs(d - radius))) * in.dim;
+  return vec4<f32>(vec3<f32>(alpha), alpha);
 }

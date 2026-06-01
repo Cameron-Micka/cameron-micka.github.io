@@ -1,5 +1,6 @@
 import type { Mat4 } from './math/mat4';
 import type { Vec3 } from './math/vec3';
+import type { Quat } from './math/quat';
 
 export type RendererBackend = 'webgpu' | 'webgl2';
 
@@ -20,7 +21,7 @@ export interface PlanetInstance {
   slug: string;
   center: Vec3;
   radius: number;
-  rotationY: number; // current spin angle (radians)
+  orientation: Quat; // full planet orientation (drag to rotate any direction)
   seed: number;
   // Three palette anchor colors (low / mid / high terrain), linear RGB 0..1.
   paletteLow: Vec3;
@@ -34,6 +35,9 @@ export interface PlanetInstance {
   pois: {
     slug: string;
     dir: Vec3;
+    // Where the connector line touches the surface: the POI direction nudged a
+    // few degrees off the closest point so connectors don't all meet dead-on.
+    surfaceDir: Vec3;
     accent: Vec3;
   }[];
   focus: number; // 0..1 how focused/foregrounded this planet is
