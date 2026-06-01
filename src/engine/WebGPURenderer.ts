@@ -387,7 +387,7 @@ export class WebGPURenderer implements SceneRenderer {
       attributes: [
         { shaderLocation: 1, offset: 0, format: 'float32x3' },
         { shaderLocation: 2, offset: 12, format: 'float32x4' },
-        { shaderLocation: 3, offset: 28, format: 'float32x4' },
+        { shaderLocation: 3, offset: 28, format: 'float32' },
       ],
     };
 
@@ -441,7 +441,7 @@ export class WebGPURenderer implements SceneRenderer {
       const x = Math.cos(theta) * r * radius;
       const y = u * radius;
       const z = Math.sin(theta) * r * radius;
-      const size = 0.06 + Math.pow(rand(), 3) * 0.5;
+      const size = 0.0009 + Math.pow(rand(), 3) * 0.0035;
       const phase = rand();
       const tintR = 0.7 + rand() * 0.3;
       const tintB = 0.8 + rand() * 0.2;
@@ -558,8 +558,11 @@ export class WebGPURenderer implements SceneRenderer {
 
     for (const p of frame.planets) {
       if (objIndex >= MAX_OBJECTS - 4) break;
+      const vis = p.visibility;
+      if (vis <= 0.02) continue; // fully hidden — skip planet, POIs, moons
+      const er = p.radius * vis;
       const rot = quat.fromAxisAngle([0, 1, 0], p.rotationY);
-      mat4.fromRotationTranslationScale(model, rot, p.center, p.radius);
+      mat4.fromRotationTranslationScale(model, rot, p.center, er);
       this.writeObject(
         objIndex,
         model,
@@ -577,14 +580,14 @@ export class WebGPURenderer implements SceneRenderer {
       objects.push({ kind: 0, index: objIndex });
       objIndex++;
 
-      this.collectPois(frame, p, poiData);
+      this.collectPois(frame, p, poiData, er, vis);
 
       if (p.hasClouds && frame.quality.clouds) {
         mat4.fromRotationTranslationScale(
           model,
           quat.fromAxisAngle([0, 1, 0], p.rotationY * 0.6),
           p.center,
-          p.radius * 1.04,
+          er * 1.04,
         );
         this.writeObject(
           objIndex,
@@ -606,7 +609,7 @@ export class WebGPURenderer implements SceneRenderer {
 
       if (p.hasRing && objIndex < MAX_OBJECTS) {
         const ringRot = quat.fromAxisAngle([1, 0, 0.2], p.ringTilt);
-        mat4.fromRotationTranslationScale(model, ringRot, p.center, p.radius);
+        mat4.fromRotationTranslationScale(model, ringRot, p.center, er);
         this.writeObject(
           objIndex,
           model,
@@ -627,14 +630,15 @@ export class WebGPURenderer implements SceneRenderer {
 
       for (const m of p.moons) {
         if (objIndex >= MAX_OBJECTS) break;
-        const mx = p.center[0] + Math.cos(m.angle) * m.orbitRadius;
-        const mz = p.center[2] + Math.sin(m.angle) * m.orbitRadius;
-        const my = p.center[1] + Math.sin(m.angle * 0.5) * m.orbitRadius * 0.2;
+        const orbit = m.orbitRadius * vis;
+        const mx = p.center[0] + Math.cos(m.angle) * orbit;
+        const mz = p.center[2] + Math.sin(m.angle) * orbit;
+        const my = p.center[1] + Math.sin(m.angle * 0.5) * orbit * 0.2;
         mat4.fromRotationTranslationScale(
           model,
           quat.fromAxisAngle([0, 1, 0], frame.time * 0.3),
           [mx, my, mz],
-          m.size,
+          m.size * vis,
         );
         this.writeObject(
           objIndex,
@@ -799,15 +803,17 @@ export class WebGPURenderer implements SceneRenderer {
     frame: FrameState,
     p: PlanetInstance,
     out: number[],
+    effectiveRadius: number,
+    vis: number,
   ): void {
     const rot = quat.fromAxisAngle([0, 1, 0], p.rotationY);
     for (const poi of p.pois) {
       const dir = quat.rotateVec3(rot, poi.dir);
-      const world = vec3.add(p.center, vec3.scale(dir, p.radius * 1.01));
+      const world = vec3.add(p.center, vec3.scale(dir, effectiveRadius * 1.01));
       const toCam = vec3.normalize(vec3.sub(frame.cameraPos, world));
       const facing = vec3.dot(dir, toCam);
       const dim = facing > 0 ? 1.0 : 0.32; // backside dimmed but visible
-      const size = 0.05 + 0.04 * p.focus;
+      const size = (0.05 + 0.04 * p.focus) * vis;
       out.push(
         world[0],
         world[1],

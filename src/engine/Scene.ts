@@ -61,6 +61,7 @@ export function instanceFromModel(
   time: number,
   rotationY: number,
   focus: number,
+  visibility: number,
 ): PlanetInstance {
   const f = model.company.features;
   return {
@@ -82,5 +83,6 @@ export function instanceFromModel(
     })),
     pois: model.poiDirs,
     focus,
+    visibility,
   };
 }

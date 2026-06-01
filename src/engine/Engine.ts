@@ -281,7 +281,13 @@ export class Engine {
     if (!r) return;
     const planets = this.models.map((m, i) => {
       const focus = clamp(1 - Math.abs(i - this.scrubCurrent) * 0.6, 0, 1);
-      return instanceFromModel(m, this.time, this.rotations[i] ?? 0, focus);
+      return instanceFromModel(
+        m,
+        this.time,
+        this.rotations[i] ?? 0,
+        focus,
+        this.planetVisibility(i),
+      );
     });
     const frame: FrameState = {
       time: this.time,
@@ -355,6 +361,7 @@ export class Engine {
     let hitIndex = -1;
     let hitT = Infinity;
     for (let i = 0; i < this.models.length; i++) {
+      if (this.planetVisibility(i) <= 0.2) continue; // hidden planets aren't pickable
       const m = this.models[i]!;
       const t = raySphere(ray, [0, 0, m.z], m.radius);
       if (t >= 0 && t < hitT) {
@@ -471,6 +478,14 @@ export class Engine {
 
   private reducedMotion(): boolean {
     return resolveReducedMotion(this.settings.reducedMotion);
+  }
+
+  // Planets more recent than the focused one (lower index, nearer the camera)
+  // fade out so only the selected planet and older ones behind it remain.
+  private planetVisibility(i: number): number {
+    const rel = this.scrubCurrent - i; // > 0 => planet i is more recent
+    if (rel <= 0.2) return 1;
+    return clamp(1 - (rel - 0.2) / 0.7, 0, 1);
   }
 
   private applyTier(q: QualitySettings): void {

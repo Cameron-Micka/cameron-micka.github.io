@@ -20,13 +20,13 @@ fn vs(
   @location(0) corner : vec2<f32>,   // unit quad -1..1
   @location(1) center : vec3<f32>,   // POI world position
   @location(2) attribs : vec4<f32>,  // x=size y=dim z=accentR w=accentG
-  @location(3) accentB : vec4<f32>,  // x=accentB
+  @location(3) accentB : f32,        // accentB
 ) -> VSOut {
   var out : VSOut;
   let clip = frame.viewProj * vec4<f32>(center, 1.0);
   out.pos = clip + vec4<f32>(corner * attribs.x * clip.w, 0.0, 0.0);
   out.uv = corner;
-  out.accent = vec3<f32>(attribs.z, attribs.w, accentB.x);
+  out.accent = vec3<f32>(attribs.z, attribs.w, accentB);
   out.dim = attribs.y;
   return out;
 }

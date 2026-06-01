@@ -354,12 +354,16 @@ export class WebGL2Renderer implements SceneRenderer {
     const idxType = this.sphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
     const model = mat4.create();
     for (const p of frame.planets) {
-      this.drawSphere(p, p.center, p.radius, p.rotationY, 0, p.paletteLow, p.paletteMid, p.paletteHigh, model, idxType);
+      const vis = p.visibility;
+      if (vis <= 0.02) continue;
+      const er = p.radius * vis;
+      this.drawSphere(p, p.center, er, p.rotationY, 0, p.paletteLow, p.paletteMid, p.paletteHigh, model, idxType);
       for (const m of p.moons) {
-        const mx = p.center[0] + Math.cos(m.angle) * m.orbitRadius;
-        const mz = p.center[2] + Math.sin(m.angle) * m.orbitRadius;
-        const my = p.center[1] + Math.sin(m.angle * 0.5) * m.orbitRadius * 0.2;
-        this.drawSphere(p, [mx, my, mz], m.size, frame.time * 0.3, 0, p.paletteMid, p.paletteLow, p.paletteHigh, model, idxType);
+        const orbit = m.orbitRadius * vis;
+        const mx = p.center[0] + Math.cos(m.angle) * orbit;
+        const mz = p.center[2] + Math.sin(m.angle) * orbit;
+        const my = p.center[1] + Math.sin(m.angle * 0.5) * orbit * 0.2;
+        this.drawSphere(p, [mx, my, mz], m.size * vis, frame.time * 0.3, 0, p.paletteMid, p.paletteLow, p.paletteHigh, model, idxType);
       }
     }
 
@@ -370,7 +374,8 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.depthMask(false);
       for (const p of frame.planets) {
         if (!p.hasClouds) continue;
-        this.drawSphere(p, p.center, p.radius * 1.04, p.rotationY * 0.6, 1, p.paletteHigh, p.paletteHigh, p.paletteHigh, model, idxType);
+        if (p.visibility <= 0.02) continue;
+        this.drawSphere(p, p.center, p.radius * p.visibility * 1.04, p.rotationY * 0.6, 1, p.paletteHigh, p.paletteHigh, p.paletteHigh, model, idxType);
       }
       gl.depthMask(true);
     }
@@ -425,14 +430,16 @@ export class WebGL2Renderer implements SceneRenderer {
     const attr: number[] = [];
     const color: number[] = [];
     for (const p of frame.planets) {
+      const vis = p.visibility;
+      if (vis <= 0.02) continue;
       const rot = quat.fromAxisAngle([0, 1, 0], p.rotationY);
       for (const poi of p.pois) {
         const dir = quat.rotateVec3(rot, poi.dir);
-        const world = vec3.add(p.center, vec3.scale(dir, p.radius * 1.01));
+        const world = vec3.add(p.center, vec3.scale(dir, p.radius * vis * 1.01));
         const toCam = vec3.normalize(vec3.sub(frame.cameraPos, world));
         const dim = vec3.dot(dir, toCam) > 0 ? 1.0 : 0.32;
         pos.push(world[0], world[1], world[2]);
-        attr.push(120 * (0.7 + p.focus), dim, 0, 0);
+        attr.push(120 * (0.7 + p.focus) * vis, dim, 0, 0);
         color.push(poi.accent[0], poi.accent[1], poi.accent[2]);
       }
     }

@@ -37,6 +37,7 @@ export interface PlanetInstance {
     accent: Vec3;
   }[];
   focus: number; // 0..1 how focused/foregrounded this planet is
+  visibility: number; // 0..1 fade; planets more recent than focus fade out
 }
 
 export interface FrameState {
