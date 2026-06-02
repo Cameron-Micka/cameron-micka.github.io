@@ -59,8 +59,8 @@ fn digitBits(d : i32) -> u32 {
 fn digitMask(uv : vec2<f32>, d : i32) -> f32 {
   // Glyph occupies roughly the central 60% wide x 90% tall of the marker,
   // leaving clearance from the outline ring at radius 0.85.
-  let halfW = 0.28;
-  let halfH = 0.42;
+  let halfW = 0.20;
+  let halfH = 0.30;
   // uv.y is screen-up (NDC convention); row 0 is at the top, so we invert y.
   let cx = (uv.x + halfW) / (halfW * 2.0) * 3.0;
   let cy = (halfH - uv.y) / (halfH * 2.0) * 5.0;

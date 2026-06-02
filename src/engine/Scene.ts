@@ -123,6 +123,7 @@ export function instanceFromModel(
     hasRing: f.rings,
     ringTilt: f.ringTilt,
     thinRing: f.thinRing,
+    oceans: f.oceans,
     moons: model.moonSpecs.map((m) => ({
       orbitRadius: m.orbitRadius,
       angle: m.phase + time * m.speed,

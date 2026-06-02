@@ -100,7 +100,7 @@ in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
-uniform float uSeed;uniform float uFocus;
+uniform float uSeed;uniform float uFocus;uniform float uOceans;
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
   vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
@@ -110,10 +110,24 @@ float vnoise(vec3 x){
 }
 float fbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vnoise(p);p*=2.03;a*=.5;}return v;}
 vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
+// --- Cook-Torrance PBR helpers (mirror of planet.wgsl) ---
+const float PI=3.14159265359;
+float dGGX(float NdH,float r){float a=r*r;float a2=a*a;float f=NdH*NdH*(a2-1.0)+1.0;return a2/(PI*f*f);}
+float gSchlickGGX(float NdX,float r){float k=(r+1.0);k=(k*k)*0.125;return NdX/(NdX*(1.0-k)+k);}
+float gSmith(float NdV,float NdL,float r){return gSchlickGGX(NdV,r)*gSchlickGGX(NdL,r);}
+vec3 fSchlick(float c,vec3 F0){float f=pow(clamp(1.0-c,0.0,1.0),5.0);return F0+(vec3(1.0)-F0)*f;}
+// Distance fog (shared across planet, atmosphere): exp-squared falloff.
+// Density tuned for PLANET_SPACING=9 / VIEW_DISTANCE=8.5 so the focused
+// planet stays crisp and planets two or three slots away noticeably fade.
+const float FOG_DENSITY=0.030;
+const vec3 FOG_COLOR=vec3(0.04,0.06,0.14);
+float fogFactor(vec3 worldPos,vec3 camPos){
+  float d=distance(worldPos,camPos);float s=d*FOG_DENSITY;return 1.0-exp(-s*s);
+}
 void main(){
   vec3 n=normalize(vNrm);
   vec3 viewDir=normalize(uCamera-vWorld);
-  float ndl=clamp(dot(n,normalize(uLight)),0.0,1.0);
+  vec3 lightDir=normalize(uLight);
   float rim=pow(1.0-clamp(dot(n,viewDir),0.0,1.0),3.0);
   // Two-level fBm domain warping (after Inigo Quilez,
   // https://iquilezles.org/articles/warp/) — 3D so it samples cleanly on the
@@ -124,19 +138,48 @@ void main(){
   vec3 warpQ=sp+2.5*q;
   vec3 r=vec3(fbm(warpQ+vec3(1.7,9.2,3.5)),fbm(warpQ+vec3(8.3,2.8,4.1)),fbm(warpQ+vec3(4.7,7.7,1.9)));
   float h=clamp(fbm(sp+2.5*r),0.0,1.0);
-  vec3 base=mix(uLow,uMid,smoothstep(0.25,0.55,h));
-  base=mix(base,uHigh,smoothstep(0.6,0.85,h));
+  vec3 land=mix(uLow,uMid,smoothstep(0.25,0.55,h));
+  land=mix(land,uHigh,smoothstep(0.6,0.85,h));
   // q magnitude darkens "trench" pockets, r magnitude brightens "highland"
   // streaks. Subtle so the authored palette still drives planet identity.
   float qLen=clamp(length(q)*0.55,0.0,1.0);
   float rLen=clamp(length(r)*0.55,0.0,1.0);
-  base=mix(base,uLow*0.55,qLen*0.22);
-  base=mix(base,uHigh*1.15,rLen*0.20);
-  vec3 col=base*(0.12+0.95*ndl);
-  col+=uHigh*rim*(0.6+0.8*ndl);
-  vec3 hlf=normalize(normalize(uLight)+viewDir);
-  col+=vec3(pow(clamp(dot(n,hlf),0.0,1.0),32.0)*0.25*ndl);
+  land=mix(land,uLow*0.55,qLen*0.22);
+  land=mix(land,uHigh*1.15,rLen*0.20);
+  // Oceans: smooth depth-graded blue under sea level on ocean planets.
+  float seaLevel=0.50;
+  float waterMask=uOceans*(1.0-smoothstep(seaLevel-0.02,seaLevel+0.02,h));
+  vec3 deepOcean=vec3(0.015,0.05,0.16);
+  vec3 shallowOcean=vec3(0.18,0.42,0.70);
+  float depth=smoothstep(0.0,seaLevel,h);
+  vec3 water=mix(deepOcean,shallowOcean,depth);
+  vec3 base=mix(land,water,waterMask);
+  // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
+  // (roughness 0.12, F0 0.02 for IOR ~1.33); land = rough dielectric.
+  vec3 albedo=base;
+  float metallic=0.0;
+  float roughness=mix(0.92,0.12,waterMask);
+  vec3 F0base=mix(vec3(0.04),vec3(0.02),waterMask);
+  vec3 F0=mix(F0base,albedo,metallic);
+  vec3 L=lightDir;vec3 V=viewDir;vec3 H=normalize(L+V);
+  float NdL=clamp(dot(n,L),0.0,1.0);
+  float NdV=max(dot(n,V),1e-4);
+  float NdH=clamp(dot(n,H),0.0,1.0);
+  float VdH=clamp(dot(V,H),0.0,1.0);
+  float D=dGGX(NdH,roughness);
+  float G=gSmith(NdV,NdL,roughness);
+  vec3 F=fSchlick(VdH,F0);
+  vec3 specular=(D*G)*F/max(4.0*NdV*NdL,1e-3);
+  vec3 kS=F;
+  vec3 kD=(vec3(1.0)-kS)*(1.0-metallic);
+  // Pre-multiply sun radiance by PI so diffuse simplifies to kD*albedo*NdL.
+  vec3 sunRadiance=vec3(PI);
+  vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL;
+  vec3 ambient=albedo*0.01;
+  vec3 col=ambient+direct;
+  col+=uHigh*rim*NdL*0.55;
   col*=(0.85+0.3*uFocus);
+  col=mix(col,FOG_COLOR,fogFactor(vWorld,uCamera));
   frag=vec4(aces(col),1.0);
 }`;
 
@@ -179,7 +222,7 @@ int digitBits(int d){
 }
 float digitMask(vec2 uv,int d){
   // gl_PointCoord origin is upper-left, so uv.y=-1 is the top of the marker.
-  float halfW=0.28;float halfH=0.42;
+  float halfW=0.20;float halfH=0.30;
   float cx=(uv.x+halfW)/(halfW*2.0)*3.0;
   float cy=(uv.y+halfH)/(halfH*2.0)*5.0;
   if(cx<0.0||cx>=3.0||cy<0.0||cy>=5.0)return 0.0;
@@ -294,15 +337,26 @@ void main(){
     vec3 pos=ro+rd*t;vec3 up=pos-uCenter;float r=length(up);
     float hgt=clamp((r-uInner)/thickness,0.0,1.0);
     float density=exp(-hgt*4.0);
-    float sunAmt=smoothstep(-0.1,0.35,dot(normalize(up),sun));
+    // Sun gate starts past the terminator so night-side samples contribute 0.
+    float sunAmt=smoothstep(0.05,0.40,dot(normalize(up),sun));
     dayGlow+=density*sunAmt*dt;ambient+=density*dt;
   }
   dayGlow/=thickness;ambient/=thickness;
   vec3 atmoColor=mix(uColor,vec3(0.45,0.62,1.0),0.5);
   float intensity=uIntensity*(0.85+0.3*uFocus);
-  vec3 col=atmoColor*(dayGlow*1.5+ambient*0.12)*intensity;
-  float mie=pow(max(dot(rd,sun),0.0),8.0)*dayGlow*0.6;
+  // Limb-sun gate (cubed) zeroes shell on night-side limb rays.
+  float tLimb=max(0.0,-dot(ro-uCenter,rd));
+  vec3 limbPos=ro+rd*tLimb;
+  vec3 limbNormal=normalize(limbPos-uCenter);
+  float limbSunRaw=smoothstep(0.10,0.40,dot(limbNormal,sun));
+  float limbSun=limbSunRaw*limbSunRaw*limbSunRaw;
+  vec3 col=atmoColor*dayGlow*0.55*intensity;
+  float mie=pow(max(dot(rd,sun),0.0),8.0)*dayGlow*0.22;
   col+=atmoColor*mie*intensity;
+  col*=limbSun;
+  // Distance fog (additive shell -> attenuate).
+  float dist=distance(vWorld,ro);float fs=dist*0.030;
+  col*=exp(-fs*fs);
   frag=vec4(aces(col),1.0);
 }`;
 
@@ -364,7 +418,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uAspect']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
-      'uSeed', 'uFocus',
+      'uSeed', 'uFocus', 'uOceans',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
       'uViewProj', 'uTime', 'uMode',
@@ -614,7 +668,7 @@ export class WebGL2Renderer implements SceneRenderer {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
       const er = p.radius * vis;
-      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, model, idxType);
+      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, model, idxType);
       for (const m of p.moons) {
         const orbit = m.orbitRadius * vis;
         // Moon orbit offset lives in the planet's local frame; rotate it by
@@ -638,6 +692,7 @@ export class WebGL2Renderer implements SceneRenderer {
           MOON_ROCK_LOW,
           MOON_ROCK_MID,
           MOON_ROCK_HIGH,
+          false,
           model,
           idxType,
         );
@@ -715,6 +770,7 @@ export class WebGL2Renderer implements SceneRenderer {
     low: [number, number, number],
     mid: [number, number, number],
     high: [number, number, number],
+    oceans: boolean,
     model: Float32Array,
     idxType: number,
   ): void {
@@ -726,6 +782,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform3fv(this.planet.uniforms.uHigh!, high);
     gl.uniform1f(this.planet.uniforms.uSeed!, p.seed % 100000);
     gl.uniform1f(this.planet.uniforms.uFocus!, p.focus);
+    gl.uniform1f(this.planet.uniforms.uOceans!, oceans ? 1 : 0);
     gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
     this.stats.drawCalls++;
     this.stats.triangles += this.sphereCount / 3;

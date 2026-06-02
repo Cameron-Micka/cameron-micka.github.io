@@ -15,7 +15,7 @@ struct Obj {
   palLow : vec4<f32>,
   palMid : vec4<f32>,
   palHigh : vec4<f32>,
-  p1 : vec4<f32>, // x=focus, y=hasAtmosphere, z=rotationY, w=unused
+  p1 : vec4<f32>, // x=focus, y=hasAtmosphere, z=rotationY, w=oceans flag
 };
 
 @group(0) @binding(0) var<uniform> frame : Frame;
@@ -82,13 +82,55 @@ fn fbm(p : vec3<f32>) -> f32 {
   return v;
 }
 
+// --- Cook-Torrance PBR helpers ---
+// Standard real-time GGX BRDF (Walter et al. 2007 / Karis 2013). Lets land
+// and water share one lighting path while their roughness/F0 alone shape the
+// difference: smooth water -> tight Fresnel-driven glint, rough land -> matte.
+const PI : f32 = 3.14159265359;
+
+fn dGGX(NdH : f32, roughness : f32) -> f32 {
+  let a = roughness * roughness;
+  let a2 = a * a;
+  let f = (NdH * NdH) * (a2 - 1.0) + 1.0;
+  return a2 / (PI * f * f);
+}
+
+fn gSchlickGGX(NdX : f32, roughness : f32) -> f32 {
+  // k for direct (analytic) lighting = (r+1)^2 / 8
+  let r = roughness + 1.0;
+  let k = (r * r) * 0.125;
+  return NdX / (NdX * (1.0 - k) + k);
+}
+
+fn gSmith(NdV : f32, NdL : f32, roughness : f32) -> f32 {
+  return gSchlickGGX(NdV, roughness) * gSchlickGGX(NdL, roughness);
+}
+
+fn fSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
+  let f = pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+  return F0 + (vec3<f32>(1.0) - F0) * f;
+}
+
+// Distance fog: exp-squared falloff (~"GL_EXP2") so near-camera fragments
+// are essentially untouched and far fragments smoothly drown into the haze
+// colour. Density tuned for PLANET_SPACING=9 / VIEW_DISTANCE=8.5 so the
+// focused planet stays crisp and planets two or three slots away noticeably
+// fade. Shared by planet/ring/atmosphere shaders.
+const FOG_DENSITY : f32 = 0.030;
+const FOG_COLOR : vec3<f32> = vec3<f32>(0.04, 0.06, 0.14);
+
+fn fogFactor(worldPos : vec3<f32>, cameraPos : vec3<f32>) -> f32 {
+  let d = distance(worldPos, cameraPos);
+  let s = d * FOG_DENSITY;
+  return 1.0 - exp(-s * s);
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let seed = obj.p0.y;
   let n = normalize(in.nrm);
   let viewDir = normalize(frame.cameraPos.xyz - in.worldPos);
   let lightDir = normalize(frame.keyLightDir.xyz);
-  let ndl = clamp(dot(n, lightDir), 0.0, 1.0);
   let rim = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 3.0);
 
   // Two-level fBm domain warping (after Inigo Quilez,
@@ -110,29 +152,74 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     fbm(warpQ + vec3<f32>(4.7, 7.7, 1.9)),
   );
   let height = clamp(fbm(basePos + 2.5 * r), 0.0, 1.0);
-  var base = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.25, 0.55, height));
-  base = mix(base, obj.palHigh.rgb, smoothstep(0.6, 0.85, height));
+  var land = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.25, 0.55, height));
+  land = mix(land, obj.palHigh.rgb, smoothstep(0.6, 0.85, height));
   // IQ-style color modulation from the warp magnitudes — q drives darker
   // "trench" pockets, r drives brighter "highland" streaks. Both are kept
   // subtle so the authored low/mid/high palette still defines the planet.
   let qLen = clamp(length(q) * 0.55, 0.0, 1.0);
   let rLen = clamp(length(r) * 0.55, 0.0, 1.0);
-  base = mix(base, obj.palLow.rgb * 0.55, qLen * 0.22);
-  base = mix(base, obj.palHigh.rgb * 1.15, rLen * 0.20);
+  land = mix(land, obj.palLow.rgb * 0.55, qLen * 0.22);
+  land = mix(land, obj.palHigh.rgb * 1.15, rLen * 0.20);
 
-  // Terminator shading + a touch of rim/key fill.
-  let shade = 0.12 + 0.95 * ndl;
-  var color = base * shade;
+  // Oceans: at low elevation on ocean planets, replace the textured land
+  // with a smooth depth-graded blue. Hardcoded ocean palette keeps water
+  // recognisable regardless of the planet's authored land palette.
+  let oceans = obj.p1.w;
+  let seaLevel = 0.50;
+  let waterMask = oceans * (1.0 - smoothstep(seaLevel - 0.02, seaLevel + 0.02, height));
+  let deepOcean = vec3<f32>(0.015, 0.05, 0.16);
+  let shallowOcean = vec3<f32>(0.18, 0.42, 0.70);
+  let depth = smoothstep(0.0, seaLevel, height);
+  let water = mix(deepOcean, shallowOcean, depth);
+  let base = mix(land, water, waterMask);
+
+  // --- Cook-Torrance PBR direct lighting from the key sun ---
+  // Per-pixel material: water is a smooth dielectric (low roughness, low F0
+  // ~ water IOR 1.33 -> F0 0.02); land is a rough dielectric (high roughness,
+  // F0 0.04). Both share a single lighting path so the glint shape and the
+  // matte response come purely from the material parameters.
+  let albedo = base;
+  let metallic = 0.0;
+  let roughness = mix(0.92, 0.12, waterMask);
+  let F0base = mix(vec3<f32>(0.04), vec3<f32>(0.02), waterMask);
+  let F0 = mix(F0base, albedo, metallic);
+
+  let L = lightDir;
+  let V = viewDir;
+  let H = normalize(L + V);
+  let NdL = clamp(dot(n, L), 0.0, 1.0);
+  let NdV = max(dot(n, V), 1e-4);
+  let NdH = clamp(dot(n, H), 0.0, 1.0);
+  let VdH = clamp(dot(V, H), 0.0, 1.0);
+
+  let D = dGGX(NdH, roughness);
+  let G = gSmith(NdV, NdL, roughness);
+  let F = fSchlick(VdH, F0);
+
+  let specular = (D * G) * F / max(4.0 * NdV * NdL, 1e-3);
+  let kS = F;
+  let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
+
+  // Sun radiance pre-multiplied by PI so that diffuse simplifies to
+  // kD * albedo * NdL (matches the look of the previous Lambert-ish shader
+  // at NdL=1) while the specular term retains its physical units.
+  let sunRadiance = vec3<f32>(PI);
+  let direct = (kD * albedo / PI + specular) * sunRadiance * NdL;
+
+  // Very faint ambient so the unlit hemisphere reads as deep shadow without
+  // being pitch black — surface noise stays just barely legible.
+  let ambient = albedo * 0.01;
+  var color = ambient + direct;
+
   let atmoStrength = obj.p1.y;
-  let atmo = obj.palHigh.rgb * rim * (0.6 + 0.8 * ndl) * atmoStrength;
+  // Multiplied by NdL (not (a + b*NdL)) so the rim fresnel fully zeroes on
+  // the unlit side instead of leaving a faint constant glow there.
+  let atmo = obj.palHigh.rgb * rim * NdL * 0.55 * atmoStrength;
   color = color + atmo;
 
-  // Specular pinpoint highlight.
-  let half = normalize(lightDir + viewDir);
-  let spec = pow(clamp(dot(n, half), 0.0, 1.0), 32.0) * 0.25 * ndl;
-  color = color + vec3<f32>(spec);
-
-  // Slight brightness boost for focused planets.
   color = color * (0.85 + 0.3 * obj.p1.x);
+  let f = fogFactor(in.worldPos, frame.cameraPos.xyz);
+  color = mix(color, FOG_COLOR, f);
   return vec4<f32>(color, 1.0);
 }

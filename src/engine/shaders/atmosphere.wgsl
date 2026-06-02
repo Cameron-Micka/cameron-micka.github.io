@@ -91,7 +91,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let r = length(up);
     let hgt = clamp((r - innerR) / thickness, 0.0, 1.0);
     let density = exp(-hgt * 4.0);
-    let sunAmt = smoothstep(-0.1, 0.35, dot(normalize(up), sun));
+    // Sun gate starts past the terminator so night-side samples contribute 0.
+    let sunAmt = smoothstep(0.05, 0.40, dot(normalize(up), sun));
     dayGlow = dayGlow + density * sunAmt * dt;
     ambient = ambient + density * dt;
   }
@@ -102,11 +103,29 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let focus = obj.p1.x;
   let intensity = obj.p1.y * (0.85 + 0.3 * focus);
 
-  var col = atmoColor * (dayGlow * 1.5 + ambient * 0.12) * intensity;
+  // Limb-sun gate: zero the whole shell on rays whose closest approach to
+  // the planet center sits on the night-side hemisphere. Cubed so values
+  // near the terminator are aggressively pushed toward zero, keeping the
+  // bright-side rim intact while the night-side rim fully disappears.
+  let tLimb = max(0.0, -dot(ro - center, rd));
+  let limbPos = ro + rd * tLimb;
+  let limbNormal = normalize(limbPos - center);
+  let limbSunRaw = smoothstep(0.10, 0.40, dot(limbNormal, sun));
+  let limbSun = limbSunRaw * limbSunRaw * limbSunRaw;
+
+  var col = atmoColor * dayGlow * 0.55 * intensity;
 
   // Subtle forward (Mie) scatter where we look toward the sun through the shell.
-  let mie = pow(max(dot(rd, sun), 0.0), 8.0) * dayGlow * 0.6;
+  let mie = pow(max(dot(rd, sun), 0.0), 8.0) * dayGlow * 0.22;
   col = col + atmoColor * mie * intensity;
+
+  col = col * limbSun;
+
+  // Distance fog (matches planet + ring): additive shell, so just attenuate
+  // the contribution rather than mixing toward a colour.
+  let dist = distance(in.worldPos, ro);
+  let s = dist * 0.030;
+  col = col * exp(-s * s);
 
   return vec4<f32>(col, 1.0);
 }

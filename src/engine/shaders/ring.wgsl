@@ -23,6 +23,7 @@ struct VSOut {
   @builtin(position) pos : vec4<f32>,
   @location(0) radial : f32, // 0 inner .. 1 outer
   @location(1) angle : f32,  // 0..2π around the ring
+  @location(2) worldPos : vec3<f32>,
 };
 
 @vertex
@@ -36,6 +37,7 @@ fn vs(
   out.pos = frame.viewProj * world;
   out.radial = uv.x;
   out.angle = uv.y * 6.2831853;
+  out.worldPos = world.xyz;
   return out;
 }
 
@@ -124,5 +126,10 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
 
   let a = edge * (0.18 + 0.55 * opaq) * (0.5 + 0.5 * obj.p1.x);
   let col = mix(obj.palMid.rgb * 0.75, obj.palHigh.rgb, smoothstep(0.2, 0.85, density));
-  return vec4<f32>(col * a * 1.4, a);
+  // Distance fog: attenuate both colour and alpha so distant rings fade into
+  // the nebula instead of stamping silhouettes over far-off planets.
+  let d = distance(in.worldPos, frame.cameraPos.xyz);
+  let s = d * 0.030;
+  let fade = exp(-s * s);
+  return vec4<f32>(col * a * 1.4 * fade, a * fade);
 }

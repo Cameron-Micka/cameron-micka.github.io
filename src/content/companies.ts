@@ -19,7 +19,7 @@ const raw: CompanyInput[] = [
       'rendering tooling, and developer experience for mixed reality.',
     seed: 'microsoft-mesh-mrtk-hololens',
     palette: { low: '#0a2a4a', mid: '#1f6fb2', high: '#7ad6ff' },
-    features: { rings: false, ringTilt: 0.4, moons: 2 },
+    features: { rings: false, ringTilt: 0.4, oceans: true, moons: 2 },
     pois: [
       {
         slug: 'mrtk-graphics-tools',
@@ -133,7 +133,7 @@ const raw: CompanyInput[] = [
       'small games and rendering experiments while wearing every hat.',
     seed: 'micka-studios-founder',
     palette: { low: '#2a0a3a', mid: '#7c3ed2', high: '#d9b3ff' },
-    features: { rings: false, ringTilt: 0.4, moons: 1 },
+    features: { rings: false, ringTilt: 0.4, oceans: true, moons: 1 },
     pois: [
       {
         slug: 'indie-projects',

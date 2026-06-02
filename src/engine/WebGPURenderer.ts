@@ -697,6 +697,7 @@ export class WebGPURenderer implements SceneRenderer {
         p.focus,
         1,
         0,
+        p.oceans ? 1 : 0,
       );
       objects.push({ kind: 0, index: objIndex });
       objIndex++;
