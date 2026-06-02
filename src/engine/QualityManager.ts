@@ -1,23 +1,15 @@
 import type { QualitySettings, QualityTier } from './types';
 
 export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
-  ultra: {
-    tier: 'ultra',
+  high: {
+    tier: 'high',
     dprCap: 2,
     starCount: 10000,
     ssao: true,
     clouds: true,
     chromaticAberration: true,
     bloomMips: 3,
-  },
-  high: {
-    tier: 'high',
-    dprCap: 1.5,
-    starCount: 5000,
-    ssao: true,
-    clouds: true,
-    chromaticAberration: true,
-    bloomMips: 3,
+    msaa: 4,
   },
   med: {
     tier: 'med',
@@ -27,6 +19,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     clouds: true,
     chromaticAberration: true,
     bloomMips: 2,
+    msaa: 4,
   },
   low: {
     tier: 'low',
@@ -36,6 +29,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     clouds: false,
     chromaticAberration: false,
     bloomMips: 1,
+    msaa: 1,
   },
   webgl2: {
     tier: 'webgl2',
@@ -45,6 +39,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     clouds: true,
     chromaticAberration: false,
     bloomMips: 1,
+    msaa: 1,
   },
 };
 
@@ -79,8 +74,7 @@ export class QualityManager {
     this.probing = false;
     const median = this.median();
     let tier: QualityTier = 'low';
-    if (median <= 12) tier = 'ultra';
-    else if (median <= 17) tier = 'high';
+    if (median <= 17) tier = 'high';
     else if (median <= 25) tier = 'med';
     this.onResolved?.(tier);
     this.onResolved = null;

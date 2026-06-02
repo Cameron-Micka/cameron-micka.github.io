@@ -47,6 +47,7 @@ export interface EngineSnapshot {
   sound: boolean;
   reducedMotion: ReducedMotionPref;
   debugHud: boolean;
+  wireframe: boolean;
   stats: RenderStats & { fps: number };
 }
 
@@ -320,6 +321,7 @@ export class Engine {
       quality: this.activeQuality,
       blur: this.blurCurrent,
       reducedMotion: this.reducedMotion(),
+      wireframe: this.settings.wireframe,
     };
     r.render(frame);
   }
@@ -397,40 +399,48 @@ export class Engine {
         hitIndex = i;
       }
     }
-    if (hitIndex < 0) return;
-
-    const model = this.models[hitIndex]!;
-    const center: Vec3 = [0, 0, model.z];
-    const rot = this.orientations[hitIndex] ?? quat.identity();
-    const pickR = model.radius * 0.16 * (this.coarsePointer ? 1.8 : 1);
 
     // POIs are only active on the focused ("current") planet, matching what's
-    // rendered. Clicking any other planet simply navigates to it.
+    // rendered. They float beside the planet, so test them independently of the
+    // planet hit — otherwise a marker off to the side (not overlapping the
+    // planet disk) would never be clickable.
     let bestPoi = -1;
     let bestT = Infinity;
-    if (hitIndex === this.focusedIndex) {
+    const focused = this.focusedIndex;
+    if (focused >= 0 && this.planetVisibility(focused) > 0.2) {
+      const model = this.models[focused]!;
+      const center: Vec3 = [0, 0, model.z];
+      const rot = this.orientations[focused] ?? quat.identity();
+      const pickR = model.radius * 0.16 * (this.coarsePointer ? 1.8 : 1);
       const markerDist = poiMarkerDistance(model.radius);
+      // Distance to the planet body along this ray, used to reject only POIs
+      // that are genuinely hidden behind the planet (true backside). Markers on
+      // the horizon are pulled outside the silhouette and stay clickable.
+      const planetT = raySphere(ray, center, model.radius);
       for (let i = 0; i < model.poiDirs.length; i++) {
         const poi = model.poiDirs[i]!;
         const dir = quat.rotateVec3(rot, poi.dir);
         const world = vec3.add(center, vec3.scale(dir, markerDist));
-        const toCam = vec3.normalize(vec3.sub(this.camera.position, world));
-        if (vec3.dot(dir, toCam) <= 0.05) continue; // camera-facing only
         const t = raySphere(ray, world, pickR);
-        if (t >= 0 && t < bestT) {
+        if (t < 0) continue;
+        if (planetT >= 0 && planetT < t) continue; // occluded by the planet body
+        if (t < bestT) {
           bestT = t;
           bestPoi = i;
         }
       }
     }
 
+    // A clicked POI marker (in front of the planet) wins over the planet body.
     if (bestPoi >= 0) {
+      const model = this.models[focused]!;
       const poi = model.poiDirs[bestPoi]!;
-      this.scrubTarget = hitIndex;
+      this.scrubTarget = focused;
       this.openPoiRef(model.company.slug, poi.slug);
-    } else {
-      this.jumpToPlanet(hitIndex);
+      return;
     }
+
+    if (hitIndex >= 0) this.jumpToPlanet(hitIndex);
   }
 
   // ---- public API for React / routing ----
@@ -503,6 +513,12 @@ export class Engine {
     this.commit();
   }
 
+  setWireframe(on: boolean): void {
+    this.settings.wireframe = on;
+    saveSettings(this.settings);
+    this.commit();
+  }
+
   skipIntro(): void {
     this.onUserInteract();
   }
@@ -561,6 +577,7 @@ export class Engine {
       sound: this.settings.sound,
       reducedMotion: this.settings.reducedMotion,
       debugHud: this.settings.debugHud,
+      wireframe: this.settings.wireframe,
       stats: { ...stats, fps: Math.round(this.fps) },
     };
   }

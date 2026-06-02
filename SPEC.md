@@ -144,7 +144,7 @@ POIs are positioned on each planet's sphere using **Poisson-disk sampling on the
 
 - **Nebula skybox:** A procedural 2D noise / smoothed gradient shader on a large inward-facing sphere or a single fullscreen quad behind everything.
 - **Star sprites:** ~5,000–10,000 instanced point sprites on a distant inward-facing shell. Each instance has a per-vertex phase (from `instance_index`) for subtle twinkle. Parallax via slight camera-relative offset.
-- Star count tier-scaled (Ultra: 10k, High: 5k, Med: 2k, Low: 0).
+- Star count tier-scaled (High: 10k, Med: 2k, Low: 0).
 
 ### 3.8 Post-processing
 
@@ -401,17 +401,17 @@ Because backside POIs are visible (just dimmed), users may try to click them. **
 
 ### 7.7 Quality presets
 
-| Preset    | DPR cap | Stars | SSAO | Clouds | CA  | Bloom mips | Notes              |
-| --------- | ------- | ----- | ---- | ------ | --- | ---------- | ------------------ |
-| Ultra     | 2.0     | 10k   | on   | on     | on  | 3          | Default if probe passes |
-| High      | 1.5     | 5k    | on   | on     | on  | 3          |                    |
-| Med       | 1.25    | 2k    | off  | on     | on  | 2          |                    |
-| Low       | 1.0     | 0     | off  | off    | off | 1          | Hard fallback      |
-| WebGL2    | 1.0     | 2k    | off  | on     | off | 1          | The fallback renderer always runs at this fidelity ceiling |
+| Preset    | DPR cap | Stars | SSAO | Clouds | CA  | Bloom mips | MSAA | Notes              |
+| --------- | ------- | ----- | ---- | ------ | --- | ---------- | ---- | ------------------ |
+| High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Default if probe passes |
+| Med       | 1.25    | 2k    | off  | on     | on  | 2          | 4x   |                    |
+| Low       | 1.0     | 0     | off  | off    | off | 1          | off  | Hard fallback      |
+| WebGL2    | 1.0     | 2k    | off  | on     | off | 1          | off  | The fallback renderer always runs at this fidelity ceiling |
+
+> MSAA applies to the WebGPU scene pass only. WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x.
 
 **Selection:** On first load, run a 5-second perf probe (render the scene normally, measure median frame time). Map the result to a tier:
 
-- ≤ 12ms → Ultra
 - ≤ 17ms → High
 - ≤ 25ms → Med
 - otherwise → Low
@@ -483,10 +483,11 @@ Triggered by the gear icon top-right. Modal-style panel (smaller than POI modal,
 
 | Setting          | Options                                                | Default        |
 | ---------------- | ------------------------------------------------------ | -------------- |
-| Quality          | Auto (probe), Ultra, High, Med, Low, WebGL2 (force)    | Auto           |
+| Quality          | Auto (probe), High, Med, Low, WebGL2 (force)           | Auto           |
 | Sound            | On / Off                                               | Off            |
 | Reduced motion   | Auto (follow OS), Force on, Force off                  | Auto           |
 | Debug HUD        | On / Off                                               | Off            |
+| Wireframe        | On / Off (debug: renders scene meshes as wireframe)   | Off            |
 
 All settings persist to `localStorage` under the key `cm-portfolio-settings`.
 

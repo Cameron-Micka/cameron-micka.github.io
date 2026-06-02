@@ -4,7 +4,7 @@ import type { Quat } from './math/quat';
 
 export type RendererBackend = 'webgpu' | 'webgl2';
 
-export type QualityTier = 'ultra' | 'high' | 'med' | 'low' | 'webgl2';
+export type QualityTier = 'high' | 'med' | 'low' | 'webgl2';
 
 export interface QualitySettings {
   tier: QualityTier;
@@ -14,6 +14,7 @@ export interface QualitySettings {
   clouds: boolean;
   chromaticAberration: boolean;
   bloomMips: number;
+  msaa: number; // MSAA sample count: 1 = off, 2, or 4
 }
 
 // Per-planet data the renderer needs to draw one planet (+ optional ring/moons).
@@ -56,6 +57,7 @@ export interface FrameState {
   // 0 = live scene, 1 = fully blurred frozen snapshot (modal open).
   blur: number;
   reducedMotion: boolean;
+  wireframe: boolean;
 }
 
 // Stats surfaced to the debug HUD.

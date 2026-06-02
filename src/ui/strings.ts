@@ -33,6 +33,8 @@ export const UI = {
   errorBody: 'The 3D experience failed to start. The details below may help.',
   reload: 'Reload',
   close: 'Close',
+  expand: 'Expand',
+  collapse: 'Collapse',
   settings: 'Settings',
   blogSoon: 'Writing is on the way. Check back soon.',
 };

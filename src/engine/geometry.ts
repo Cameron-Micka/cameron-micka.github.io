@@ -71,3 +71,31 @@ export function interleave(geo: GeometryData): Float32Array<ArrayBuffer> {
   }
   return out;
 }
+
+// Convert a triangle index list into a deduplicated edge (line-list) index
+// list: each triangle contributes its three edges, shared edges emitted once.
+// Used to draw meshes as wireframe.
+export function trianglesToLineIndices(
+  indices: Uint16Array<ArrayBuffer> | Uint32Array<ArrayBuffer>,
+  vertexCount: number,
+): Uint16Array<ArrayBuffer> | Uint32Array<ArrayBuffer> {
+  const seen = new Set<number>();
+  const out: number[] = [];
+  const addEdge = (a: number, b: number) => {
+    const key = Math.min(a, b) * vertexCount + Math.max(a, b);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(a, b);
+  };
+  for (let i = 0; i < indices.length; i += 3) {
+    const a = indices[i]!;
+    const b = indices[i + 1]!;
+    const c = indices[i + 2]!;
+    addEdge(a, b);
+    addEdge(b, c);
+    addEdge(c, a);
+  }
+  return vertexCount > 65535 ? new Uint32Array(out) : new Uint16Array(out);
+}
+
+

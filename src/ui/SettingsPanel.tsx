@@ -21,7 +21,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           }
         >
           <option value="auto">Auto</option>
-          <option value="ultra">Ultra</option>
           <option value="high">High</option>
           <option value="med">Medium</option>
           <option value="low">Low</option>
@@ -60,6 +59,16 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           type="checkbox"
           checked={s.debugHud}
           onChange={(e) => engine.setDebugHud(e.target.checked)}
+        />
+      </div>
+
+      <div className="row">
+        <label htmlFor="set-wireframe">Wireframe</label>
+        <input
+          id="set-wireframe"
+          type="checkbox"
+          checked={s.wireframe}
+          onChange={(e) => engine.setWireframe(e.target.checked)}
         />
       </div>
 

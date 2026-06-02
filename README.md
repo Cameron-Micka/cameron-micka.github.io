@@ -49,7 +49,7 @@ stats).
 
 WebGPU is used when available (two-step adapter+device probe); otherwise the app
 falls back to WebGL2. On WebGPU, an initial ~4s frame-time probe selects a
-quality tier (`ultra`/`high`/`med`/`low`). Users can override quality, motion,
+quality tier (`high`/`med`/`low`). Users can override quality, motion,
 sound, and a debug HUD from the settings panel; preferences persist in
 `localStorage`.
 

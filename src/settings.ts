@@ -1,4 +1,4 @@
-import type { QualityPreference } from './engine/QualityManager';
+import { QUALITY_PRESETS, type QualityPreference } from './engine/QualityManager';
 
 export type ReducedMotionPref = 'auto' | 'on' | 'off';
 
@@ -7,6 +7,7 @@ export interface PersistedSettings {
   sound: boolean;
   reducedMotion: ReducedMotionPref;
   debugHud: boolean;
+  wireframe: boolean;
   forceBackend: 'auto' | 'webgpu' | 'webgl2';
 }
 
@@ -17,15 +18,23 @@ const DEFAULTS: PersistedSettings = {
   sound: false,
   reducedMotion: 'auto',
   debugHud: false,
+  wireframe: false,
   forceBackend: 'auto',
 };
+
+function isValidQuality(q: unknown): q is QualityPreference {
+  return q === 'auto' || (typeof q === 'string' && q in QUALITY_PRESETS);
+}
 
 export function loadSettings(): PersistedSettings {
   if (typeof localStorage === 'undefined') return { ...DEFAULTS };
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULTS };
-    return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<PersistedSettings>) };
+    const merged = { ...DEFAULTS, ...(JSON.parse(raw) as Partial<PersistedSettings>) };
+    // Drop quality preferences from removed tiers (e.g. a stale 'ultra').
+    if (!isValidQuality(merged.quality)) merged.quality = DEFAULTS.quality;
+    return merged;
   } catch {
     return { ...DEFAULTS };
   }

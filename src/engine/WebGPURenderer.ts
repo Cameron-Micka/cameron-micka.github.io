@@ -4,7 +4,7 @@ import type {
   RenderStats,
   SceneRenderer,
 } from './types';
-import { createSphere, interleave, type GeometryData } from './geometry';
+import { createSphere, interleave, trianglesToLineIndices, type GeometryData } from './geometry';
 import { mat4 } from './math/mat4';
 import { quat } from './math/quat';
 import { vec3 } from './math/vec3';
@@ -18,6 +18,7 @@ import poiWGSL from './shaders/poi.wgsl?raw';
 import poiLineWGSL from './shaders/poi_line.wgsl?raw';
 import ringWGSL from './shaders/ring.wgsl?raw';
 import compositeWGSL from './shaders/composite.wgsl?raw';
+import wireframeWGSL from './shaders/wireframe.wgsl?raw';
 
 const OBJ_STRIDE = 256; // bytes; >= minUniformBufferOffsetAlignment
 const OBJ_FLOATS = OBJ_STRIDE / 4;
@@ -67,11 +68,16 @@ export class WebGPURenderer implements SceneRenderer {
 
   private hdrTex!: GPUTexture;
   private hdrView!: GPUTextureView;
+  private msaaTex?: GPUTexture;
+  private msaaView?: GPUTextureView;
   private depthTex!: GPUTexture;
   private depthView!: GPUTextureView;
+  private sampleCount = 1;
 
   private sphere!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number; u32: boolean };
   private ring!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number };
+  private sphereLines!: { ibuf: GPUBuffer; count: number; u32: boolean };
+  private ringLines!: { ibuf: GPUBuffer; count: number };
   private quadBuf!: GPUBuffer;
 
   private frameUBO!: GPUBuffer;
@@ -97,6 +103,7 @@ export class WebGPURenderer implements SceneRenderer {
     poi: GPURenderPipeline;
     poiLine: GPURenderPipeline;
     composite: GPURenderPipeline;
+    wireframe: GPURenderPipeline;
   };
   private frameLayout!: GPUBindGroupLayout;
   private objLayout!: GPUBindGroupLayout;
@@ -131,7 +138,7 @@ export class WebGPURenderer implements SceneRenderer {
 
     this.createGeometry();
     this.createUniforms();
-    this.createPipelines();
+    this.createPipelines(this.sampleCount);
     this.buildStars(8000);
   }
 
@@ -155,6 +162,7 @@ export class WebGPURenderer implements SceneRenderer {
       count: sphereGeo.indexCount,
       u32: sphereGeo.indices instanceof Uint32Array,
     };
+    this.sphereLines = this.createLineIndexBuffer(sphereGeo);
 
     const ringGeo = createRingGeometry();
     const ringData = interleave(ringGeo);
@@ -169,6 +177,8 @@ export class WebGPURenderer implements SceneRenderer {
     });
     d.queue.writeBuffer(rib, 0, ringGeo.indices);
     this.ring = { vbuf: rvb, ibuf: rib, count: ringGeo.indexCount };
+    const ringLines = this.createLineIndexBuffer(ringGeo);
+    this.ringLines = { ibuf: ringLines.ibuf, count: ringLines.count };
 
     // Unit quad (two triangles) for billboards.
     const quad = new Float32Array([
@@ -180,6 +190,21 @@ export class WebGPURenderer implements SceneRenderer {
     });
     d.queue.writeBuffer(qb, 0, quad);
     this.quadBuf = qb;
+  }
+
+  private createLineIndexBuffer(geo: GeometryData): {
+    ibuf: GPUBuffer;
+    count: number;
+    u32: boolean;
+  } {
+    const d = this.device;
+    const lines = trianglesToLineIndices(geo.indices, geo.vertexCount);
+    const buf = d.createBuffer({
+      size: lines.byteLength,
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    d.queue.writeBuffer(buf, 0, lines);
+    return { ibuf: buf, count: lines.length, u32: lines instanceof Uint32Array };
   }
 
   private createUniforms(): void {
@@ -204,8 +229,9 @@ export class WebGPURenderer implements SceneRenderer {
     });
   }
 
-  private createPipelines(): void {
+  private createPipelines(sampleCount: number): void {
     const d = this.device;
+    const multisample = { count: sampleCount };
 
     this.frameLayout = d.createBindGroupLayout({
       entries: [
@@ -274,6 +300,7 @@ export class WebGPURenderer implements SceneRenderer {
     const poiMod = d.createShaderModule({ code: poiWGSL });
     const poiLineMod = d.createShaderModule({ code: poiLineWGSL });
     const compositeMod = d.createShaderModule({ code: compositeWGSL });
+    const wireframeMod = d.createShaderModule({ code: wireframeWGSL });
 
     const addBlend: GPUBlendState = {
       color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
@@ -302,6 +329,7 @@ export class WebGPURenderer implements SceneRenderer {
         depthWriteEnabled: true,
         depthCompare: 'less',
       },
+      multisample,
     });
 
     const clouds = d.createRenderPipeline({
@@ -318,6 +346,7 @@ export class WebGPURenderer implements SceneRenderer {
         depthWriteEnabled: false,
         depthCompare: 'less',
       },
+      multisample,
     });
 
     const ring = d.createRenderPipeline({
@@ -334,6 +363,7 @@ export class WebGPURenderer implements SceneRenderer {
         depthWriteEnabled: false,
         depthCompare: 'less',
       },
+      multisample,
     });
 
     const nebula = d.createRenderPipeline({
@@ -350,6 +380,7 @@ export class WebGPURenderer implements SceneRenderer {
         depthWriteEnabled: false,
         depthCompare: 'always',
       },
+      multisample,
     });
 
     const starInstanceLayout: GPUVertexBufferLayout = {
@@ -383,6 +414,7 @@ export class WebGPURenderer implements SceneRenderer {
         depthWriteEnabled: false,
         depthCompare: 'always',
       },
+      multisample,
     });
 
     const poiInstanceLayout: GPUVertexBufferLayout = {
@@ -413,6 +445,7 @@ export class WebGPURenderer implements SceneRenderer {
         depthWriteEnabled: false,
         depthCompare: 'less-equal',
       },
+      multisample,
     });
 
     const poiLineInstanceLayout: GPUVertexBufferLayout = {
@@ -444,6 +477,7 @@ export class WebGPURenderer implements SceneRenderer {
         depthWriteEnabled: false,
         depthCompare: 'less-equal',
       },
+      multisample,
     });
 
     const compositePL = d.createPipelineLayout({
@@ -460,7 +494,24 @@ export class WebGPURenderer implements SceneRenderer {
       primitive: { topology: 'triangle-list' },
     });
 
-    this.pipelines = { nebula, planet, clouds, ring, star, poi, poiLine, composite };
+    const wireframe = d.createRenderPipeline({
+      layout: sceneObjPL,
+      vertex: { module: wireframeMod, entryPoint: 'vs', buffers: [meshLayout] },
+      fragment: {
+        module: wireframeMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT }],
+      },
+      primitive: { topology: 'line-list' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+      },
+      multisample,
+    });
+
+    this.pipelines = { nebula, planet, clouds, ring, star, poi, poiLine, composite, wireframe };
   }
 
   private buildStars(count: number): void {
@@ -501,6 +552,11 @@ export class WebGPURenderer implements SceneRenderer {
 
     this.hdrTex?.destroy();
     this.depthTex?.destroy();
+    this.msaaTex?.destroy();
+    this.msaaTex = undefined;
+    this.msaaView = undefined;
+    // hdrTex is always single-sampled: it is both the composite source and the
+    // resolve target when MSAA is enabled.
     this.hdrTex = this.device.createTexture({
       size: [width, height],
       format: HDR_FORMAT,
@@ -508,9 +564,19 @@ export class WebGPURenderer implements SceneRenderer {
         GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.hdrView = this.hdrTex.createView();
+    if (this.sampleCount > 1) {
+      this.msaaTex = this.device.createTexture({
+        size: [width, height],
+        format: HDR_FORMAT,
+        sampleCount: this.sampleCount,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      this.msaaView = this.msaaTex.createView();
+    }
     this.depthTex = this.device.createTexture({
       size: [width, height],
       format: 'depth24plus',
+      sampleCount: this.sampleCount,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.depthView = this.depthTex.createView();
@@ -523,6 +589,17 @@ export class WebGPURenderer implements SceneRenderer {
         { binding: 2, resource: this.hdrView },
       ],
     });
+  }
+
+  // MSAA sample count is baked into pipelines and render targets, so a tier
+  // change rebuilds both. WebGPU only guarantees counts of 1 and 4, so anything
+  // other than 4 is treated as off.
+  private ensureSampleCount(count: number): void {
+    const n = count === 4 ? 4 : 1;
+    if (n === this.sampleCount) return;
+    this.sampleCount = n;
+    this.createPipelines(n);
+    this.resize(this.width, this.height);
   }
 
   private writeObject(
@@ -567,6 +644,8 @@ export class WebGPURenderer implements SceneRenderer {
   render(frame: FrameState): void {
     const d = this.device;
     this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
+
+    this.ensureSampleCount(frame.quality.msaa);
 
     // Frame uniform.
     const f = this.frameScratch;
@@ -718,14 +797,17 @@ export class WebGPURenderer implements SceneRenderer {
 
     const encoder = d.createCommandEncoder();
 
-    // Scene pass into HDR.
+    // Scene pass into HDR. With MSAA, render into the multisampled target and
+    // resolve into the single-sampled hdrTex that the composite pass samples.
+    const msaa = this.sampleCount > 1 && this.msaaView;
     const scenePass = encoder.beginRenderPass({
       colorAttachments: [
         {
-          view: this.hdrView,
+          view: msaa ? this.msaaView! : this.hdrView,
+          resolveTarget: msaa ? this.hdrView : undefined,
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: 'clear',
-          storeOp: 'store',
+          storeOp: msaa ? 'discard' : 'store',
         },
       ],
       depthStencilAttachment: {
@@ -755,48 +837,78 @@ export class WebGPURenderer implements SceneRenderer {
       this.stats.triangles += drawStars * 2;
     }
 
-    // Opaque planets + moons.
-    scenePass.setVertexBuffer(0, this.sphere.vbuf);
-    scenePass.setIndexBuffer(
-      this.sphere.ibuf,
-      this.sphere.u32 ? 'uint32' : 'uint16',
-    );
-    for (const o of objects) {
-      if (o.kind !== 0 && o.kind !== 3) continue;
-      scenePass.setPipeline(this.pipelines.planet);
-      scenePass.setBindGroup(0, this.frameBG);
-      scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-      scenePass.drawIndexed(this.sphere.count);
-      this.stats.drawCalls++;
-      this.stats.triangles += this.sphere.count / 3;
-    }
-
-    // Clouds (alpha).
-    for (const o of objects) {
-      if (o.kind !== 1) continue;
-      scenePass.setPipeline(this.pipelines.clouds);
-      scenePass.setBindGroup(0, this.frameBG);
-      scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-      scenePass.drawIndexed(this.sphere.count);
-      this.stats.drawCalls++;
-      this.stats.triangles += this.sphere.count / 3;
-    }
-
-    // Rings (alpha).
-    let ringBound = false;
-    for (const o of objects) {
-      if (o.kind !== 2) continue;
-      if (!ringBound) {
-        scenePass.setVertexBuffer(0, this.ring.vbuf);
-        scenePass.setIndexBuffer(this.ring.ibuf, 'uint16');
-        ringBound = true;
+    if (frame.wireframe) {
+      // Debug wireframe: draw every mesh as edges instead of filled surfaces.
+      scenePass.setPipeline(this.pipelines.wireframe);
+      scenePass.setVertexBuffer(0, this.sphere.vbuf);
+      scenePass.setIndexBuffer(
+        this.sphereLines.ibuf,
+        this.sphereLines.u32 ? 'uint32' : 'uint16',
+      );
+      for (const o of objects) {
+        if (o.kind === 2) continue; // rings use their own mesh below
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.sphereLines.count);
+        this.stats.drawCalls++;
       }
-      scenePass.setPipeline(this.pipelines.ring);
-      scenePass.setBindGroup(0, this.frameBG);
-      scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-      scenePass.drawIndexed(this.ring.count);
-      this.stats.drawCalls++;
-      this.stats.triangles += this.ring.count / 3;
+      let wireRingBound = false;
+      for (const o of objects) {
+        if (o.kind !== 2) continue;
+        if (!wireRingBound) {
+          scenePass.setVertexBuffer(0, this.ring.vbuf);
+          scenePass.setIndexBuffer(this.ringLines.ibuf, 'uint16');
+          wireRingBound = true;
+        }
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.ringLines.count);
+        this.stats.drawCalls++;
+      }
+    } else {
+      // Opaque planets + moons.
+      scenePass.setVertexBuffer(0, this.sphere.vbuf);
+      scenePass.setIndexBuffer(
+        this.sphere.ibuf,
+        this.sphere.u32 ? 'uint32' : 'uint16',
+      );
+      for (const o of objects) {
+        if (o.kind !== 0 && o.kind !== 3) continue;
+        scenePass.setPipeline(this.pipelines.planet);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.sphere.count);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.sphere.count / 3;
+      }
+
+      // Clouds (alpha).
+      for (const o of objects) {
+        if (o.kind !== 1) continue;
+        scenePass.setPipeline(this.pipelines.clouds);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.sphere.count);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.sphere.count / 3;
+      }
+
+      // Rings (alpha).
+      let ringBound = false;
+      for (const o of objects) {
+        if (o.kind !== 2) continue;
+        if (!ringBound) {
+          scenePass.setVertexBuffer(0, this.ring.vbuf);
+          scenePass.setIndexBuffer(this.ring.ibuf, 'uint16');
+          ringBound = true;
+        }
+        scenePass.setPipeline(this.pipelines.ring);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.ring.count);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.ring.count / 3;
+      }
     }
 
     // POI connector lines (additive), drawn under the markers.
@@ -900,9 +1012,10 @@ export class WebGPURenderer implements SceneRenderer {
 
   private estimateMemoryMB(): number {
     const hdr = this.width * this.height * 8;
-    const depth = this.width * this.height * 4;
+    const depth = this.width * this.height * 4 * this.sampleCount;
+    const msaa = this.sampleCount > 1 ? hdr * this.sampleCount : 0;
     const stars = this.starCount * 7 * 4;
-    return (hdr * 2 + depth + stars) / (1024 * 1024);
+    return (hdr * 2 + msaa + depth + stars) / (1024 * 1024);
   }
 
   getStats(): RenderStats {
@@ -915,6 +1028,7 @@ export class WebGPURenderer implements SceneRenderer {
 
   destroy(): void {
     this.hdrTex?.destroy();
+    this.msaaTex?.destroy();
     this.depthTex?.destroy();
     this.starBuf?.destroy();
     this.poiBuf?.destroy();

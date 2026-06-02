@@ -1,5 +1,5 @@
 import type { FrameState, PlanetInstance, RenderStats, SceneRenderer } from './types';
-import { createSphere, interleave } from './geometry';
+import { createSphere, interleave, trianglesToLineIndices } from './geometry';
 import { mat4 } from './math/mat4';
 import { quat, type Quat } from './math/quat';
 import { vec3 } from './math/vec3';
@@ -184,6 +184,11 @@ void main(){
   frag=vec4((vColor.rgb+0.15)*a,a);
 }`;
 
+const WIRE_FRAG = `#version 300 es
+precision highp float;
+out vec4 frag;
+void main(){ frag=vec4(0.25,1.0,0.85,1.0); }`;
+
 interface Program {
   prog: WebGLProgram;
   uniforms: Record<string, WebGLUniformLocation | null>;
@@ -200,10 +205,14 @@ export class WebGL2Renderer implements SceneRenderer {
   private planet!: Program;
   private point!: Program;
   private line!: Program;
+  private wire!: Program;
 
   private sphereVao!: WebGLVertexArrayObject;
   private sphereCount = 0;
   private sphereU32 = false;
+  private sphereWireVao!: WebGLVertexArrayObject;
+  private sphereLineCount = 0;
+  private sphereLineU32 = false;
 
   private starVao!: WebGLVertexArrayObject;
   private starCount = 0;
@@ -245,6 +254,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.line = this.makeProgram(LINE_VERT, LINE_FRAG, [
       'uViewProj', 'uAspect', 'uThick', 'uHeight',
     ]);
+    this.wire = this.makeProgram(PLANET_VERT, WIRE_FRAG, ['uViewProj', 'uModel']);
 
     this.buildSphere();
     this.buildStars(2000);
@@ -300,6 +310,21 @@ export class WebGL2Renderer implements SceneRenderer {
     this.sphereVao = vao;
     this.sphereCount = geo.indexCount;
     this.sphereU32 = geo.indices instanceof Uint32Array;
+
+    // Wireframe VAO: same vertex buffer, edge (line-list) index buffer.
+    const lineIdx = trianglesToLineIndices(geo.indices, geo.vertexCount);
+    const wireVao = gl.createVertexArray()!;
+    gl.bindVertexArray(wireVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    const lineIbo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineIbo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, lineIdx, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+    gl.bindVertexArray(null);
+    this.sphereWireVao = wireVao;
+    this.sphereLineCount = lineIdx.length;
+    this.sphereLineU32 = lineIdx instanceof Uint32Array;
   }
 
   private buildStars(count: number): void {
@@ -423,6 +448,39 @@ export class WebGL2Renderer implements SceneRenderer {
     // Planets + moons (opaque).
     gl.disable(gl.BLEND);
     gl.enable(gl.DEPTH_TEST);
+    const model = mat4.create();
+    if (frame.wireframe) {
+      // Debug wireframe: planets, moons and cloud shells as edges.
+      gl.depthMask(true);
+      gl.useProgram(this.wire.prog);
+      gl.uniformMatrix4fv(this.wire.uniforms.uViewProj!, false, frame.viewProj);
+      gl.bindVertexArray(this.sphereWireVao);
+      for (const p of frame.planets) {
+        const vis = p.visibility;
+        if (vis <= 0.02) continue;
+        this.drawWire(p.center, p.radius * vis, p.orientation, model);
+        if (p.hasClouds) {
+          this.drawWire(
+            p.center,
+            p.radius * vis * 1.04,
+            p.orientation,
+            model,
+          );
+        }
+        for (const m of p.moons) {
+          const orbit = m.orbitRadius * vis;
+          const mx = p.center[0] + Math.cos(m.angle) * orbit;
+          const mz = p.center[2] + Math.sin(m.angle) * orbit;
+          const my = p.center[1] + Math.sin(m.angle * 0.5) * orbit * 0.2;
+          this.drawWire(
+            [mx, my, mz],
+            m.size * vis,
+            quat.fromAxisAngle([0, 1, 0], frame.time * 0.3),
+            model,
+          );
+        }
+      }
+    } else {
     gl.useProgram(this.planet.prog);
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
@@ -430,7 +488,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.planet.uniforms.uTime!, frame.time);
     gl.bindVertexArray(this.sphereVao);
     const idxType = this.sphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
-    const model = mat4.create();
     for (const p of frame.planets) {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
@@ -456,6 +513,7 @@ export class WebGL2Renderer implements SceneRenderer {
         this.drawSphere(p, p.center, p.radius * p.visibility * 1.04, quat.multiply(p.orientation, quat.fromAxisAngle([0, 1, 0], frame.time * 0.03)), 1, p.paletteHigh, p.paletteHigh, p.paletteHigh, model, idxType);
       }
       gl.depthMask(true);
+    }
     }
 
     // POIs (additive points, depth-tested so planets occlude them).
@@ -514,6 +572,26 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
     this.stats.drawCalls++;
     this.stats.triangles += this.sphereCount / 3;
+  }
+
+  // Draws the sphere mesh as wireframe edges with the active wire program.
+  // Assumes the wire program and sphereWireVao are already bound.
+  private drawWire(
+    center: [number, number, number],
+    radius: number,
+    rotation: Quat,
+    model: Float32Array,
+  ): void {
+    const gl = this.gl;
+    mat4.fromRotationTranslationScale(model, rotation, center, radius);
+    gl.uniformMatrix4fv(this.wire.uniforms.uModel!, false, model);
+    gl.drawElements(
+      gl.LINES,
+      this.sphereLineCount,
+      this.sphereLineU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+      0,
+    );
+    this.stats.drawCalls++;
   }
 
   private uploadPois(frame: FrameState): void {
