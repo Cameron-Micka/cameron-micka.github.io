@@ -8,6 +8,9 @@ import { poiMarkerDistance, poiFocusFade } from './Scene';
 
 // Lower-fidelity mirror of the WebGPU experience: procedural planets, a nebula
 // backdrop, additive star + POI points. No HDR/bloom post — rendered directly.
+const MOON_ROCK_LOW: [number, number, number] = [0.22, 0.23, 0.24];
+const MOON_ROCK_MID: [number, number, number] = [0.44, 0.43, 0.41];
+const MOON_ROCK_HIGH: [number, number, number] = [0.64, 0.62, 0.58];
 
 const NEBULA_VERT = `#version 300 es
 out vec2 vUv;
@@ -62,7 +65,7 @@ in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
-uniform float uSeed;uniform float uFocus;uniform float uKind;uniform float uTime;
+uniform float uSeed;uniform float uFocus;
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
   vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
@@ -77,13 +80,6 @@ void main(){
   vec3 viewDir=normalize(uCamera-vWorld);
   float ndl=clamp(dot(n,normalize(uLight)),0.0,1.0);
   float rim=pow(1.0-clamp(dot(n,viewDir),0.0,1.0),3.0);
-  if(uKind==1.0){
-    float t=uTime*0.02;
-    float c=fbm(vLocal*3.0+vec3(t,uSeed,-t));
-    float cov=smoothstep(0.55,0.85,c);
-    float lit=0.35+0.65*ndl;
-    frag=vec4(aces(vec3(lit)),cov*0.5);return;
-  }
   vec3 sp=vLocal*2.2;
   float h=clamp(fbm(sp+vec3(uSeed*0.001))+fbm(sp*4.0)*0.25,0.0,1.0);
   vec3 base=mix(uLow,uMid,smoothstep(0.25,0.55,h));
@@ -189,6 +185,51 @@ precision highp float;
 out vec4 frag;
 void main(){ frag=vec4(0.25,1.0,0.85,1.0); }`;
 
+// Atmospheric scattering shell: marches the view ray through a sphere slightly
+// larger than the planet, accumulating altitude-weighted, sun-lit density for a
+// soft blue limb glow. Reuses PLANET_VERT (only uModel/uViewProj attributes).
+const ATMOSPHERE_FRAG = `#version 300 es
+precision highp float;
+in vec3 vWorld;
+out vec4 frag;
+uniform vec3 uCamera;uniform vec3 uLight;
+uniform vec3 uColor;uniform vec3 uCenter;
+uniform float uInner;uniform float uOuter;uniform float uFocus;uniform float uIntensity;
+vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
+vec2 raySphere(vec3 ro,vec3 rd,vec3 ce,float ra){
+  vec3 oc=ro-ce;float b=dot(oc,rd);float c=dot(oc,oc)-ra*ra;float h=b*b-c;
+  if(h<0.0)return vec2(1.0,-1.0);
+  float s=sqrt(h);return vec2(-b-s,-b+s);
+}
+void main(){
+  vec3 ro=uCamera;vec3 rd=normalize(vWorld-ro);vec3 sun=normalize(uLight);
+  vec2 outer=raySphere(ro,rd,uCenter,uOuter);
+  if(outer.y<=outer.x){frag=vec4(0.0);return;}
+  float tNear=max(outer.x,0.0);float tFar=outer.y;
+  vec2 inner=raySphere(ro,rd,uCenter,uInner);
+  if(inner.x>0.0&&inner.x<inner.y)tFar=min(tFar,inner.x);
+  if(tFar<=tNear){frag=vec4(0.0);return;}
+  float thickness=max(uOuter-uInner,1e-4);
+  const int STEPS=10;
+  float dt=(tFar-tNear)/float(STEPS);
+  float dayGlow=0.0;float ambient=0.0;
+  for(int i=0;i<STEPS;i++){
+    float t=tNear+(float(i)+0.5)*dt;
+    vec3 pos=ro+rd*t;vec3 up=pos-uCenter;float r=length(up);
+    float hgt=clamp((r-uInner)/thickness,0.0,1.0);
+    float density=exp(-hgt*4.0);
+    float sunAmt=smoothstep(-0.1,0.35,dot(normalize(up),sun));
+    dayGlow+=density*sunAmt*dt;ambient+=density*dt;
+  }
+  dayGlow/=thickness;ambient/=thickness;
+  vec3 atmoColor=mix(uColor,vec3(0.45,0.62,1.0),0.5);
+  float intensity=uIntensity*(0.85+0.3*uFocus);
+  vec3 col=atmoColor*(dayGlow*1.5+ambient*0.12)*intensity;
+  float mie=pow(max(dot(rd,sun),0.0),8.0)*dayGlow*0.6;
+  col+=atmoColor*mie*intensity;
+  frag=vec4(aces(col),1.0);
+}`;
+
 interface Program {
   prog: WebGLProgram;
   uniforms: Record<string, WebGLUniformLocation | null>;
@@ -206,6 +247,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private point!: Program;
   private line!: Program;
   private wire!: Program;
+  private atmosphere!: Program;
 
   private sphereVao!: WebGLVertexArrayObject;
   private sphereCount = 0;
@@ -246,7 +288,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, []);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
-      'uSeed', 'uFocus', 'uKind', 'uTime',
+      'uSeed', 'uFocus',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
       'uViewProj', 'uTime', 'uMode',
@@ -255,6 +297,10 @@ export class WebGL2Renderer implements SceneRenderer {
       'uViewProj', 'uAspect', 'uThick', 'uHeight',
     ]);
     this.wire = this.makeProgram(PLANET_VERT, WIRE_FRAG, ['uViewProj', 'uModel']);
+    this.atmosphere = this.makeProgram(PLANET_VERT, ATMOSPHERE_FRAG, [
+      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uColor', 'uCenter',
+      'uInner', 'uOuter', 'uFocus', 'uIntensity',
+    ]);
 
     this.buildSphere();
     this.buildStars(2000);
@@ -450,7 +496,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.enable(gl.DEPTH_TEST);
     const model = mat4.create();
     if (frame.wireframe) {
-      // Debug wireframe: planets, moons and cloud shells as edges.
+      // Debug wireframe: planets and moons as edges.
       gl.depthMask(true);
       gl.useProgram(this.wire.prog);
       gl.uniformMatrix4fv(this.wire.uniforms.uViewProj!, false, frame.viewProj);
@@ -459,23 +505,22 @@ export class WebGL2Renderer implements SceneRenderer {
         const vis = p.visibility;
         if (vis <= 0.02) continue;
         this.drawWire(p.center, p.radius * vis, p.orientation, model);
-        if (p.hasClouds) {
-          this.drawWire(
-            p.center,
-            p.radius * vis * 1.04,
-            p.orientation,
-            model,
-          );
-        }
         for (const m of p.moons) {
           const orbit = m.orbitRadius * vis;
-          const mx = p.center[0] + Math.cos(m.angle) * orbit;
-          const mz = p.center[2] + Math.sin(m.angle) * orbit;
-          const my = p.center[1] + Math.sin(m.angle * 0.5) * orbit * 0.2;
-          this.drawWire(
-            [mx, my, mz],
-            m.size * vis,
+          const localOffset: [number, number, number] = [
+            Math.cos(m.angle) * orbit,
+            Math.sin(m.angle * 0.5) * orbit * 0.2,
+            Math.sin(m.angle) * orbit,
+          ];
+          const wo = quat.rotateVec3(p.orientation, localOffset);
+          const moonRot = quat.multiply(
+            p.orientation,
             quat.fromAxisAngle([0, 1, 0], frame.time * 0.3),
+          );
+          this.drawWire(
+            [p.center[0] + wo[0], p.center[1] + wo[1], p.center[2] + wo[2]],
+            m.size * vis,
+            moonRot,
             model,
           );
         }
@@ -485,35 +530,71 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
-    gl.uniform1f(this.planet.uniforms.uTime!, frame.time);
     gl.bindVertexArray(this.sphereVao);
     const idxType = this.sphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
     for (const p of frame.planets) {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
       const er = p.radius * vis;
-      this.drawSphere(p, p.center, er, p.orientation, 0, p.paletteLow, p.paletteMid, p.paletteHigh, model, idxType);
+      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, model, idxType);
       for (const m of p.moons) {
         const orbit = m.orbitRadius * vis;
-        const mx = p.center[0] + Math.cos(m.angle) * orbit;
-        const mz = p.center[2] + Math.sin(m.angle) * orbit;
-        const my = p.center[1] + Math.sin(m.angle * 0.5) * orbit * 0.2;
-        this.drawSphere(p, [mx, my, mz], m.size * vis, quat.fromAxisAngle([0, 1, 0], frame.time * 0.3), 0, p.paletteMid, p.paletteLow, p.paletteHigh, model, idxType);
+        // Moon orbit offset lives in the planet's local frame; rotate it by
+        // the planet's orientation so moons swing with the planet as it spins
+        // or as the user drags it.
+        const localOffset: [number, number, number] = [
+          Math.cos(m.angle) * orbit,
+          Math.sin(m.angle * 0.5) * orbit * 0.2,
+          Math.sin(m.angle) * orbit,
+        ];
+        const wo = quat.rotateVec3(p.orientation, localOffset);
+        const moonRot = quat.multiply(
+          p.orientation,
+          quat.fromAxisAngle([0, 1, 0], frame.time * 0.3),
+        );
+        this.drawSphere(
+          p,
+          [p.center[0] + wo[0], p.center[1] + wo[1], p.center[2] + wo[2]],
+          m.size * vis,
+          moonRot,
+          MOON_ROCK_LOW,
+          MOON_ROCK_MID,
+          MOON_ROCK_HIGH,
+          model,
+          idxType,
+        );
       }
     }
 
-    // Clouds (alpha) — second pass over planets that have clouds.
-    if (frame.quality.clouds) {
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      gl.depthMask(false);
-      for (const p of frame.planets) {
-        if (!p.hasClouds) continue;
-        if (p.visibility <= 0.02) continue;
-        this.drawSphere(p, p.center, p.radius * p.visibility * 1.04, quat.multiply(p.orientation, quat.fromAxisAngle([0, 1, 0], frame.time * 0.03)), 1, p.paletteHigh, p.paletteHigh, p.paletteHigh, model, idxType);
-      }
-      gl.depthMask(true);
+    // Atmospheric scattering shells (additive, camera-facing hemisphere only).
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.depthMask(false);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.useProgram(this.atmosphere.prog);
+    gl.uniformMatrix4fv(this.atmosphere.uniforms.uViewProj!, false, frame.viewProj);
+    gl.uniform3fv(this.atmosphere.uniforms.uCamera!, frame.cameraPos);
+    gl.uniform3fv(this.atmosphere.uniforms.uLight!, frame.keyLightDir);
+    gl.bindVertexArray(this.sphereVao);
+    for (const p of frame.planets) {
+      const vis = p.visibility;
+      if (vis <= 0.02) continue;
+      const er = p.radius * vis;
+      const outerR = er * 1.02;
+      mat4.fromRotationTranslationScale(model, p.orientation, p.center, outerR);
+      gl.uniformMatrix4fv(this.atmosphere.uniforms.uModel!, false, model);
+      gl.uniform3fv(this.atmosphere.uniforms.uColor!, p.paletteHigh);
+      gl.uniform3fv(this.atmosphere.uniforms.uCenter!, p.center);
+      gl.uniform1f(this.atmosphere.uniforms.uInner!, er);
+      gl.uniform1f(this.atmosphere.uniforms.uOuter!, outerR);
+      gl.uniform1f(this.atmosphere.uniforms.uFocus!, p.focus);
+      gl.uniform1f(this.atmosphere.uniforms.uIntensity!, 0.9 * vis);
+      gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
+      this.stats.drawCalls++;
     }
+    gl.disable(gl.CULL_FACE);
+    gl.depthMask(true);
     }
 
     // POIs (additive points, depth-tested so planets occlude them).
@@ -553,7 +634,6 @@ export class WebGL2Renderer implements SceneRenderer {
     center: [number, number, number],
     radius: number,
     rotation: Quat,
-    kind: number,
     low: [number, number, number],
     mid: [number, number, number],
     high: [number, number, number],
@@ -568,7 +648,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform3fv(this.planet.uniforms.uHigh!, high);
     gl.uniform1f(this.planet.uniforms.uSeed!, p.seed % 100000);
     gl.uniform1f(this.planet.uniforms.uFocus!, p.focus);
-    gl.uniform1f(this.planet.uniforms.uKind!, kind);
     gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
     this.stats.drawCalls++;
     this.stats.triangles += this.sphereCount / 3;

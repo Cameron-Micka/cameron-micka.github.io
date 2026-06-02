@@ -19,11 +19,15 @@ import poiLineWGSL from './shaders/poi_line.wgsl?raw';
 import ringWGSL from './shaders/ring.wgsl?raw';
 import compositeWGSL from './shaders/composite.wgsl?raw';
 import wireframeWGSL from './shaders/wireframe.wgsl?raw';
+import atmosphereWGSL from './shaders/atmosphere.wgsl?raw';
 
 const OBJ_STRIDE = 256; // bytes; >= minUniformBufferOffsetAlignment
 const OBJ_FLOATS = OBJ_STRIDE / 4;
 const MAX_OBJECTS = 64;
 const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
+const MOON_ROCK_LOW: [number, number, number] = [0.22, 0.23, 0.24];
+const MOON_ROCK_MID: [number, number, number] = [0.44, 0.43, 0.41];
+const MOON_ROCK_HIGH: [number, number, number] = [0.64, 0.62, 0.58];
 
 function createRingGeometry(inner = 1.35, outer = 2.1, segments = 96): GeometryData {
   const positions: number[] = [];
@@ -97,13 +101,13 @@ export class WebGPURenderer implements SceneRenderer {
   private pipelines!: {
     nebula: GPURenderPipeline;
     planet: GPURenderPipeline;
-    clouds: GPURenderPipeline;
     ring: GPURenderPipeline;
     star: GPURenderPipeline;
     poi: GPURenderPipeline;
     poiLine: GPURenderPipeline;
     composite: GPURenderPipeline;
     wireframe: GPURenderPipeline;
+    atmosphere: GPURenderPipeline;
   };
   private frameLayout!: GPUBindGroupLayout;
   private objLayout!: GPUBindGroupLayout;
@@ -301,6 +305,7 @@ export class WebGPURenderer implements SceneRenderer {
     const poiLineMod = d.createShaderModule({ code: poiLineWGSL });
     const compositeMod = d.createShaderModule({ code: compositeWGSL });
     const wireframeMod = d.createShaderModule({ code: wireframeWGSL });
+    const atmosphereMod = d.createShaderModule({ code: atmosphereWGSL });
 
     const addBlend: GPUBlendState = {
       color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
@@ -327,23 +332,6 @@ export class WebGPURenderer implements SceneRenderer {
       depthStencil: {
         format: 'depth24plus',
         depthWriteEnabled: true,
-        depthCompare: 'less',
-      },
-      multisample,
-    });
-
-    const clouds = d.createRenderPipeline({
-      layout: sceneObjPL,
-      vertex: { module: planetMod, entryPoint: 'vs', buffers: [meshLayout] },
-      fragment: {
-        module: planetMod,
-        entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
-      },
-      primitive: { topology: 'triangle-list', cullMode: 'none' },
-      depthStencil: {
-        format: 'depth24plus',
-        depthWriteEnabled: false,
         depthCompare: 'less',
       },
       multisample,
@@ -511,7 +499,24 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    this.pipelines = { nebula, planet, clouds, ring, star, poi, poiLine, composite, wireframe };
+    const atmosphere = d.createRenderPipeline({
+      layout: sceneObjPL,
+      vertex: { module: atmosphereMod, entryPoint: 'vs', buffers: [meshLayout] },
+      fragment: {
+        module: atmosphereMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: false,
+        depthCompare: 'less',
+      },
+      multisample,
+    });
+
+    this.pipelines = { nebula, planet, ring, star, poi, poiLine, composite, wireframe, atmosphere };
   }
 
   private buildStars(count: number): void {
@@ -671,7 +676,7 @@ export class WebGPURenderer implements SceneRenderer {
     const model = mat4.create();
 
     for (const p of frame.planets) {
-      if (objIndex >= MAX_OBJECTS - 4) break;
+      if (objIndex >= MAX_OBJECTS - 6) break;
       const vis = p.visibility;
       if (vis <= 0.02) continue; // fully hidden — skip planet, POIs, moons
       const er = p.radius * vis;
@@ -696,36 +701,35 @@ export class WebGPURenderer implements SceneRenderer {
 
       this.collectPois(p, poiData, er, vis);
 
-      if (p.hasClouds && frame.quality.clouds) {
-        mat4.fromRotationTranslationScale(
-          model,
-          quat.multiply(
-            p.orientation,
-            quat.fromAxisAngle([0, 1, 0], frame.time * 0.03),
-          ),
-          p.center,
-          er * 1.04,
-        );
+      // Atmospheric scattering shell (skipped in wireframe debug view).
+      if (!frame.wireframe) {
+        const outerR = er * 1.02;
+        mat4.fromRotationTranslationScale(model, rot, p.center, outerR);
         this.writeObject(
           objIndex,
           model,
-          p.radius,
-          p.seed % 100000,
-          frame.time,
-          1,
+          er,
+          outerR,
+          0,
+          4,
           p.paletteHigh,
           p.paletteHigh,
           p.paletteHigh,
           p.focus,
-          0,
+          1.4 * vis,
           0,
         );
-        objects.push({ kind: 1, index: objIndex });
+        objects.push({ kind: 4, index: objIndex });
         objIndex++;
       }
 
       if (p.hasRing && objIndex < MAX_OBJECTS) {
-        const ringRot = quat.fromAxisAngle([1, 0, 0.2], p.ringTilt);
+        // Compose the ring tilt with the planet's orientation so rings stay
+        // locked to the planet's equator when the user drags/spins the planet.
+        const ringRot = quat.multiply(
+          rot,
+          quat.fromAxisAngle([1, 0, 0.2], p.ringTilt),
+        );
         mat4.fromRotationTranslationScale(model, ringRot, p.center, er);
         this.writeObject(
           objIndex,
@@ -746,17 +750,30 @@ export class WebGPURenderer implements SceneRenderer {
       }
 
       for (const m of p.moons) {
-        if (objIndex >= MAX_OBJECTS) break;
+        if (objIndex >= MAX_OBJECTS - 1) break;
         const orbit = m.orbitRadius * vis;
-        const mx = p.center[0] + Math.cos(m.angle) * orbit;
-        const mz = p.center[2] + Math.sin(m.angle) * orbit;
-        const my = p.center[1] + Math.sin(m.angle * 0.5) * orbit * 0.2;
-        mat4.fromRotationTranslationScale(
-          model,
+        // Compute the moon's offset in the planet's local frame, then rotate
+        // it by the planet's orientation so moons stay locked to the planet
+        // as it spins or the user drags it.
+        const localOffset: [number, number, number] = [
+          Math.cos(m.angle) * orbit,
+          Math.sin(m.angle * 0.5) * orbit * 0.2,
+          Math.sin(m.angle) * orbit,
+        ];
+        const worldOffset = quat.rotateVec3(rot, localOffset);
+        const moonCenter: [number, number, number] = [
+          p.center[0] + worldOffset[0],
+          p.center[1] + worldOffset[1],
+          p.center[2] + worldOffset[2],
+        ];
+        const moonR = m.size * vis;
+        // Compose the planet's orientation with the moon's own slow spin so
+        // the moon's surface frame inherits the planet's rotation too.
+        const moonRot = quat.multiply(
+          rot,
           quat.fromAxisAngle([0, 1, 0], frame.time * 0.3),
-          [mx, my, mz],
-          m.size * vis,
         );
+        mat4.fromRotationTranslationScale(model, moonRot, moonCenter, moonR);
         this.writeObject(
           objIndex,
           model,
@@ -764,11 +781,11 @@ export class WebGPURenderer implements SceneRenderer {
           (p.seed + 7) % 100000,
           frame.time,
           0,
-          p.paletteMid,
-          p.paletteLow,
-          p.paletteHigh,
+          MOON_ROCK_LOW,
+          MOON_ROCK_MID,
+          MOON_ROCK_HIGH,
           p.focus,
-          1,
+          0,
           0,
         );
         objects.push({ kind: 3, index: objIndex });
@@ -882,10 +899,10 @@ export class WebGPURenderer implements SceneRenderer {
         this.stats.triangles += this.sphere.count / 3;
       }
 
-      // Clouds (alpha).
+      // Atmospheric scattering shells (additive). Sphere mesh is still bound.
       for (const o of objects) {
-        if (o.kind !== 1) continue;
-        scenePass.setPipeline(this.pipelines.clouds);
+        if (o.kind !== 4) continue;
+        scenePass.setPipeline(this.pipelines.atmosphere);
         scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphere.count);

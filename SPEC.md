@@ -103,15 +103,13 @@ Each planet is fully deterministic from a per-company **seed** (string → 32-bi
 - 3D simplex / fBm noise for terrain height proxy → fed into a 1D **biome palette LUT** authored per company (e.g., Microsoft = cyan/blue palette, Fun Bits = warm orange, LucasArts = gold/desert, DigiPen = green). LUT is a small 256×1 PNG in `/assets/palettes/`.
 - Surface normal computed analytically from noise derivatives for crisp specular highlights.
 
-**Atmosphere:** Cheap fresnel rim glow at the silhouette; color sampled from the high end of the planet's palette.
-
-**Clouds:** Optional per-planet — second slightly larger sphere with scrolling 2D noise UVs (animated over time). Authored on/off per company.
+**Atmosphere:** Two complementary parts. (1) A cheap fresnel rim glow on the planet surface; color sampled from the high end of the palette. (2) An **atmospheric-scattering shell** — a sphere at 1.02× the planet radius drawn additively. Its fragment shader ray-marches the view ray through the shell (terminating at the planet surface where occluded) and accumulates an altitude-weighted, sun-lit density, producing a soft blue limb glow that is brightest on the day side and fades into space. Implemented in `atmosphere.wgsl` (WebGPU, HDR + bloom) and mirrored in the WebGL2 fallback (LDR, ACES-clamped in-shader). Atmosphere shells are rendered for planets only.
 
 **Rings:** Optional per-planet — flat ring mesh, single texture with alpha falloff. Authored on/off + tilt angle per company.
 
-**Moons:** Optional per-planet — N small spheres orbiting at fixed radii and periods. Each moon is itself a tiny procedural planet (same shader, smaller radius, simpler palette). Authored count + orbital params per company.
+**Moons:** Optional per-planet — N small spheres orbiting at fixed radii and periods. Moons use a rocky grayscale palette (lower saturation, stone-biased tones) over the procedural terrain pattern so they read more lunar/rocky than planets. Authored count + orbital params per company.
 
-> Final per-company "feature set" (clouds y/n, rings y/n, moon count) lives in the MDX frontmatter.
+> Final per-company "feature set" (rings y/n, moon count) lives in the MDX frontmatter.
 
 ### 3.4 Points of interest (POIs)
 
@@ -275,7 +273,6 @@ end: null                     # null = present
 seed: microsoft-mesh-mrtk     # deterministic procedural seed
 palette: ms-cyan              # references /assets/palettes/ms-cyan.png
 features:
-  clouds: true
   rings: false
   moons: 2
 pois:
@@ -583,7 +580,7 @@ PRs run steps 1–6 (no deploy). Branch protection: green CI required.
 - **Time to interactive (TTI, landing):** ≤ 3 seconds on fast 4G + mid-range mobile.
 - **JS bundle:** ≤ 200KB gzipped initial; total transfer ≤ 500KB initial (excluding videos, which are lazy).
 - **Per-route code split:** landing's engine is its own chunk; `/about`, `/contact`, `/blog` ship as separate chunks. MDX content for distant companies prefetched on idle (`requestIdleCallback`).
-- **Per-planet asset budget:** ≤ 200KB total (palette LUT + any cloud noise textures + ring texture if present) per planet.
+- **Per-planet asset budget:** ≤ 200KB total (palette LUT + ring texture if present) per planet.
 - **Video budget:** ≤ 5MB per POI video, ≤ 720p H.264. Loaded only on modal open.
 - **FPS targets:**
   - Desktop, discrete GPU: 60 FPS sustained.

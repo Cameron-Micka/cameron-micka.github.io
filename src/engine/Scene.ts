@@ -6,6 +6,7 @@ import { vec3, type Vec3 } from './math/vec3';
 import type { Quat } from './math/quat';
 
 export const PLANET_SPACING = 9;
+const MICROSOFT_RADIUS_SCALE = 0.92;
 
 export interface PlanetModel {
   company: Company;
@@ -38,7 +39,11 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
   return companies.map((company, index) => {
     const seed = hashString(company.seed);
     const years = tenureYears(company.start, company.end);
-    const radius = Math.min(3.6, 1.15 + 0.23 * Math.sqrt(years) * 1.6);
+    const baseRadius = Math.min(3.6, 1.15 + 0.23 * Math.sqrt(years) * 1.6);
+    const radius =
+      company.slug === 'microsoft'
+        ? baseRadius * MICROSOFT_RADIUS_SCALE
+        : baseRadius;
 
     const dirs = fibonacciSpherePoints(company.pois.length, seed);
     const surfRand = mulberry32(seed ^ 0x6b43a9f1);
@@ -109,7 +114,6 @@ export function instanceFromModel(
     paletteLow: model.paletteLow,
     paletteMid: model.paletteMid,
     paletteHigh: model.paletteHigh,
-    hasClouds: f.clouds,
     hasRing: f.rings,
     ringTilt: f.ringTilt,
     moons: model.moonSpecs.map((m) => ({

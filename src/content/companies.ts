@@ -19,7 +19,7 @@ const raw: Company[] = [
       'rendering tooling, and developer experience for mixed reality.',
     seed: 'microsoft-mesh-mrtk-hololens',
     palette: { low: '#0a2a4a', mid: '#1f6fb2', high: '#7ad6ff' },
-    features: { clouds: true, rings: false, ringTilt: 0.4, moons: 2 },
+    features: { rings: false, ringTilt: 0.4, moons: 2 },
     pois: [
       {
         slug: 'mrtk-graphics-tools',
@@ -65,7 +65,7 @@ const raw: Company[] = [
       'on a small, high-craft team.',
     seed: 'fun-bits-interactive-games',
     palette: { low: '#5a2a0a', mid: '#d2772b', high: '#ffd27a' },
-    features: { clouds: true, rings: true, ringTilt: 0.5, moons: 1 },
+    features: { rings: true, ringTilt: 0.5, moons: 1 },
     pois: [
       {
         slug: 'console-titles',
@@ -99,7 +99,7 @@ const raw: Company[] = [
       'cutting-edge rendering for AAA titles.',
     seed: 'lucasarts-entertainment',
     palette: { low: '#3a2e10', mid: '#b89b3e', high: '#ffe9a8' },
-    features: { clouds: false, rings: true, ringTilt: 0.8, moons: 0 },
+    features: { rings: true, ringTilt: 0.8, moons: 0 },
     pois: [
       {
         slug: 'aaa-rendering',
@@ -133,7 +133,7 @@ const raw: Company[] = [
       'real-time graphics education built around shipping games every year.',
     seed: 'digipen-rtis',
     palette: { low: '#0a3a1e', mid: '#2f9e54', high: '#a8ffce' },
-    features: { clouds: true, rings: false, ringTilt: 0.4, moons: 3 },
+    features: { rings: false, ringTilt: 0.4, moons: 3 },
     pois: [
       {
         slug: 'student-games',

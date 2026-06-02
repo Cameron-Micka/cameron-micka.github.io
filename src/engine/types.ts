@@ -11,7 +11,6 @@ export interface QualitySettings {
   dprCap: number;
   starCount: number;
   ssao: boolean;
-  clouds: boolean;
   chromaticAberration: boolean;
   bloomMips: number;
   msaa: number; // MSAA sample count: 1 = off, 2, or 4
@@ -28,7 +27,6 @@ export interface PlanetInstance {
   paletteLow: Vec3;
   paletteMid: Vec3;
   paletteHigh: Vec3;
-  hasClouds: boolean;
   hasRing: boolean;
   ringTilt: number;
   moons: { orbitRadius: number; angle: number; size: number }[];

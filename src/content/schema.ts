@@ -37,7 +37,6 @@ export const companySchema = z.object({
     high: z.string().regex(/^#([0-9a-fA-F]{6})$/),
   }),
   features: z.object({
-    clouds: z.boolean(),
     rings: z.boolean(),
     ringTilt: z.number().default(0.4),
     moons: z.number().int().min(0).max(6),

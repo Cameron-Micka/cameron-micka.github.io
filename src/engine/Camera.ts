@@ -7,13 +7,14 @@ const NEAR = 0.1;
 const FAR = 200;
 const VIEW_DISTANCE = 8.5;
 const EYE_HEIGHT = 1.8;
+const EYE_SIDE_OFFSET = 1.25;
 
 export class Camera {
   view: Mat4 = mat4.create();
   proj: Mat4 = mat4.create();
   viewProj: Mat4 = mat4.create();
   invViewProj: Mat4 = mat4.create();
-  position: Vec3 = [0, EYE_HEIGHT, VIEW_DISTANCE];
+  position: Vec3 = [EYE_SIDE_OFFSET, EYE_HEIGHT, VIEW_DISTANCE];
 
   private aspect = 1;
   private zoom = 1;
@@ -38,7 +39,7 @@ export class Camera {
     const focusZ = scrub * PLANET_SPACING;
     const dist = VIEW_DISTANCE * this.zoom + this.extra;
     const eyeZ = focusZ + dist;
-    this.position = [0, EYE_HEIGHT, eyeZ];
+    this.position = [EYE_SIDE_OFFSET, EYE_HEIGHT, eyeZ];
     const center: Vec3 = [0, 0, focusZ - 1.5];
 
     mat4.lookAt(this.view, this.position, center, [0, 1, 0]);

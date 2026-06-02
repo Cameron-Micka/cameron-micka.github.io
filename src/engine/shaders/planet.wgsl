@@ -1,4 +1,4 @@
-// Procedural planet surface (also used for moons and the cloud shell).
+// Procedural planet surface (also used for moons).
 // Shared frame + per-object uniforms; value-noise fBm drives terrain color
 // through three authored palette anchors. Atmosphere is a fresnel rim term.
 
@@ -11,7 +11,7 @@ struct Frame {
 
 struct Obj {
   model : mat4x4<f32>,
-  p0 : vec4<f32>, // x=radius, y=seedf, z=time, w=kind (0 planet,1 clouds,2 moon)
+  p0 : vec4<f32>, // x=radius, y=seedf, z=time, w=kind
   palLow : vec4<f32>,
   palMid : vec4<f32>,
   palHigh : vec4<f32>,
@@ -84,22 +84,12 @@ fn fbm(p : vec3<f32>) -> f32 {
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
-  let kind = obj.p0.w;
   let seed = obj.p0.y;
   let n = normalize(in.nrm);
   let viewDir = normalize(frame.cameraPos.xyz - in.worldPos);
   let lightDir = normalize(frame.keyLightDir.xyz);
   let ndl = clamp(dot(n, lightDir), 0.0, 1.0);
   let rim = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 3.0);
-
-  // Cloud shell: animated noise, alpha-blended white.
-  if (kind == 1.0) {
-    let t = frame.misc.x * 0.02;
-    let c = fbm(in.localPos * 3.0 + vec3<f32>(t, seed, -t));
-    let cov = smoothstep(0.55, 0.85, c);
-    let lit = 0.35 + 0.65 * ndl;
-    return vec4<f32>(vec3<f32>(1.0) * lit, cov * 0.55 * (0.5 + obj.p1.x));
-  }
 
   // Terrain color from fBm through the palette anchors.
   let sample = in.localPos * (2.2 + seed * 0.0001);
