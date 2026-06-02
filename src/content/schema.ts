@@ -50,6 +50,9 @@ export const companySchema = z.object({
 export type Media = z.infer<typeof mediaSchema>;
 export type Poi = z.infer<typeof poiSchema>;
 export type Company = z.infer<typeof companySchema>;
+// Input shape (before Zod applies defaults). Use when authoring raw company
+// data so fields with `.default()` (e.g. thinRing, ringTilt) stay optional.
+export type CompanyInput = z.input<typeof companySchema>;
 
 export const companiesSchema = z.array(companySchema);
 

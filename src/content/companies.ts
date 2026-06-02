@@ -1,4 +1,4 @@
-import { companiesSchema, type Company } from './schema';
+import { companiesSchema, type Company, type CompanyInput } from './schema';
 
 // Career timeline, ordered closest-to-camera ("Now") -> farthest ("Past").
 //
@@ -6,7 +6,7 @@ import { companiesSchema, type Company } from './schema';
 // confirmation. Edit start/end (YYYY or YYYY-MM) and the body copy freely —
 // planet radius is derived from tenure and POI positions are seed-derived, so
 // changing dates/seeds restyles the scene deterministically.
-const raw: Company[] = [
+const raw: CompanyInput[] = [
   {
     slug: 'microsoft',
     name: 'Microsoft',
