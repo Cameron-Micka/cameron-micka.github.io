@@ -20,26 +20,61 @@ void main() {
   gl_Position = vec4(p, 1.0, 1.0);
 }`;
 
+// Volumetric nebula backdrop — ray-marches a screen-space 3D fbm density
+// field for billowing warm-core / cool-edge clouds. Inspired by
+// https://www.shadertoy.com/view/wX2Bzy.
 const NEBULA_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
 out vec4 frag;
-float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float noise2(vec2 p){
-  vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.0-2.0*f);
-  return mix(mix(hash2(i),hash2(i+vec2(1,0)),u.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),u.x),u.y);
+uniform float uTime;
+uniform float uAspect;
+float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
+float vnoise3(vec3 x){
+  vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
+  float n000=hash3(i),n100=hash3(i+vec3(1,0,0)),n010=hash3(i+vec3(0,1,0)),n110=hash3(i+vec3(1,1,0));
+  float n001=hash3(i+vec3(0,0,1)),n101=hash3(i+vec3(1,0,1)),n011=hash3(i+vec3(0,1,1)),n111=hash3(i+vec3(1,1,1));
+  return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
-float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise2(p);p*=2.03;a*=.5;}return v;}
+float fbm3(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vnoise3(p);p*=2.03;a*=.5;}return v;}
 void main(){
-  vec2 uv=vUv;vec2 p=uv*3.0;
-  float c=fbm(p+vec2(2.0,1.0));float c2=fbm(p*1.7-vec2(5.0,3.0));
-  vec3 deep=vec3(0.012,0.016,0.035);
-  vec3 col=deep;
-  col=mix(col,vec3(0.10,0.06,0.22),smoothstep(0.45,0.85,c)*0.7);
-  col=mix(col,vec3(0.04,0.12,0.30),smoothstep(0.5,0.95,c2)*0.5);
-  float d=distance(uv,vec2(0.5,0.42));
-  col+=vec3(0.10,0.14,0.22)*smoothstep(0.6,0.0,d)*0.5;
-  float vig=1.0-0.5*smoothstep(0.35,0.9,distance(uv,vec2(0.5)));
+  vec2 uv=vec2((vUv.x-0.5)*uAspect,vUv.y-0.48);
+  float tt=uTime;
+  // Two slightly different speeds let the field both drift sideways and
+  // evolve in depth so the clouds look alive without distracting motion.
+  float time=tt*0.08;
+  vec2 drift=vec2(tt*0.012,tt*-0.006);
+  vec3 ro=vec3(0.0,0.0,-1.4);
+  vec3 rd=normalize(vec3(uv.x,uv.y,1.2));
+  vec3 warm=vec3(0.55,0.30,0.10);
+  vec3 glow=vec3(0.70,0.42,0.16);
+  vec3 cool=vec3(0.04,0.06,0.14);
+  vec3 deep=vec3(0.008,0.014,0.035);
+  float jitter=hash21(gl_FragCoord.xy)*0.10;
+  float t=0.45+jitter;
+  vec3 col=vec3(0.0);
+  float alpha=0.0;
+  for(int i=0;i<24;i++){
+    vec3 p=ro+rd*t;
+    float n=fbm3(p*1.05+vec3(drift.x,drift.y,time));
+    float dens=smoothstep(0.46,0.78,n);
+    float rad=length(p.xy);
+    float coreFade=exp(-rad*0.60);
+    float density=dens*(0.35+0.95*coreFade);
+    float warmth=coreFade*(0.35+0.65*smoothstep(0.5,0.85,n));
+    vec3 samp=mix(cool,warm,clamp(warmth,0.0,1.0));
+    samp=mix(samp,glow,smoothstep(0.72,1.0,n)*coreFade*0.65);
+    float inc=density*0.14;
+    col+=samp*inc*(1.0-alpha);
+    alpha+=inc*(1.0-alpha);
+    if(alpha>0.97) break;
+    t+=0.10+t*0.020;
+  }
+  float bgRad=length(uv);
+  vec3 bg=mix(deep,cool*0.55,smoothstep(0.0,1.4,bgRad));
+  col+=bg*(1.0-alpha);
+  float vig=1.0-0.35*smoothstep(0.6,1.4,length(uv));
   frag=vec4(col*vig,1.0);
 }`;
 
@@ -285,7 +320,7 @@ export class WebGL2Renderer implements SceneRenderer {
       this.deviceLostCb?.();
     });
 
-    this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, []);
+    this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uAspect']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uFocus',
@@ -475,6 +510,8 @@ export class WebGL2Renderer implements SceneRenderer {
     // Nebula (no depth).
     gl.disable(gl.DEPTH_TEST);
     gl.useProgram(this.nebula.prog);
+    gl.uniform1f(this.nebula.uniforms.uTime!, frame.time);
+    gl.uniform1f(this.nebula.uniforms.uAspect!, this.width / this.height);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.stats.drawCalls++;
 
