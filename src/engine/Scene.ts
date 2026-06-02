@@ -58,12 +58,18 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
     });
 
     const rand = mulberry32(seed ^ 0x9e3779b9);
-    const moonSpecs = Array.from({ length: company.features.moons }, (_, i) => ({
-      orbitRadius: radius * (1.7 + i * 0.5),
-      size: radius * (0.14 + rand() * 0.06),
-      phase: rand() * Math.PI * 2,
-      speed: 0.25 + rand() * 0.4,
-    }));
+    const moonSpecs = Array.from({ length: company.features.moons }, (_, i) => {
+      // Squared distribution biases small while still allowing the occasional
+      // larger moon — smaller on average than before and noticeably more
+      // varied in size between moons.
+      const t = rand() * rand();
+      return {
+        orbitRadius: radius * (1.7 + i * 0.5),
+        size: radius * (0.05 + t * 0.15),
+        phase: rand() * Math.PI * 2,
+        speed: 0.25 + rand() * 0.4,
+      };
+    });
 
     return {
       company,
@@ -116,6 +122,7 @@ export function instanceFromModel(
     paletteHigh: model.paletteHigh,
     hasRing: f.rings,
     ringTilt: f.ringTilt,
+    thinRing: f.thinRing,
     moons: model.moonSpecs.map((m) => ({
       orbitRadius: m.orbitRadius,
       angle: m.phase + time * m.speed,

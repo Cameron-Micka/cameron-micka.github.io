@@ -39,6 +39,9 @@ export const companySchema = z.object({
   features: z.object({
     rings: z.boolean(),
     ringTilt: z.number().default(0.4),
+    // When true, the planet's ring is rendered as a narrow band with only a
+    // few visible stripes instead of the broader many-band default.
+    thinRing: z.boolean().default(false),
     moons: z.number().int().min(0).max(6),
   }),
   pois: z.array(poiSchema),

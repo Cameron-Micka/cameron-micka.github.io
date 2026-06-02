@@ -1,4 +1,7 @@
 // Planetary ring. A flat annulus mesh oriented by the object model matrix.
+// Bands are curved by angular sin modulation (after https://www.shadertoy.com/view/wsfXDl)
+// and broken up with layered fBm + Cassini-style gaps so the ring reads as
+// organic dust and ice rather than concentric stripes.
 struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
@@ -19,6 +22,7 @@ struct Obj {
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
   @location(0) radial : f32, // 0 inner .. 1 outer
+  @location(1) angle : f32,  // 0..2π around the ring
 };
 
 @vertex
@@ -31,16 +35,94 @@ fn vs(
   let world = obj.model * vec4<f32>(position, 1.0);
   out.pos = frame.viewProj * world;
   out.radial = uv.x;
+  out.angle = uv.y * 6.2831853;
   return out;
+}
+
+fn hash2(p : vec2<f32>) -> f32 {
+  return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+fn vnoise2(p : vec2<f32>) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash2(i), hash2(i + vec2<f32>(1.0, 0.0)), u.x),
+    mix(hash2(i + vec2<f32>(0.0, 1.0)), hash2(i + vec2<f32>(1.0, 1.0)), u.x),
+    u.y,
+  );
+}
+
+fn fbm2(p : vec2<f32>) -> f32 {
+  var v = 0.0;
+  var a = 0.5;
+  var q = p;
+  for (var i = 0; i < 4; i = i + 1) {
+    v = v + a * vnoise2(q);
+    q = q * 2.03;
+    a = a * 0.5;
+  }
+  return v;
 }
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
-  // Banded translucency across the ring width.
-  let bands = 0.5 + 0.5 * sin(in.radial * 60.0);
-  let edge = smoothstep(0.0, 0.08, in.radial) *
-             smoothstep(1.0, 0.92, in.radial);
-  let a = edge * (0.25 + 0.35 * bands) * (0.5 + 0.5 * obj.p1.x);
-  let col = mix(obj.palMid.rgb, obj.palHigh.rgb, bands);
+  let radial = in.radial;
+  let angle = in.angle;
+  let time = frame.misc.x;
+  let seed = obj.p0.y;
+
+  // Per-planet variation so every ringed planet looks distinct (band count,
+  // gap pattern, visible inner/outer width). Cheap sin-hash from the seed.
+  let h1 = fract(sin(seed * 0.937 + 1.0) * 43758.5);
+  let h2 = fract(sin(seed * 0.357 + 2.5) * 21758.3);
+  let h3 = fract(sin(seed * 0.713 + 5.7) * 7853.7);
+  let h4 = fract(sin(seed * 0.521 + 8.2) * 51247.7);
+
+  let bandFreqBroad = 70.0 + h1 * 70.0;     // 70..140 bands
+  let gap1Freq = 5.0 + h2 * 9.0;            // 5..14
+  let gap2Freq = 12.0 + h3 * 11.0;          // 12..23
+  let gap2Phase = h4 * 6.2831853;
+
+  // Soft inner/outer edge falloff, with per-planet width so some rings sit
+  // close to the planet while others stretch wider.
+  let innerBroad = 0.02 + h2 * 0.18;        // 0.02..0.20
+  let outerBroad = 0.82 + h3 * 0.12;        // 0.82..0.94
+
+  // "Thin ring" style: narrow band hugging the planet with only ~3 visible
+  // stripes. Selected per-planet via obj.p1.w (set when thinRing=true).
+  let isThin = obj.p1.w;
+  let bandFreq = mix(bandFreqBroad, 115.0, isThin);
+  let innerStart = mix(innerBroad, 0.55, isThin);
+  let outerEnd = mix(outerBroad, 0.76, isThin);
+  // Broad rings keep the original wide soft fade to the geometry edge; thin
+  // rings use a tight 0.06-wide outer fade so the band actually reads narrow.
+  let outerFadeStart = mix(1.0, outerEnd + 0.06, isThin);
+  let edge = smoothstep(innerStart, innerStart + 0.06, radial) *
+             smoothstep(outerFadeStart, outerEnd, radial);
+
+  // Curved bands: cosine in radial with a very small angular sine offset so
+  // the rings stay essentially concentric, just enough imperfection to avoid
+  // looking machined.
+  let bands = 0.5 + 0.5 * cos(radial * bandFreq - 0.6 * sin(angle * 7.0 + time * 0.03));
+
+  // Layered fBm noise sampled in (radial, angle) so it stays seamless around
+  // the loop. Drives fine dust/clump variation independent of the bands.
+  let np = vec2<f32>(radial * 22.0, angle * 3.2);
+  let n = fbm2(np) * 0.65 + fbm2(np * 2.7 + vec2<f32>(11.0, 5.0)) * 0.35;
+
+  // Combine curved bands with noise, but weight the bands heavily so the
+  // fine ring stripes stay crisp instead of being smeared by fbm.
+  let density = smoothstep(0.20, 0.85, bands * 0.85 + n * 0.35);
+
+  // Cassini-style gaps cut a couple of transparent slots into the disk.
+  let g1 = smoothstep(0.88, 0.95, 0.5 + 0.5 * sin(radial * gap1Freq + h2 * 6.28));
+  let g2 = smoothstep(0.92, 0.97, 0.5 + 0.5 * sin(radial * gap2Freq + gap2Phase));
+  let gap = clamp(g1 + g2 * 0.7, 0.0, 1.0);
+  let opaq = max(0.0, density - gap * 0.85);
+
+  let a = edge * (0.18 + 0.55 * opaq) * (0.5 + 0.5 * obj.p1.x);
+  let col = mix(obj.palMid.rgb * 0.75, obj.palHigh.rgb, smoothstep(0.2, 0.85, density));
   return vec4<f32>(col * a * 1.4, a);
 }

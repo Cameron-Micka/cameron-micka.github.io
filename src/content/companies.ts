@@ -99,7 +99,7 @@ const raw: Company[] = [
       'cutting-edge rendering for AAA titles.',
     seed: 'lucasarts-entertainment',
     palette: { low: '#3a2e10', mid: '#b89b3e', high: '#ffe9a8' },
-    features: { rings: true, ringTilt: 0.8, moons: 0 },
+    features: { rings: true, ringTilt: 0.8, thinRing: true, moons: 0 },
     pois: [
       {
         slug: 'aaa-rendering',
@@ -117,6 +117,40 @@ const raw: Company[] = [
         body:
           'Prototyped and profiled rendering techniques, balancing artistic ' +
           'goals against strict frame-time budgets.',
+        media: [],
+      },
+    ],
+  },
+  {
+    slug: 'micka-studios',
+    name: 'Micka Studios',
+    role: 'Founder',
+    start: '2009',
+    end: '2011',
+    location: 'Redmond, WA',
+    summary:
+      'Independent studio founded during school — a sandbox for shipping ' +
+      'small games and rendering experiments while wearing every hat.',
+    seed: 'micka-studios-founder',
+    palette: { low: '#2a0a3a', mid: '#7c3ed2', high: '#d9b3ff' },
+    features: { rings: false, ringTilt: 0.4, moons: 1 },
+    pois: [
+      {
+        slug: 'indie-projects',
+        title: 'Indie Game Projects',
+        accent: '#b768ff',
+        body:
+          'Designed, programmed, and self-published small original games — ' +
+          'end-to-end ownership of every system from gameplay to release.',
+        media: [],
+      },
+      {
+        slug: 'rendering-experiments',
+        title: 'Rendering Experiments',
+        accent: '#d9b3ff',
+        body:
+          'Used the studio as a personal R&D lab — shader prototypes and ' +
+          'rendering techniques that seeded the graphics work to come.',
         media: [],
       },
     ],

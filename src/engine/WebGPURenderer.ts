@@ -620,6 +620,7 @@ export class WebGPURenderer implements SceneRenderer {
     focus: number,
     hasAtmo: number,
     rotationY: number,
+    extra: number = 0,
   ): void {
     const base = index * OBJ_FLOATS;
     const s = this.objScratch;
@@ -643,7 +644,7 @@ export class WebGPURenderer implements SceneRenderer {
     s[base + 32] = focus;
     s[base + 33] = hasAtmo;
     s[base + 34] = rotationY;
-    s[base + 35] = 0;
+    s[base + 35] = extra;
   }
 
   render(frame: FrameState): void {
@@ -744,6 +745,7 @@ export class WebGPURenderer implements SceneRenderer {
           p.focus,
           0,
           0,
+          p.thinRing ? 1 : 0,
         );
         objects.push({ kind: 2, index: objIndex });
         objIndex++;
