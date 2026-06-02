@@ -55,15 +55,21 @@ fn bloom(uv : vec2<f32>) -> vec3<f32> {
   return acc / 12.0;
 }
 
-// Wide gaussian-ish blur for the frozen modal backdrop.
+// Wide gaussian-ish blur for the frozen modal backdrop. Uses a 13x13 kernel
+// at ~2.5-texel spacing so adjacent taps' bilinear footprints overlap. Wider
+// or sparser kernels leave discrete bright "ghost dots" of every specular
+// highlight in the source, since each tap samples the HDR scene directly.
+// Sample offsets are nudged by 0.5 of a step so each tap lands between two
+// texels and benefits from bilinear filtering.
 fn blurScene(uv : vec2<f32>, amount : f32) -> vec3<f32> {
   var acc = vec3<f32>(0.0);
   var wsum = 0.0;
-  let r = post.texel.xy * 6.0 * amount;
-  for (var i = -3; i <= 3; i = i + 1) {
-    for (var j = -3; j <= 3; j = j + 1) {
-      let o = vec2<f32>(f32(i), f32(j));
-      let w = exp(-dot(o, o) * 0.25);
+  let r = post.texel.xy * 2.5 * amount;
+  for (var i = -6; i <= 6; i = i + 1) {
+    for (var j = -6; j <= 6; j = j + 1) {
+      let o = vec2<f32>(f32(i) + 0.5, f32(j) + 0.5);
+      // sigma ~3.2 taps so the bell rolls off well inside the loop bounds.
+      let w = exp(-dot(o, o) * 0.05);
       acc = acc + sampleScene(uv + o * r) * w;
       wsum = wsum + w;
     }
