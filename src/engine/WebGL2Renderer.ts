@@ -101,6 +101,7 @@ out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
+uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
   vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
@@ -131,6 +132,22 @@ const float FOG_DENSITY=0.030;
 const vec3 FOG_COLOR=vec3(0.04,0.06,0.14);
 float fogFactor(vec3 worldPos,vec3 camPos){
   float d=distance(worldPos,camPos);float s=d*FOG_DENSITY;return 1.0-exp(-s*s);
+}
+// Analytic spherical shadow (mirror of planet.wgsl). 1.0 unshadowed, 0.0
+// fully shadowed. Fixed loop bound for driver robustness.
+float shadowFactor(vec3 p,vec3 L){
+  float s=1.0;
+  for(int i=0;i<8;i++){
+    if(i>=uShadowCount)break;
+    vec4 sph=uShadowSpheres[i];
+    vec3 d=sph.xyz-p;
+    float t=dot(d,L);
+    if(t<=0.0)continue;
+    float c2=dot(d,d)-t*t;
+    float R=sph.w;float R2=R*R;
+    s*=smoothstep(R2,R2*1.10,c2);
+  }
+  return s;
 }
 void main(){
   vec3 n=normalize(vNrm);
@@ -201,10 +218,11 @@ void main(){
   vec3 kD=(vec3(1.0)-kS)*(1.0-metallic);
   // Pre-multiply sun radiance by PI so diffuse simplifies to kD*albedo*NdL.
   vec3 sunRadiance=vec3(PI);
-  vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL;
+  float shadow=shadowFactor(vWorld,L);
+  vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL*shadow;
   vec3 ambient=albedo*0.01;
   vec3 col=ambient+direct;
-  col+=uHigh*rim*NdL*0.55;
+  col+=uHigh*rim*NdL*0.55*shadow;
   col*=(0.85+0.3*uFocus);
   col=mix(col,FOG_COLOR,fogFactor(vWorld,uCamera));
   frag=vec4(aces(col),1.0);
@@ -341,11 +359,29 @@ out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uColor;uniform vec3 uCenter;
 uniform float uInner;uniform float uOuter;uniform float uFocus;uniform float uIntensity;
+uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
 vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 vec2 raySphere(vec3 ro,vec3 rd,vec3 ce,float ra){
   vec3 oc=ro-ce;float b=dot(oc,rd);float c=dot(oc,oc)-ra*ra;float h=b*b-c;
   if(h<0.0)return vec2(1.0,-1.0);
   float s=sqrt(h);return vec2(-b-s,-b+s);
+}
+// Analytic shadow with self-exclude (parent planet's own sphere is skipped so
+// per-sample sunAmt isn't double-darkened). 1.0 unshadowed, 0.0 fully shadowed.
+float shadowFactor(vec3 p,vec3 L,vec3 exclude){
+  float s=1.0;
+  for(int i=0;i<8;i++){
+    if(i>=uShadowCount)break;
+    vec4 sph=uShadowSpheres[i];
+    if(distance(sph.xyz,exclude)<1e-3)continue;
+    vec3 d=sph.xyz-p;
+    float t=dot(d,L);
+    if(t<=0.0)continue;
+    float c2=dot(d,d)-t*t;
+    float R=sph.w;float R2=R*R;
+    s*=smoothstep(R2,R2*1.10,c2);
+  }
+  return s;
 }
 void main(){
   vec3 ro=uCamera;vec3 rd=normalize(vWorld-ro);vec3 sun=normalize(uLight);
@@ -366,7 +402,8 @@ void main(){
     float density=exp(-hgt*4.0);
     // Sun gate starts past the terminator so night-side samples contribute 0.
     float sunAmt=smoothstep(0.05,0.40,dot(normalize(up),sun));
-    dayGlow+=density*sunAmt*dt;ambient+=density*dt;
+    float shadow=shadowFactor(pos,sun,uCenter);
+    dayGlow+=density*sunAmt*shadow*dt;ambient+=density*dt;
   }
   dayGlow/=thickness;ambient/=thickness;
   vec3 atmoColor=mix(uColor,vec3(0.45,0.62,1.0),0.5);
@@ -427,6 +464,9 @@ export class WebGL2Renderer implements SceneRenderer {
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
 
+  // Scratch for uShadowSpheres[8] uploads (8 vec4 = 32 floats).
+  private shadowScratch = new Float32Array(32);
+
   async init(canvas: HTMLCanvasElement): Promise<void> {
     const gl = canvas.getContext('webgl2', {
       antialias: true,
@@ -446,6 +486,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uFocus', 'uOceans',
+      'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
       'uViewProj', 'uTime', 'uMode',
@@ -457,6 +498,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.atmosphere = this.makeProgram(PLANET_VERT, ATMOSPHERE_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uColor', 'uCenter',
       'uInner', 'uOuter', 'uFocus', 'uIntensity',
+      'uShadowCount', 'uShadowSpheres[0]',
     ]);
 
     this.buildSphere();
@@ -689,6 +731,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
+    this.bindShadowUniforms(this.planet, frame);
     gl.bindVertexArray(this.sphereVao);
     const idxType = this.sphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
     for (const p of frame.planets) {
@@ -736,6 +779,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.atmosphere.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.atmosphere.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.atmosphere.uniforms.uLight!, frame.keyLightDir);
+    this.bindShadowUniforms(this.atmosphere, frame);
     gl.bindVertexArray(this.sphereVao);
     for (const p of frame.planets) {
       const vis = p.visibility;
@@ -833,6 +877,25 @@ export class WebGL2Renderer implements SceneRenderer {
       0,
     );
     this.stats.drawCalls++;
+  }
+
+  // Pack the frame's shadow casters into the scratch vec4[8] and upload them
+  // to the currently bound program. Pass count = 0 (and skip the vec4 upload)
+  // when the quality tier disables shadows or no casters are present.
+  private bindShadowUniforms(prog: Program, frame: FrameState): void {
+    const gl = this.gl;
+    const cnt = Math.min(frame.shadowCasters.length, 8);
+    gl.uniform1i(prog.uniforms.uShadowCount!, cnt);
+    if (cnt === 0) return;
+    const s = this.shadowScratch;
+    for (let i = 0; i < cnt; i++) {
+      const c = frame.shadowCasters[i]!;
+      s[i * 4 + 0] = c.center[0];
+      s[i * 4 + 1] = c.center[1];
+      s[i * 4 + 2] = c.center[2];
+      s[i * 4 + 3] = c.radius;
+    }
+    gl.uniform4fv(prog.uniforms['uShadowSpheres[0]']!, s, 0, cnt * 4);
   }
 
   private uploadPois(frame: FrameState): void {

@@ -669,7 +669,29 @@ export class WebGPURenderer implements SceneRenderer {
     f[25] = frame.reducedMotion ? 1 : 0;
     f[26] = 1;
     f[27] = this.width / this.height;
-    d.queue.writeBuffer(this.frameUBO, 0, f, 0, 28);
+    // Shadow casters: 8 vec4 spheres at floats 28..59, count at float 60.
+    const sCount = Math.min(frame.shadowCasters.length, 8);
+    for (let i = 0; i < sCount; i++) {
+      const c = frame.shadowCasters[i]!;
+      const o = 28 + i * 4;
+      f[o] = c.center[0];
+      f[o + 1] = c.center[1];
+      f[o + 2] = c.center[2];
+      f[o + 3] = c.radius;
+    }
+    // Zero unused slots so stale data from previous frames doesn't leak.
+    for (let i = sCount; i < 8; i++) {
+      const o = 28 + i * 4;
+      f[o] = 0;
+      f[o + 1] = 0;
+      f[o + 2] = 0;
+      f[o + 3] = 0;
+    }
+    f[60] = sCount;
+    f[61] = 0;
+    f[62] = 0;
+    f[63] = 0;
+    d.queue.writeBuffer(this.frameUBO, 0, f, 0, 64);
 
     // Build per-object uniforms + collect POI billboards.
     const objects: { kind: number; index: number }[] = [];

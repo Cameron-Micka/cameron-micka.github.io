@@ -319,6 +319,16 @@ export class Engine {
       keyLightDir: KEY_LIGHT,
       planets,
       quality: this.activeQuality,
+      shadowCasters: this.activeQuality.shadows
+        ? planets
+            .filter((p) => p.visibility > 0.5)
+            // Sort by visible projected radius so the largest occluders win
+            // the 8-slot budget; a small fading body shouldn't crowd out a
+            // large nearby planet.
+            .map((p) => ({ center: p.center, radius: p.radius * p.visibility }))
+            .sort((a, b) => b.radius - a.radius)
+            .slice(0, 8)
+        : [],
       blur: this.blurCurrent,
       reducedMotion: this.reducedMotion(),
       wireframe: this.settings.wireframe,

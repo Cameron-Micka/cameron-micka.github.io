@@ -14,6 +14,7 @@ export interface QualitySettings {
   chromaticAberration: boolean;
   bloomMips: number;
   msaa: number; // MSAA sample count: 1 = off, 2, or 4
+  shadows: boolean; // planet-cast shadows on other planets/rings/moons
 }
 
 // Per-planet data the renderer needs to draw one planet (+ optional ring/moons).
@@ -54,6 +55,9 @@ export interface FrameState {
   keyLightDir: Vec3;
   planets: PlanetInstance[];
   quality: QualitySettings;
+  // Sphere occluders used for analytic shadow casting. Empty when shadows are
+  // disabled by the active quality tier. Limited to MAX_SHADOW_CASTERS (8).
+  shadowCasters: { center: Vec3; radius: number }[];
   // 0 = live scene, 1 = fully blurred frozen snapshot (modal open).
   blur: number;
   reducedMotion: boolean;

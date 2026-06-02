@@ -7,6 +7,8 @@ struct Frame {
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
   misc : vec4<f32>, // x=time, y=reducedMotion, z=qualityScale, w=unused
+  shadowSpheres : array<vec4<f32>, 8>, // xyz=center, w=radius
+  shadowMisc : vec4<f32>, // x=active sphere count, yzw unused
 };
 
 struct Obj {
@@ -157,6 +159,27 @@ fn fogFactor(worldPos : vec3<f32>, cameraPos : vec3<f32>) -> f32 {
   return 1.0 - exp(-s * s);
 }
 
+// Analytic spherical shadow from a directional sun. For each occluder sphere
+// we test whether the ray from the receiver point in direction L (toward sun)
+// passes through the sphere. Returns 1.0 unshadowed, 0.0 fully shadowed,
+// smoothstep'd across a ~5% radial penumbra band beyond the umbra.
+fn shadowFactor(p : vec3<f32>, L : vec3<f32>) -> f32 {
+  var s = 1.0;
+  let cnt = i32(frame.shadowMisc.x);
+  for (var i = 0; i < 8; i = i + 1) {
+    if (i >= cnt) { break; }
+    let sph = frame.shadowSpheres[i];
+    let d = sph.xyz - p;
+    let t = dot(d, L);
+    if (t <= 0.0) { continue; } // occluder is behind the receiver
+    let c2 = dot(d, d) - t * t;
+    let R = sph.w;
+    let R2 = R * R;
+    s = s * smoothstep(R2, R2 * 1.10, c2);
+  }
+  return s;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let seed = obj.p0.y;
@@ -265,7 +288,11 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // kD * albedo * NdL (matches the look of the previous Lambert-ish shader
   // at NdL=1) while the specular term retains its physical units.
   let sunRadiance = vec3<f32>(PI);
-  let direct = (kD * albedo / PI + specular) * sunRadiance * NdL;
+  // Analytic planet shadow on the lit side. Self-shadow is implicitly handled
+  // because the lit-side test gives t <= 0 (the receiver's own sphere is
+  // sun-ward, so the ray to the sun never re-enters).
+  let shadow = shadowFactor(in.worldPos, lightDir);
+  let direct = (kD * albedo / PI + specular) * sunRadiance * NdL * shadow;
 
   // Very faint ambient so the unlit hemisphere reads as deep shadow without
   // being pitch black — surface noise stays just barely legible.
@@ -274,8 +301,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
 
   let atmoStrength = obj.p1.y;
   // Multiplied by NdL (not (a + b*NdL)) so the rim fresnel fully zeroes on
-  // the unlit side instead of leaving a faint constant glow there.
-  let atmo = obj.palHigh.rgb * rim * NdL * 0.55 * atmoStrength;
+  // the unlit side instead of leaving a faint constant glow there. Also gated
+  // by shadow so it doesn't glow through another planet's shadow.
+  let atmo = obj.palHigh.rgb * rim * NdL * 0.55 * atmoStrength * shadow;
   color = color + atmo;
 
   color = color * (0.85 + 0.3 * obj.p1.x);

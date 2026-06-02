@@ -7,6 +7,8 @@ struct Frame {
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
   misc : vec4<f32>,
+  shadowSpheres : array<vec4<f32>, 8>,
+  shadowMisc : vec4<f32>,
 };
 struct Obj {
   model : mat4x4<f32>,
@@ -68,6 +70,25 @@ fn fbm2(p : vec2<f32>) -> f32 {
   return v;
 }
 
+// Analytic shadow factor against the frame's sphere occluder list. Returns
+// 1.0 unshadowed, 0.0 fully shadowed; ~5% radial penumbra band.
+fn shadowFactor(p : vec3<f32>, L : vec3<f32>) -> f32 {
+  var s = 1.0;
+  let cnt = i32(frame.shadowMisc.x);
+  for (var i = 0; i < 8; i = i + 1) {
+    if (i >= cnt) { break; }
+    let sph = frame.shadowSpheres[i];
+    let d = sph.xyz - p;
+    let t = dot(d, L);
+    if (t <= 0.0) { continue; }
+    let c2 = dot(d, d) - t * t;
+    let R = sph.w;
+    let R2 = R * R;
+    s = s * smoothstep(R2, R2 * 1.10, c2);
+  }
+  return s;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let radial = in.radial;
@@ -125,7 +146,11 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let opaq = max(0.0, density - gap * 0.85);
 
   let a = edge * (0.18 + 0.55 * opaq) * (0.5 + 0.5 * obj.p1.x);
-  let col = mix(obj.palMid.rgb * 0.75, obj.palHigh.rgb, smoothstep(0.2, 0.85, density));
+  let baseCol = mix(obj.palMid.rgb * 0.75, obj.palHigh.rgb, smoothstep(0.2, 0.85, density));
+  // Planet shadow on the ring: dim the color (keep alpha so the silhouette
+  // stays the same). Sun direction (L) points from receiver toward the sun.
+  let shadow = shadowFactor(in.worldPos, normalize(frame.keyLightDir.xyz));
+  let col = baseCol * mix(0.18, 1.0, shadow);
   // Distance fog: attenuate both colour and alpha so distant rings fade into
   // the nebula instead of stamping silhouettes over far-off planets.
   let d = distance(in.worldPos, frame.cameraPos.xyz);

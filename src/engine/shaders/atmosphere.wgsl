@@ -9,6 +9,8 @@ struct Frame {
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
   misc : vec4<f32>,
+  shadowSpheres : array<vec4<f32>, 8>,
+  shadowMisc : vec4<f32>,
 };
 
 struct Obj {
@@ -54,6 +56,28 @@ fn raySphere(ro : vec3<f32>, rd : vec3<f32>, ce : vec3<f32>, ra : f32) -> vec2<f
   return vec2<f32>(-b - s, -b + s);
 }
 
+// Analytic shadow factor against the frame's sphere occluder list, with an
+// exclusion (the parent planet whose atmosphere we're shading) so we don't
+// double-darken the night side, which the per-sample sunAmt gate already
+// handles. Returns 1.0 unshadowed, 0.0 fully shadowed.
+fn shadowFactor(p : vec3<f32>, L : vec3<f32>, exclude : vec3<f32>) -> f32 {
+  var s = 1.0;
+  let cnt = i32(frame.shadowMisc.x);
+  for (var i = 0; i < 8; i = i + 1) {
+    if (i >= cnt) { break; }
+    let sph = frame.shadowSpheres[i];
+    if (distance(sph.xyz, exclude) < 1e-3) { continue; }
+    let d = sph.xyz - p;
+    let t = dot(d, L);
+    if (t <= 0.0) { continue; }
+    let c2 = dot(d, d) - t * t;
+    let R = sph.w;
+    let R2 = R * R;
+    s = s * smoothstep(R2, R2 * 1.10, c2);
+  }
+  return s;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let center = obj.model[3].xyz;
@@ -93,7 +117,10 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let density = exp(-hgt * 4.0);
     // Sun gate starts past the terminator so night-side samples contribute 0.
     let sunAmt = smoothstep(0.05, 0.40, dot(normalize(up), sun));
-    dayGlow = dayGlow + density * sunAmt * dt;
+    // Per-sample analytic shadow from other planets (self excluded so we
+    // don't double-darken what sunAmt already handles).
+    let shadow = shadowFactor(pos, sun, center);
+    dayGlow = dayGlow + density * sunAmt * shadow * dt;
     ambient = ambient + density * dt;
   }
   dayGlow = dayGlow / thickness;
