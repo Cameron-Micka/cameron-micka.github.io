@@ -142,13 +142,14 @@ void main(){
 
 const POINT_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
-layout(location=1) in vec4 aAttr; // x size, y phase/dim, z tintR/accentG, w tintB/accentB
+layout(location=1) in vec4 aAttr; // x size, y phase/dim, z digit (POIs only), w unused
 layout(location=2) in vec3 aColor;
 uniform mat4 uViewProj;
 uniform float uTime;
 uniform float uMode; // 0 star, 1 poi
 out vec4 vAttr;
 out vec3 vColor;
+out float vDigit;
 void main(){
   vec4 clip=uViewProj*vec4(aPos,1.0);
   gl_Position=clip;
@@ -156,19 +157,46 @@ void main(){
   gl_PointSize=clamp(aAttr.x/max(clip.w,0.001),1.0,64.0);
   vAttr=vec4(twinkle,aAttr.y,uMode,aAttr.x);
   vColor=aColor;
+  vDigit=aAttr.z;
 }`;
 
 const POINT_FRAG = `#version 300 es
 precision highp float;
-in vec4 vAttr;in vec3 vColor;
+in vec4 vAttr;in vec3 vColor;in float vDigit;
 out vec4 frag;
+// 3x5 bitmap glyphs for 1..9 packed row-major into 15 bits (bit row*3+col).
+int digitBits(int d){
+  if(d==1)return 29850;
+  if(d==2)return 29671;
+  if(d==3)return 31207;
+  if(d==4)return 18925;
+  if(d==5)return 31183;
+  if(d==6)return 31695;
+  if(d==7)return 9383;
+  if(d==8)return 31727;
+  if(d==9)return 31215;
+  return 0;
+}
+float digitMask(vec2 uv,int d){
+  // gl_PointCoord origin is upper-left, so uv.y=-1 is the top of the marker.
+  float halfW=0.28;float halfH=0.42;
+  float cx=(uv.x+halfW)/(halfW*2.0)*3.0;
+  float cy=(uv.y+halfH)/(halfH*2.0)*5.0;
+  if(cx<0.0||cx>=3.0||cy<0.0||cy>=5.0)return 0.0;
+  int col=int(floor(cx));int row=int(floor(cy));
+  int bits=digitBits(d);
+  int mask=1<<(row*3+col);
+  return ((bits&mask)!=0)?1.0:0.0;
+}
 void main(){
   vec2 uv=gl_PointCoord*2.0-1.0;
   float d=length(uv);
   if(vAttr.z>0.5){
     float radius=0.85;
     float aa=fwidth(d);
-    float a=(1.0-smoothstep(aa,aa+aa,abs(d-radius)))*vAttr.y;
+    float outline=(1.0-smoothstep(aa,aa+aa,abs(d-radius)))*vAttr.y;
+    float glyph=digitMask(uv,int(vDigit+0.5))*vAttr.y;
+    float a=max(outline,glyph);
     frag=vec4(vec3(a),a);
   }else{
     float core=pow(smoothstep(1.0,0.0,d),4.0)*vAttr.x;
@@ -740,7 +768,8 @@ export class WebGL2Renderer implements SceneRenderer {
       const er = p.radius * vis;
       const markerDist = poiMarkerDistance(er);
       const rot = p.orientation;
-      for (const poi of p.pois) {
+      for (let i = 0; i < p.pois.length; i++) {
+        const poi = p.pois[i]!;
         const dir = quat.rotateVec3(rot, poi.dir);
         const surfDir = quat.rotateVec3(rot, poi.surfaceDir);
         const inner = vec3.add(p.center, vec3.scale(surfDir, er));
@@ -748,7 +777,7 @@ export class WebGL2Renderer implements SceneRenderer {
         const dim = fade;
         const sizePx = 90 * (0.7 + p.focus) * vis;
         pos.push(outer[0], outer[1], outer[2]);
-        attr.push(sizePx, dim, 0, 0);
+        attr.push(sizePx, dim, i + 1, 0);
         color.push(poi.accent[0], poi.accent[1], poi.accent[2]);
         // Connector quad: surface vertex (faint) -> rim vertex (bright).
         const ar = poi.accent[0];

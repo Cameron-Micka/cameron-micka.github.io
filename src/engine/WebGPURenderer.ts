@@ -412,6 +412,7 @@ export class WebGPURenderer implements SceneRenderer {
         { shaderLocation: 1, offset: 12, format: 'float32x3' }, // outer (marker)
         { shaderLocation: 2, offset: 24, format: 'float32x4' }, // size,dim,accentRG
         { shaderLocation: 3, offset: 40, format: 'float32' }, // accentB
+        { shaderLocation: 4, offset: 44, format: 'float32' }, // digit (1..9 or 0)
       ],
     };
 
@@ -989,7 +990,8 @@ export class WebGPURenderer implements SceneRenderer {
     if (fade <= 0.001) return;
     const rot = p.orientation;
     const markerDist = poiMarkerDistance(effectiveRadius);
-    for (const poi of p.pois) {
+    for (let i = 0; i < p.pois.length; i++) {
+      const poi = p.pois[i]!;
       const dir = quat.rotateVec3(rot, poi.dir);
       const surfDir = quat.rotateVec3(rot, poi.surfaceDir);
       const inner = vec3.add(p.center, vec3.scale(surfDir, effectiveRadius));
@@ -1008,7 +1010,7 @@ export class WebGPURenderer implements SceneRenderer {
         poi.accent[0],
         poi.accent[1],
         poi.accent[2],
-        0,
+        i + 1,
       );
     }
   }
