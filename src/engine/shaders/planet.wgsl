@@ -74,9 +74,9 @@ fn fbm(p : vec3<f32>) -> f32 {
   var v = 0.0;
   var a = 0.5;
   var q = p;
-  for (var i = 0; i < 5; i = i + 1) {
+  for (var i = 0; i < 4; i = i + 1) {
     v = v + a * vnoise(q);
-    q = q * 2.02;
+    q = q * 2.03;
     a = a * 0.5;
   }
   return v;
@@ -91,13 +91,34 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let ndl = clamp(dot(n, lightDir), 0.0, 1.0);
   let rim = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 3.0);
 
-  // Terrain color from fBm through the palette anchors.
-  let sample = in.localPos * (2.2 + seed * 0.0001);
-  let h = fbm(sample + vec3<f32>(seed * 0.001));
-  let detail = fbm(sample * 4.0) * 0.25;
-  let height = clamp(h + detail, 0.0, 1.0);
+  // Two-level fBm domain warping (after Inigo Quilez,
+  // https://iquilezles.org/articles/warp/) — extended to 3D so we can sample
+  // it directly on the sphere surface and avoid UV seams. The 2.5× warp
+  // magnitude bends the noise field strongly through itself, producing the
+  // curling, marbled structure that reads as organic geology rather than
+  // uniform fbm hiss.
+  let basePos = in.localPos * (2.2 + seed * 0.0001) + vec3<f32>(seed * 0.001);
+  let q = vec3<f32>(
+    fbm(basePos),
+    fbm(basePos + vec3<f32>(5.2, 1.3, 2.8)),
+    fbm(basePos + vec3<f32>(7.1, 4.4, 6.9)),
+  );
+  let warpQ = basePos + 2.5 * q;
+  let r = vec3<f32>(
+    fbm(warpQ + vec3<f32>(1.7, 9.2, 3.5)),
+    fbm(warpQ + vec3<f32>(8.3, 2.8, 4.1)),
+    fbm(warpQ + vec3<f32>(4.7, 7.7, 1.9)),
+  );
+  let height = clamp(fbm(basePos + 2.5 * r), 0.0, 1.0);
   var base = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.25, 0.55, height));
   base = mix(base, obj.palHigh.rgb, smoothstep(0.6, 0.85, height));
+  // IQ-style color modulation from the warp magnitudes — q drives darker
+  // "trench" pockets, r drives brighter "highland" streaks. Both are kept
+  // subtle so the authored low/mid/high palette still defines the planet.
+  let qLen = clamp(length(q) * 0.55, 0.0, 1.0);
+  let rLen = clamp(length(r) * 0.55, 0.0, 1.0);
+  base = mix(base, obj.palLow.rgb * 0.55, qLen * 0.22);
+  base = mix(base, obj.palHigh.rgb * 1.15, rLen * 0.20);
 
   // Terminator shading + a touch of rim/key fill.
   let shade = 0.12 + 0.95 * ndl;

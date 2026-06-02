@@ -108,17 +108,30 @@ float vnoise(vec3 x){
   float n001=hash3(i+vec3(0,0,1)),n101=hash3(i+vec3(1,0,1)),n011=hash3(i+vec3(0,1,1)),n111=hash3(i+vec3(1,1,1));
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
-float fbm(vec3 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*vnoise(p);p*=2.02;a*=.5;}return v;}
+float fbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vnoise(p);p*=2.03;a*=.5;}return v;}
 vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 void main(){
   vec3 n=normalize(vNrm);
   vec3 viewDir=normalize(uCamera-vWorld);
   float ndl=clamp(dot(n,normalize(uLight)),0.0,1.0);
   float rim=pow(1.0-clamp(dot(n,viewDir),0.0,1.0),3.0);
-  vec3 sp=vLocal*2.2;
-  float h=clamp(fbm(sp+vec3(uSeed*0.001))+fbm(sp*4.0)*0.25,0.0,1.0);
+  // Two-level fBm domain warping (after Inigo Quilez,
+  // https://iquilezles.org/articles/warp/) — 3D so it samples cleanly on the
+  // sphere surface. 2.5x warp magnitude bends the noise field strongly
+  // through itself for the curling, marbled organic structure.
+  vec3 sp=vLocal*2.2+vec3(uSeed*0.001);
+  vec3 q=vec3(fbm(sp),fbm(sp+vec3(5.2,1.3,2.8)),fbm(sp+vec3(7.1,4.4,6.9)));
+  vec3 warpQ=sp+2.5*q;
+  vec3 r=vec3(fbm(warpQ+vec3(1.7,9.2,3.5)),fbm(warpQ+vec3(8.3,2.8,4.1)),fbm(warpQ+vec3(4.7,7.7,1.9)));
+  float h=clamp(fbm(sp+2.5*r),0.0,1.0);
   vec3 base=mix(uLow,uMid,smoothstep(0.25,0.55,h));
   base=mix(base,uHigh,smoothstep(0.6,0.85,h));
+  // q magnitude darkens "trench" pockets, r magnitude brightens "highland"
+  // streaks. Subtle so the authored palette still drives planet identity.
+  float qLen=clamp(length(q)*0.55,0.0,1.0);
+  float rLen=clamp(length(r)*0.55,0.0,1.0);
+  base=mix(base,uLow*0.55,qLen*0.22);
+  base=mix(base,uHigh*1.15,rLen*0.20);
   vec3 col=base*(0.12+0.95*ndl);
   col+=uHigh*rim*(0.6+0.8*ndl);
   vec3 hlf=normalize(normalize(uLight)+viewDir);
