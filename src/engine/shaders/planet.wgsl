@@ -82,6 +82,38 @@ fn fbm(p : vec3<f32>) -> f32 {
   return v;
 }
 
+// Low-frequency fBm used for continent-scale land/sea distribution. Only 3
+// octaves so the result is smooth at sub-continent scale, giving large
+// coherent landmasses and open ocean basins rather than fragmented noise.
+fn continentFbm(p : vec3<f32>) -> f32 {
+  var v = 0.0;
+  var a = 0.6;
+  var q = p;
+  for (var i = 0; i < 3; i = i + 1) {
+    v = v + a * vnoise(q);
+    q = q * 2.0;
+    a = a * 0.5;
+  }
+  return v;
+}
+
+// Ridged fBm for mountain chains. `1 - |n - 0.5| * 2` per octave gives sharp
+// linear ridges where the base noise crosses 0.5, like real orogenic belts.
+// Only 2 octaves so the result reads as continuous scars rather than a
+// noisy speckle field — the high-frequency octaves break up the linearity.
+fn ridgedFbm(p : vec3<f32>) -> f32 {
+  var v = 0.0;
+  var a = 0.65;
+  var q = p;
+  for (var i = 0; i < 2; i = i + 1) {
+    let n = vnoise(q);
+    v = v + a * (1.0 - abs(n - 0.5) * 2.0);
+    q = q * 2.1;
+    a = a * 0.5;
+  }
+  return v;
+}
+
 // --- Cook-Torrance PBR helpers ---
 // Standard real-time GGX BRDF (Walter et al. 2007 / Karis 2013). Lets land
 // and water share one lighting path while their roughness/F0 alone shape the
@@ -162,15 +194,43 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   land = mix(land, obj.palLow.rgb * 0.55, qLen * 0.22);
   land = mix(land, obj.palHigh.rgb * 1.15, rLen * 0.20);
 
-  // Oceans: at low elevation on ocean planets, replace the textured land
-  // with a smooth depth-graded blue. Hardcoded ocean palette keeps water
-  // recognisable regardless of the planet's authored land palette.
+  // Biome variation: a slow 3-channel noise reads as climate-zone tint
+  // (warmer here, cooler there) so adjacent landmasses don't all look the
+  // same. Sampled at very low frequency for region-scale color shifts.
+  let biomeR = vnoise(in.localPos * 0.55 + vec3<f32>(11.3, 3.7, 5.1));
+  let biomeG = vnoise(in.localPos * 0.55 + vec3<f32>(24.7, 6.2, 9.4));
+  let biomeB = vnoise(in.localPos * 0.55 + vec3<f32>(37.1, 8.9, 2.6));
+  let biomeTint = vec3<f32>(biomeR, biomeG, biomeB);
+  // Tint toward a biome-mixed palette extreme so it stays palette-respecting.
+  let biomeColor = mix(obj.palLow.rgb, obj.palHigh.rgb, biomeTint);
+  land = mix(land, biomeColor, 0.18);
+
+  // Mountain ranges: 2-octave ridged noise gives long continuous "scars"
+  // (Andes/Himalaya-like) rather than splotchy peaks. Sampled at low
+  // frequency on the warped domain so chains follow continental flow and a
+  // tight ridge-spine threshold paints only the actual range, not foothills.
+  let ridge = ridgedFbm(warpQ * 0.5);
+  let mountainMask = smoothstep(0.62, 0.74, ridge) * smoothstep(0.42, 0.62, height);
+  let mountainRock = mix(obj.palMid.rgb * 0.55, vec3<f32>(0.48, 0.28, 0.16), 0.75);
+  land = mix(land, mountainRock, mountainMask * 0.85);
+  let snowMask = smoothstep(0.78, 0.95, height) * smoothstep(0.58, 0.74, ridge);
+  land = mix(land, vec3<f32>(0.94, 0.95, 0.97), snowMask * 0.9);
+
+  // Oceans: a separate low-frequency "continent" field drives the land/sea
+  // split so landmasses clump like Earth's continents instead of fragmenting
+  // with the fine surface noise. A small amount of the fine `height` is mixed
+  // in so coastlines stay naturally jagged rather than perfectly smooth.
   let oceans = obj.p1.w;
-  let seaLevel = 0.50;
-  let waterMask = oceans * (1.0 - smoothstep(seaLevel - 0.02, seaLevel + 0.02, height));
-  let deepOcean = vec3<f32>(0.015, 0.05, 0.16);
-  let shallowOcean = vec3<f32>(0.18, 0.42, 0.70);
-  let depth = smoothstep(0.0, seaLevel, height);
+  let continentPos = in.localPos * 1.1 + vec3<f32>(seed * 0.0011);
+  let continentH = continentFbm(continentPos);
+  let oceanField = continentH * 0.85 + height * 0.15;
+  let waterLevel = 0.55;
+  let waterMask = oceans * (1.0 - smoothstep(waterLevel - 0.03, waterLevel + 0.03, oceanField));
+  let deepOcean = vec3<f32>(0.005, 0.018, 0.07);
+  let shallowOcean = vec3<f32>(0.42, 0.82, 0.80);
+  // Concentrate the lightening in a narrow band just inside the shoreline so
+  // most of the ocean stays dark and coasts get a visible turquoise rim.
+  let depth = smoothstep(waterLevel - 0.10, waterLevel, oceanField);
   let water = mix(deepOcean, shallowOcean, depth);
   let base = mix(land, water, waterMask);
 

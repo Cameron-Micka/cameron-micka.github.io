@@ -109,6 +109,14 @@ float vnoise(vec3 x){
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
 float fbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vnoise(p);p*=2.03;a*=.5;}return v;}
+// Low-frequency fBm for continent-scale land/sea distribution. 3 octaves so
+// the result is smooth at sub-continent scale and gives big coherent
+// landmasses instead of fragmenting with the fine surface noise.
+float continentFbm(vec3 p){float v=0.,a=.6;for(int i=0;i<3;i++){v+=a*vnoise(p);p*=2.0;a*=.5;}return v;}
+// Ridged fBm for mountain chains. 2 octaves only — high-frequency octaves
+// break up the linearity, so we keep just the dominant ridge structure to
+// get continuous Andes/Himalaya-like scars instead of noisy peaks.
+float ridgedFbm(vec3 p){float v=0.,a=.65;for(int i=0;i<2;i++){float n=vnoise(p);v+=a*(1.0-abs(n-0.5)*2.0);p*=2.1;a*=.5;}return v;}
 vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 // --- Cook-Torrance PBR helpers (mirror of planet.wgsl) ---
 const float PI=3.14159265359;
@@ -146,12 +154,31 @@ void main(){
   float rLen=clamp(length(r)*0.55,0.0,1.0);
   land=mix(land,uLow*0.55,qLen*0.22);
   land=mix(land,uHigh*1.15,rLen*0.20);
-  // Oceans: smooth depth-graded blue under sea level on ocean planets.
-  float seaLevel=0.50;
-  float waterMask=uOceans*(1.0-smoothstep(seaLevel-0.02,seaLevel+0.02,h));
-  vec3 deepOcean=vec3(0.015,0.05,0.16);
-  vec3 shallowOcean=vec3(0.18,0.42,0.70);
-  float depth=smoothstep(0.0,seaLevel,h);
+  // Biome variation: slow 3-channel noise tints continents with climate-zone
+  // shifts so landmasses don't all look identical.
+  float biomeR=vnoise(vLocal*0.55+vec3(11.3,3.7,5.1));
+  float biomeG=vnoise(vLocal*0.55+vec3(24.7,6.2,9.4));
+  float biomeB=vnoise(vLocal*0.55+vec3(37.1,8.9,2.6));
+  vec3 biomeColor=mix(uLow,uHigh,vec3(biomeR,biomeG,biomeB));
+  land=mix(land,biomeColor,0.18);
+  // Mountain ranges: 2-octave ridged noise sampled at low freq for continuous
+  // continental scars; tight ridge-spine threshold paints only the range
+  // spine, not the surrounding foothills.
+  float ridge=ridgedFbm(warpQ*0.5);
+  float mountainMask=smoothstep(0.62,0.74,ridge)*smoothstep(0.42,0.62,h);
+  vec3 mountainRock=mix(uMid*0.55,vec3(0.48,0.28,0.16),0.75);
+  land=mix(land,mountainRock,mountainMask*0.85);
+  float snowMask=smoothstep(0.78,0.95,h)*smoothstep(0.58,0.74,ridge);
+  land=mix(land,vec3(0.94,0.95,0.97),snowMask*0.9);
+  // Oceans: low-frequency continent field clumps landmasses Earth-like.
+  vec3 continentPos=vLocal*1.1+vec3(uSeed*0.0011);
+  float continentH=continentFbm(continentPos);
+  float oceanField=continentH*0.85+h*0.15;
+  float waterLevel=0.55;
+  float waterMask=uOceans*(1.0-smoothstep(waterLevel-0.03,waterLevel+0.03,oceanField));
+  vec3 deepOcean=vec3(0.005,0.018,0.07);
+  vec3 shallowOcean=vec3(0.42,0.82,0.80);
+  float depth=smoothstep(waterLevel-0.10,waterLevel,oceanField);
   vec3 water=mix(deepOcean,shallowOcean,depth);
   vec3 base=mix(land,water,waterMask);
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
