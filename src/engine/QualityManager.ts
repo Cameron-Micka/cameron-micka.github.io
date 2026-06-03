@@ -24,7 +24,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
   low: {
     tier: 'low',
     dprCap: 1,
-    starCount: 0,
+    starCount: 800,
     ssao: false,
     chromaticAberration: false,
     bloomMips: 0,

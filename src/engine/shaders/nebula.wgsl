@@ -1,12 +1,17 @@
 // Fullscreen volumetric nebula backdrop. Drawn first into the HDR target with
-// no depth. Ray-marches a slowly evolving 3D fbm density field in screen space
-// to produce billowing clouds with a warm core and cool periphery — inspired
-// by https://www.shadertoy.com/view/wX2Bzy.
+// no depth. Ray-marches a slowly evolving 3D fbm density field along the
+// WORLD-space view ray (unprojected per-pixel from invViewProj) so the
+// nebula stays locked to the world as the camera rotates / translates —
+// behaves like a skybox at infinity. Inspired by
+// https://www.shadertoy.com/view/wX2Bzy.
 struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
   misc : vec4<f32>,
+  shadowCasters : array<vec4<f32>, 8>,
+  shadowMisc : vec4<f32>,
+  invViewProj : mat4x4<f32>,
 };
 @group(0) @binding(0) var<uniform> frame : Frame;
 
@@ -73,20 +78,34 @@ fn fbm3(p : vec3<f32>) -> f32 {
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
-  let aspect = frame.misc.w;
-  // Aspect-corrected centered UV with a slight upward bias so the warm core
-  // sits near where the focused planet typically lives on screen.
-  let uv = vec2<f32>((in.uv.x - 0.5) * aspect, in.uv.y - 0.48);
+  // Reconstruct a world-space view direction for this pixel. Using the
+  // difference of two unprojected points (near vs far at the same NDC.xy)
+  // gives a direction that's invariant to camera translation — so the
+  // nebula doesn't slide around as the camera flies through the scene.
+  let ndc = vec2<f32>(in.uv.x * 2.0 - 1.0, in.uv.y * 2.0 - 1.0);
+  let nearH = frame.invViewProj * vec4<f32>(ndc, 0.0, 1.0);
+  let farH = frame.invViewProj * vec4<f32>(ndc, 1.0, 1.0);
+  let dirW = normalize(farH.xyz / farH.w - nearH.xyz / nearH.w);
+
+  // Anchor the warm core to a fixed world-space direction (slightly above
+  // the -Z timeline forward) so it looks like a real distant feature rather
+  // than glow that follows the lens.
+  let coreDir = normalize(vec3<f32>(0.0, 0.20, -1.0));
+  // Chord length between two unit vectors: 0 when aligned, up to 2 at
+  // antipode. Cheap proxy for angular distance, plenty for falloff weighting.
+  let rad = length(dirW - coreDir);
+
   let tt = frame.misc.x;
   // Two slightly different speeds let the field both drift sideways and
   // evolve in depth so the clouds look alive without distracting motion.
   let time = tt * 0.08;
-  let drift = vec2<f32>(tt * 0.012, tt * -0.006);
+  let drift = vec3<f32>(tt * 0.012, tt * -0.006, time);
 
-  // Volumetric march through a screen-space density field. The "ray" is
-  // synthetic — we just want billowy depth, not a physically accurate volume.
-  let ro = vec3<f32>(0.0, 0.0, -1.4);
-  let rd = normalize(vec3<f32>(uv.x, uv.y, 1.2));
+  // Skybox-style march: origin at world 0, ray = world-space view direction.
+  // Position doesn't enter the equation so camera translation is invisible;
+  // only orientation changes the sampled slice of the field.
+  let ro = vec3<f32>(0.0);
+  let rd = dirW;
 
   let warm = vec3<f32>(0.55, 0.30, 0.10);
   let glow = vec3<f32>(0.70, 0.42, 0.16);
@@ -100,15 +119,14 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   var alpha = 0.0;
   for (var i = 0; i < 28; i = i + 1) {
     let p = ro + rd * t;
-    let n = fbm3(p * 1.05 + vec3<f32>(drift.x, drift.y, time));
+    let n = fbm3(p * 1.05 + drift);
     // Soft billow carving — leaves airy gaps without sharp edges.
     let dens = smoothstep(0.46, 0.78, n);
-    let rad = length(p.xy);
-    let coreFade = exp(-rad * 0.60);
+    let coreFade = exp(-rad * 1.10);
     let density = dens * (0.35 + 0.95 * coreFade);
 
-    // Warmth peaks near the core line, with hotter highlights where density
-    // is highest (mimics a star illuminating the surrounding nebula).
+    // Warmth peaks near the core direction, with hotter highlights where
+    // density is highest (mimics a star illuminating the surrounding nebula).
     let warmth = coreFade * (0.35 + 0.65 * smoothstep(0.5, 0.85, n));
     var samp = mix(cool, warm, clamp(warmth, 0.0, 1.0));
     samp = mix(samp, glow, smoothstep(0.72, 1.0, n) * coreFade * 0.65);
@@ -121,13 +139,12 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     t = t + 0.10 + t * 0.020;
   }
 
-  // Deep background fills the corners with dark navy.
-  let bgRad = length(uv);
-  let bg = mix(deep, cool * 0.55, smoothstep(0.0, 1.4, bgRad));
+  // Deep background fills the periphery (away from coreDir) with dark navy.
+  let bg = mix(deep, cool * 0.55, smoothstep(0.0, 1.4, rad));
   col = col + bg * (1.0 - alpha);
 
-  // Soft corner vignette to keep edges quiet.
-  let vig = 1.0 - 0.35 * smoothstep(0.6, 1.4, length(uv));
+  // Soft vignette anchored to the world-space core direction.
+  let vig = 1.0 - 0.35 * smoothstep(0.6, 1.4, rad);
   col = col * vig;
   return vec4<f32>(col, 1.0);
 }

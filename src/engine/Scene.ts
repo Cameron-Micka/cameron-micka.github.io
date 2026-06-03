@@ -6,7 +6,6 @@ import { vec3, type Vec3 } from './math/vec3';
 import type { Quat } from './math/quat';
 
 export const PLANET_SPACING = 9;
-const MICROSOFT_RADIUS_SCALE = 0.92;
 
 export interface PlanetModel {
   company: Company;
@@ -19,6 +18,16 @@ export interface PlanetModel {
   paletteHigh: Vec3;
   poiDirs: { slug: string; dir: Vec3; surfaceDir: Vec3; accent: Vec3 }[];
   moonSpecs: { orbitRadius: number; size: number; phase: number; speed: number }[];
+  // Each satellite has a deterministic tilted circular orbit. Stored as an
+  // orthonormal basis (u, v) spanning the orbital plane plus radius/phase/speed,
+  // so per-frame the world offset is just (cos a)*u*r + (sin a)*v*r.
+  satelliteSpecs: {
+    orbitRadius: number;
+    phase: number;
+    speed: number;
+    u: Vec3;
+    v: Vec3;
+  }[];
 }
 
 // Nudge a unit direction by up to `maxDeg` degrees in a random azimuth, using
@@ -39,11 +48,10 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
   return companies.map((company, index) => {
     const seed = hashString(company.seed);
     const years = tenureYears(company.start, company.end);
-    const baseRadius = Math.min(3.6, 1.15 + 0.23 * Math.sqrt(years) * 1.6);
-    const radius =
-      company.slug === 'microsoft'
-        ? baseRadius * MICROSOFT_RADIUS_SCALE
-        : baseRadius;
+    // Linear in tenure years so short stints (LucasArts, ~1y) read as small
+    // and long stints (Microsoft, ~10y+) read as clearly the largest body.
+    // Clamped to a visible floor and a sane on-screen ceiling.
+    const radius = Math.min(3, Math.max(0.7, 0.44 + 0.26 * years));
 
     const dirs = fibonacciSpherePoints(company.pois.length, seed);
     const surfRand = mulberry32(seed ^ 0x6b43a9f1);
@@ -59,15 +67,39 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
 
     const rand = mulberry32(seed ^ 0x9e3779b9);
     const moonSpecs = Array.from({ length: company.features.moons }, (_, i) => {
-      // Squared distribution biases small while still allowing the occasional
-      // larger moon — smaller on average than before and noticeably more
-      // varied in size between moons.
-      const t = rand() * rand();
+      // Cubed distribution biases small but lets an occasional moon grow up to
+      // ~36% of the planet's radius, giving the family obvious size variance.
+      const t = rand() * rand() * rand();
       return {
         orbitRadius: radius * (1.7 + i * 0.5),
-        size: radius * (0.05 + t * 0.15),
+        size: radius * (0.04 + t * 0.55),
         phase: rand() * Math.PI * 2,
         speed: 0.25 + rand() * 0.4,
+      };
+    });
+
+    // Every planet gets a small flock of satellites — pin-prick white sprites
+    // that read like distant stars but orbit in tilted, world-locked planes
+    // so the eye picks them up as motion against the static starfield.
+    const satCount = 4 + Math.floor(rand() * 4); // 4..7
+    const satelliteSpecs = Array.from({ length: satCount }, () => {
+      // Random orbital plane: pick a unit normal, build an orthonormal basis
+      // spanning the plane perpendicular to it. The (u, v) pair is then the
+      // basis the orbit traces a unit circle in.
+      const nx = rand() * 2 - 1;
+      const ny = rand() * 2 - 1;
+      const nz = rand() * 2 - 1;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      const n: Vec3 = [nx / nl, ny / nl, nz / nl];
+      const helper: Vec3 = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+      const u = vec3.normalize(vec3.cross(n, helper));
+      const v = vec3.cross(n, u);
+      return {
+        orbitRadius: radius * (1.35 + rand() * 1.65),
+        phase: rand() * Math.PI * 2,
+        speed: 0.06 + rand() * 0.18,
+        u,
+        v,
       };
     });
 
@@ -82,6 +114,7 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       paletteHigh: hexToRgb(company.palette.high),
       poiDirs,
       moonSpecs,
+      satelliteSpecs,
     };
   });
 }
@@ -134,6 +167,17 @@ export function instanceFromModel(
       angle: m.phase + moonTime * m.speed,
       size: m.size,
     })),
+    satellites: model.satelliteSpecs.map((s) => {
+      const a = s.phase + moonTime * s.speed;
+      const c = Math.cos(a) * s.orbitRadius;
+      const si = Math.sin(a) * s.orbitRadius;
+      const offset: Vec3 = [
+        s.u[0] * c + s.v[0] * si,
+        s.u[1] * c + s.v[1] * si,
+        s.u[2] * c + s.v[2] * si,
+      ];
+      return { offset, size: 0.0028 };
+    }),
     pois: model.poiDirs,
     focus,
     visibility,

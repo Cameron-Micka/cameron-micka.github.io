@@ -5,30 +5,74 @@ import { PLANET_SPACING } from './Scene';
 const FOV = (50 * Math.PI) / 180;
 const NEAR = 0.1;
 const FAR = 200;
+
 // Default ("dolly") camera pose. Position is measured as an offset from the
 // focused planet's center (z = scrub * PLANET_SPACING) and the look angle is
 // baked in from world-space yaw/pitch so framing stays consistent across
 // every focused planet rather than swinging through a fixed look-at point.
-// Captured live from free-cam to dial in a flattering off-axis 3/4 view.
-const VIEW_DISTANCE = 8.68;
-const EYE_HEIGHT = 2.26;
-const EYE_SIDE_OFFSET = 10.28;
-const YAW = (-36.8 * Math.PI) / 180;
-const PITCH = (-8.6 * Math.PI) / 180;
-const FORWARD_X = Math.sin(YAW) * Math.cos(PITCH);
-const FORWARD_Y = Math.sin(PITCH);
-const FORWARD_Z = -Math.cos(YAW) * Math.cos(PITCH);
+// Two poses are dialed in live from free-cam — a 3/4 off-axis framing for
+// desktop, and a higher / more downward-tilted framing for touch devices
+// where the bottom UI ribbon takes a bigger bite out of the viewport.
+interface Pose {
+  viewDistance: number;
+  eyeHeight: number;
+  eyeSideOffset: number;
+  yaw: number;
+  pitch: number;
+}
+
+const POSE_DESKTOP: Pose = {
+  viewDistance: 8.94,
+  eyeHeight: 2.17,
+  eyeSideOffset: 5.71,
+  yaw: (-23.9 * Math.PI) / 180,
+  pitch: (-8.7 * Math.PI) / 180,
+};
+
+const POSE_MOBILE: Pose = {
+  viewDistance: 9.63,
+  eyeHeight: 6.30,
+  eyeSideOffset: -0.38,
+  yaw: (2.3 * Math.PI) / 180,
+  pitch: (-27.1 * Math.PI) / 180,
+};
+
+function selectPose(): Pose {
+  const coarse =
+    typeof matchMedia !== 'undefined' &&
+    matchMedia('(pointer: coarse)').matches;
+  return coarse ? POSE_MOBILE : POSE_DESKTOP;
+}
 
 export class Camera {
   view: Mat4 = mat4.create();
   proj: Mat4 = mat4.create();
   viewProj: Mat4 = mat4.create();
   invViewProj: Mat4 = mat4.create();
-  position: Vec3 = [EYE_SIDE_OFFSET, EYE_HEIGHT, VIEW_DISTANCE];
+  position: Vec3;
 
   private aspect = 1;
   private zoom = 1;
   private extra = 0; // extra pull-back distance, used by the fly-in cinematic
+
+  private readonly viewDistance: number;
+  private readonly eyeHeight: number;
+  private readonly eyeSideOffset: number;
+  private readonly forwardX: number;
+  private readonly forwardY: number;
+  private readonly forwardZ: number;
+
+  constructor() {
+    const pose = selectPose();
+    this.viewDistance = pose.viewDistance;
+    this.eyeHeight = pose.eyeHeight;
+    this.eyeSideOffset = pose.eyeSideOffset;
+    const cy = Math.cos(pose.pitch);
+    this.forwardX = Math.sin(pose.yaw) * cy;
+    this.forwardY = Math.sin(pose.pitch);
+    this.forwardZ = -Math.cos(pose.yaw) * cy;
+    this.position = [this.eyeSideOffset, this.eyeHeight, this.viewDistance];
+  }
 
   setAspect(aspect: number): void {
     this.aspect = aspect;
@@ -52,16 +96,16 @@ export class Camera {
   // off-axis 3/4 view angle. Look direction is unchanged by dolly.
   update(scrub: number): void {
     const focusZ = scrub * PLANET_SPACING;
-    const dolly = (1 - this.zoom) * VIEW_DISTANCE - this.extra;
+    const dolly = (1 - this.zoom) * this.viewDistance - this.extra;
     this.position = [
-      EYE_SIDE_OFFSET + FORWARD_X * dolly,
-      EYE_HEIGHT + FORWARD_Y * dolly,
-      focusZ + VIEW_DISTANCE + FORWARD_Z * dolly,
+      this.eyeSideOffset + this.forwardX * dolly,
+      this.eyeHeight + this.forwardY * dolly,
+      focusZ + this.viewDistance + this.forwardZ * dolly,
     ];
     const center: Vec3 = [
-      this.position[0] + FORWARD_X,
-      this.position[1] + FORWARD_Y,
-      this.position[2] + FORWARD_Z,
+      this.position[0] + this.forwardX,
+      this.position[1] + this.forwardY,
+      this.position[2] + this.forwardZ,
     ];
 
     mat4.lookAt(this.view, this.position, center, [0, 1, 0]);

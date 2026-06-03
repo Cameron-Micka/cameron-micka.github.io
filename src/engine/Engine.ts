@@ -438,6 +438,7 @@ export class Engine {
       view: this.camera.view,
       proj: this.camera.proj,
       viewProj: this.camera.viewProj,
+      invViewProj: this.camera.invViewProj,
       cameraPos: this.camera.position,
       keyLightDir: KEY_LIGHT,
       planets,

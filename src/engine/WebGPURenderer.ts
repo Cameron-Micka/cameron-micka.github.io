@@ -33,6 +33,11 @@ const MOON_ROCK_HIGH: [number, number, number] = [0.64, 0.62, 0.58];
 // projection in the planet shader assumes the cloud shell sits at this radius
 // (in unit-sphere local space) so the shadow lands exactly under the puff.
 const CLOUD_SHELL_SCALE = 1.006;
+// Per-planet satellite sprites cap. 6 planets * 7 sats = 42 worst case;
+// rounded up for headroom. Buffer is sized once and reused across frames.
+const MAX_SATELLITES = 64;
+const SAT_FLOATS = 7;
+const SAT_STRIDE = SAT_FLOATS * 4;
 
 function createRingGeometry(inner = 1.35, outer = 2.1, segments = 96): GeometryData {
   const positions: number[] = [];
@@ -95,6 +100,8 @@ export class WebGPURenderer implements SceneRenderer {
 
   private starBuf!: GPUBuffer;
   private starCount = 0;
+  private satelliteBuf!: GPUBuffer;
+  private satelliteScratch!: Float32Array;
   private poiBuf!: GPUBuffer;
   private poiCapacity = 0;
 
@@ -108,6 +115,7 @@ export class WebGPURenderer implements SceneRenderer {
     planet: GPURenderPipeline;
     ring: GPURenderPipeline;
     star: GPURenderPipeline;
+    satellite: GPURenderPipeline;
     poi: GPURenderPipeline;
     poiLine: GPURenderPipeline;
     composite: GPURenderPipeline;
@@ -120,7 +128,11 @@ export class WebGPURenderer implements SceneRenderer {
   private compositeLayout!: GPUBindGroupLayout;
 
   private objScratch = new Float32Array(OBJ_FLOATS * MAX_OBJECTS);
-  private frameScratch = new Float32Array(64);
+  // 64 base floats (viewProj 16 + cameraPos 4 + keyLightDir 4 + misc 4 +
+  // shadowCasters 32 + shadowMisc 4) + 16 floats for invViewProj appended for
+  // the nebula backdrop's world-direction unprojection. Shaders that don't
+  // need invViewProj simply declare a shorter Frame struct.
+  private frameScratch = new Float32Array(80);
   private postScratch = new Float32Array(8);
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
@@ -200,6 +212,13 @@ export class WebGPURenderer implements SceneRenderer {
     });
     d.queue.writeBuffer(qb, 0, quad);
     this.quadBuf = qb;
+
+    // Per-frame satellite instance buffer — fixed size, dynamically filled.
+    this.satelliteBuf = d.createBuffer({
+      size: MAX_SATELLITES * SAT_STRIDE,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    this.satelliteScratch = new Float32Array(MAX_SATELLITES * SAT_FLOATS);
   }
 
   private createLineIndexBuffer(geo: GeometryData): {
@@ -412,6 +431,29 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
+    // Satellite sprites reuse the star shader but participate in depth so
+    // they correctly hide behind their parent planet (`less-equal`, no write).
+    const satellite = d.createRenderPipeline({
+      layout: sceneFramePL,
+      vertex: {
+        module: starMod,
+        entryPoint: 'vs',
+        buffers: [quadLayout, starInstanceLayout],
+      },
+      fragment: {
+        module: starMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+      },
+      primitive: { topology: 'triangle-list' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: false,
+        depthCompare: 'less-equal',
+      },
+      multisample,
+    });
+
     const poiInstanceLayout: GPUVertexBufferLayout = {
       arrayStride: 12 * 4,
       stepMode: 'instance',
@@ -541,7 +583,7 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    this.pipelines = { nebula, planet, ring, star, poi, poiLine, composite, wireframe, atmosphere, clouds };
+    this.pipelines = { nebula, planet, ring, star, satellite, poi, poiLine, composite, wireframe, atmosphere, clouds };
   }
 
   private buildStars(count: number): void {
@@ -549,11 +591,16 @@ export class WebGPURenderer implements SceneRenderer {
     const rand = mulberry32(1337);
     const data = new Float32Array(count * 7);
     for (let i = 0; i < count; i++) {
-      // Random point on a large shell.
+      // Random point on a shell. Kept reasonably close to the scene
+      // (timeline spans ~36 units; camera follows alongside) so flying /
+      // scrubbing along the timeline produces visible parallax against the
+      // stars. Radius is randomized over a wide-ish band so individual stars
+      // sit at noticeably different depths and parallax-shear against each
+      // other.
       const u = rand() * 2 - 1;
       const theta = rand() * Math.PI * 2;
       const r = Math.sqrt(1 - u * u);
-      const radius = 140 + rand() * 80;
+      const radius = 55 + rand() * 110;
       const x = Math.cos(theta) * r * radius;
       const y = u * radius;
       const z = Math.sin(theta) * r * radius;
@@ -715,7 +762,10 @@ export class WebGPURenderer implements SceneRenderer {
     f[61] = 0;
     f[62] = 0;
     f[63] = 0;
-    d.queue.writeBuffer(this.frameUBO, 0, f, 0, 64);
+    // invViewProj for the nebula backdrop (and any other fullscreen pass that
+    // needs to recover a world-space ray from a screen-space pixel).
+    f.set(frame.invViewProj, 64);
+    d.queue.writeBuffer(this.frameUBO, 0, f, 0, 80);
 
     // Build per-object uniforms + collect POI billboards.
     const objects: { kind: number; index: number }[] = [];
@@ -978,6 +1028,26 @@ export class WebGPURenderer implements SceneRenderer {
         this.stats.triangles += this.sphere.count / 3;
       }
 
+      // Satellite point-sprites — pin-pricks orbiting each planet. Drawn after
+      // the opaque planet+moon pass so depth test correctly hides satellites
+      // behind their parent body. Reuses the star shader/pipeline; only the
+      // depth state differs (less-equal, no write).
+      const satCount = this.uploadSatellites(frame);
+      if (satCount > 0) {
+        scenePass.setPipeline(this.pipelines.satellite);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setVertexBuffer(0, this.quadBuf);
+        scenePass.setVertexBuffer(1, this.satelliteBuf);
+        scenePass.draw(6, satCount);
+        this.stats.drawCalls++;
+        this.stats.triangles += satCount * 2;
+        // Restore the sphere mesh on slot 0 so the subsequent cloud/
+        // atmosphere passes — which expect sphere vertices on slot 0 — don't
+        // read the quad billboard buffer. Slot 1 (satellite instances) is
+        // ignored by those pipelines since their layout doesn't declare it.
+        scenePass.setVertexBuffer(0, this.sphere.vbuf);
+      }
+
       // Cloud shells (alpha blended) — between the opaque planet and the
       // additive atmosphere so haze can still glow over the cloud silhouette.
       for (const o of objects) {
@@ -1119,6 +1189,46 @@ export class WebGPURenderer implements SceneRenderer {
     this.device.queue.writeBuffer(this.poiBuf, 0, arr);
   }
 
+  // Pack visible planets' satellites into the per-frame instance buffer. Each
+  // satellite contributes 7 floats: (worldPos.xyz, size, phase, tintR, tintB).
+  // World position = planet.center + local offset (no planet-rotation coupling
+  // so satellites trace world-locked orbits independent of planet spin). Size
+  // and twinkle phase are scaled/seeded for natural variation; visibility fades
+  // satellites alongside their planet.
+  private uploadSatellites(frame: FrameState): number {
+    const scratch = this.satelliteScratch;
+    let n = 0;
+    for (const p of frame.planets) {
+      const vis = p.visibility;
+      if (vis <= 0.02) continue;
+      const fade = Math.min(1, Math.max(0, vis));
+      for (let s = 0; s < p.satellites.length; s++) {
+        if (n >= MAX_SATELLITES) break;
+        const sat = p.satellites[s]!;
+        const o = n * SAT_FLOATS;
+        scratch[o + 0] = p.center[0] + sat.offset[0];
+        scratch[o + 1] = p.center[1] + sat.offset[1];
+        scratch[o + 2] = p.center[2] + sat.offset[2];
+        scratch[o + 3] = sat.size * fade;
+        // Per-satellite phase so twinkles aren't synchronized.
+        scratch[o + 4] = (p.seed * 0.137 + s * 0.731) % 1;
+        scratch[o + 5] = 1.0; // tintR
+        scratch[o + 6] = 1.0; // tintB
+        n++;
+      }
+      if (n >= MAX_SATELLITES) break;
+    }
+    if (n === 0) return 0;
+    this.device.queue.writeBuffer(
+      this.satelliteBuf,
+      0,
+      scratch.buffer,
+      scratch.byteOffset,
+      n * SAT_STRIDE,
+    );
+    return n;
+  }
+
   private estimateMemoryMB(): number {
     const hdr = this.width * this.height * 8;
     const depth = this.width * this.height * 4 * this.sampleCount;
@@ -1140,6 +1250,7 @@ export class WebGPURenderer implements SceneRenderer {
     this.msaaTex?.destroy();
     this.depthTex?.destroy();
     this.starBuf?.destroy();
+    this.satelliteBuf?.destroy();
     this.poiBuf?.destroy();
     this.device?.destroy();
   }

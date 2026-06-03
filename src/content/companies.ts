@@ -57,7 +57,7 @@ const raw: CompanyInput[] = [
     slug: 'fun-bits',
     name: 'Fun Bits Interactive',
     role: 'Engine / Graphics Programmer',
-    start: '2013',
+    start: '2011',
     end: '2016',
     location: 'Seattle, WA',
     summary:
@@ -91,8 +91,8 @@ const raw: CompanyInput[] = [
     slug: 'lucasarts',
     name: 'LucasArts Entertainment',
     role: 'Software Engineer',
-    start: '2011',
-    end: '2013',
+    start: '2009',
+    end: '2010',
     location: 'San Francisco, CA',
     summary:
       'Engine and graphics programming at a storied game studio, working on ' +
@@ -125,7 +125,7 @@ const raw: CompanyInput[] = [
     slug: 'micka-studios',
     name: 'Micka Studios',
     role: 'Founder',
-    start: '2009',
+    start: '2008',
     end: '2011',
     location: 'Redmond, WA',
     summary:
@@ -159,8 +159,8 @@ const raw: CompanyInput[] = [
     slug: 'digipen',
     name: 'DigiPen Institute of Technology',
     role: 'BS, Real-Time Interactive Simulation',
-    start: '2007',
-    end: '2011',
+    start: '2006',
+    end: '2010',
     location: 'Redmond, WA',
     summary:
       'Where it started — a rigorous, project-driven computer science and ' +

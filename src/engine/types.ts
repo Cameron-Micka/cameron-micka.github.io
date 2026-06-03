@@ -34,6 +34,10 @@ export interface PlanetInstance {
   oceans: boolean;
   clouds: boolean;
   moons: { orbitRadius: number; angle: number; size: number }[];
+  // Tiny "satellite" point-sprites orbiting the planet. World-locked orbits
+  // (don't inherit planet spin) — meant to read as the same pin-prick white
+  // pixel as a distant star, but in motion around the planet.
+  satellites: { offset: Vec3; size: number }[];
   // POIs in local sphere space (unit directions) + accent color + facing flag.
   pois: {
     slug: string;
@@ -52,6 +56,10 @@ export interface FrameState {
   view: Mat4;
   proj: Mat4;
   viewProj: Mat4;
+  // Inverse of viewProj. Lets fullscreen shaders (e.g. the nebula backdrop)
+  // unproject screen-space NDC back into world-space ray directions so they
+  // can sample world-locked fields instead of moving with the camera.
+  invViewProj: Mat4;
   cameraPos: Vec3;
   keyLightDir: Vec3;
   planets: PlanetInstance[];

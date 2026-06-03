@@ -24,15 +24,16 @@ void main() {
   gl_Position = vec4(p, 1.0, 1.0);
 }`;
 
-// Volumetric nebula backdrop — ray-marches a screen-space 3D fbm density
-// field for billowing warm-core / cool-edge clouds. Inspired by
-// https://www.shadertoy.com/view/wX2Bzy.
+// Volumetric nebula backdrop — ray-marches a 3D fbm density field along the
+// WORLD-space view ray (unprojected per-pixel from uInvViewProj) so the
+// nebula stays locked to the world as the camera rotates / translates.
+// Inspired by https://www.shadertoy.com/view/wX2Bzy.
 const NEBULA_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
 out vec4 frag;
 uniform float uTime;
-uniform float uAspect;
+uniform mat4 uInvViewProj;
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise3(vec3 x){
@@ -43,14 +44,20 @@ float vnoise3(vec3 x){
 }
 float fbm3(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vnoise3(p);p*=2.03;a*=.5;}return v;}
 void main(){
-  vec2 uv=vec2((vUv.x-0.5)*uAspect,vUv.y-0.48);
+  vec2 ndc=vec2(vUv.x*2.0-1.0,vUv.y*2.0-1.0);
+  vec4 nearH=uInvViewProj*vec4(ndc,0.0,1.0);
+  vec4 farH=uInvViewProj*vec4(ndc,1.0,1.0);
+  vec3 dirW=normalize(farH.xyz/farH.w-nearH.xyz/nearH.w);
+  // Anchor warm core to a fixed world-space direction so it doesn't drift
+  // with the lens.
+  vec3 coreDir=normalize(vec3(0.0,0.20,-1.0));
+  float rad=length(dirW-coreDir);
   float tt=uTime;
-  // Two slightly different speeds let the field both drift sideways and
-  // evolve in depth so the clouds look alive without distracting motion.
   float time=tt*0.08;
-  vec2 drift=vec2(tt*0.012,tt*-0.006);
-  vec3 ro=vec3(0.0,0.0,-1.4);
-  vec3 rd=normalize(vec3(uv.x,uv.y,1.2));
+  vec3 drift=vec3(tt*0.012,tt*-0.006,time);
+  // Skybox-style march: origin at world 0, direction = world view ray.
+  vec3 ro=vec3(0.0);
+  vec3 rd=dirW;
   vec3 warm=vec3(0.55,0.30,0.10);
   vec3 glow=vec3(0.70,0.42,0.16);
   vec3 cool=vec3(0.04,0.06,0.14);
@@ -61,10 +68,9 @@ void main(){
   float alpha=0.0;
   for(int i=0;i<24;i++){
     vec3 p=ro+rd*t;
-    float n=fbm3(p*1.05+vec3(drift.x,drift.y,time));
+    float n=fbm3(p*1.05+drift);
     float dens=smoothstep(0.46,0.78,n);
-    float rad=length(p.xy);
-    float coreFade=exp(-rad*0.60);
+    float coreFade=exp(-rad*1.10);
     float density=dens*(0.35+0.95*coreFade);
     float warmth=coreFade*(0.35+0.65*smoothstep(0.5,0.85,n));
     vec3 samp=mix(cool,warm,clamp(warmth,0.0,1.0));
@@ -75,10 +81,9 @@ void main(){
     if(alpha>0.97) break;
     t+=0.10+t*0.020;
   }
-  float bgRad=length(uv);
-  vec3 bg=mix(deep,cool*0.55,smoothstep(0.0,1.4,bgRad));
+  vec3 bg=mix(deep,cool*0.55,smoothstep(0.0,1.4,rad));
   col+=bg*(1.0-alpha);
-  float vig=1.0-0.35*smoothstep(0.6,1.4,length(uv));
+  float vig=1.0-0.35*smoothstep(0.6,1.4,rad);
   frag=vec4(col*vig,1.0);
 }`;
 
@@ -634,6 +639,15 @@ export class WebGL2Renderer implements SceneRenderer {
 
   private starVao!: WebGLVertexArrayObject;
   private starCount = 0;
+  private satVao!: WebGLVertexArrayObject;
+  private satPos!: WebGLBuffer;
+  private satAttr!: WebGLBuffer;
+  private satColor!: WebGLBuffer;
+  private satCapacity = 0;
+  // Per-frame scratch for satellite uploads. Sized lazily to the largest seen.
+  private satScratchPos = new Float32Array(0);
+  private satScratchAttr = new Float32Array(0);
+  private satScratchColor = new Float32Array(0);
   private poiVao!: WebGLVertexArrayObject;
   private poiPos!: WebGLBuffer;
   private poiAttr!: WebGLBuffer;
@@ -664,7 +678,7 @@ export class WebGL2Renderer implements SceneRenderer {
       this.deviceLostCb?.();
     });
 
-    this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uAspect']);
+    this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uFocus', 'uOceans',
@@ -692,6 +706,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.buildSphere();
     this.buildStars(2000);
     this.buildPoiBuffers();
+    this.buildSatBuffers();
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -767,10 +782,12 @@ export class WebGL2Renderer implements SceneRenderer {
     const attr = new Float32Array(count * 4);
     const color = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
+      // Random point on a shell. Kept reasonably close to the scene so
+      // camera translation produces visible parallax (see WebGPURenderer).
       const u = rand() * 2 - 1;
       const theta = rand() * Math.PI * 2;
       const r = Math.sqrt(1 - u * u);
-      const radius = 140 + rand() * 80;
+      const radius = 55 + rand() * 110;
       pos.set(
         [Math.cos(theta) * r * radius, u * radius, Math.sin(theta) * r * radius],
         i * 3,
@@ -844,6 +861,77 @@ export class WebGL2Renderer implements SceneRenderer {
     this.poiLineBuf = lb;
   }
 
+  // Allocates the satellite VAO with empty dynamic buffers. Per-frame data is
+  // uploaded each render via bufferData (sized to actual satellite count, with
+  // backing capacity tracked to skip reallocation when count fits).
+  private buildSatBuffers(): void {
+    const gl = this.gl;
+    const vao = gl.createVertexArray()!;
+    gl.bindVertexArray(vao);
+    const bufs = this.bindPointAttribs(
+      new Float32Array(0),
+      new Float32Array(0),
+      new Float32Array(0),
+    );
+    gl.bindVertexArray(null);
+    this.satVao = vao;
+    this.satPos = bufs.pos;
+    this.satAttr = bufs.attr;
+    this.satColor = bufs.color;
+  }
+
+  // Pack visible planets' satellites into the dynamic VAO buffers. Returns the
+  // total satellite count uploaded. Satellites are world-locked (don't inherit
+  // planet spin); positions are simply planet.center + orbital offset.
+  private uploadSatellites(frame: FrameState): number {
+    let count = 0;
+    for (const p of frame.planets) {
+      if (p.visibility <= 0.02) continue;
+      count += p.satellites.length;
+    }
+    if (count === 0) return 0;
+    if (count > this.satCapacity) {
+      this.satScratchPos = new Float32Array(count * 3);
+      this.satScratchAttr = new Float32Array(count * 4);
+      this.satScratchColor = new Float32Array(count * 3);
+      this.satCapacity = count;
+    }
+    const pos = this.satScratchPos;
+    const attr = this.satScratchAttr;
+    const color = this.satScratchColor;
+    let n = 0;
+    for (const p of frame.planets) {
+      const vis = p.visibility;
+      if (vis <= 0.02) continue;
+      const fade = Math.min(1, Math.max(0, vis));
+      for (let s = 0; s < p.satellites.length; s++) {
+        const sat = p.satellites[s]!;
+        pos[n * 3 + 0] = p.center[0] + sat.offset[0];
+        pos[n * 3 + 1] = p.center[1] + sat.offset[1];
+        pos[n * 3 + 2] = p.center[2] + sat.offset[2];
+        // Pixel size: 22px baseline, scaled by visibility; phase for twinkle.
+        attr[n * 4 + 0] = 22 * fade;
+        attr[n * 4 + 1] = (p.seed * 0.137 + s * 0.731) % 1;
+        attr[n * 4 + 2] = 0;
+        attr[n * 4 + 3] = 0;
+        color[n * 3 + 0] = 0.9;
+        color[n * 3 + 1] = 0.95;
+        color[n * 3 + 2] = 1.0;
+        n++;
+      }
+    }
+    const gl = this.gl;
+    gl.bindVertexArray(this.satVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.satPos);
+    gl.bufferData(gl.ARRAY_BUFFER, pos.subarray(0, n * 3), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.satAttr);
+    gl.bufferData(gl.ARRAY_BUFFER, attr.subarray(0, n * 4), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.satColor);
+    gl.bufferData(gl.ARRAY_BUFFER, color.subarray(0, n * 3), gl.DYNAMIC_DRAW);
+    gl.bindVertexArray(null);
+    return n;
+  }
+
   resize(width: number, height: number): void {
     this.width = Math.max(1, Math.floor(width));
     this.height = Math.max(1, Math.floor(height));
@@ -863,7 +951,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.disable(gl.DEPTH_TEST);
     gl.useProgram(this.nebula.prog);
     gl.uniform1f(this.nebula.uniforms.uTime!, frame.time);
-    gl.uniform1f(this.nebula.uniforms.uAspect!, this.width / this.height);
+    gl.uniformMatrix4fv(this.nebula.uniforms.uInvViewProj!, false, frame.invViewProj);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.stats.drawCalls++;
 
@@ -961,6 +1049,26 @@ export class WebGL2Renderer implements SceneRenderer {
           idxType,
         );
       }
+    }
+
+    // Satellite point sprites. Drawn after the opaque planet+moon pass so
+    // the depth buffer (with planet/moon depths) correctly hides satellites
+    // orbiting behind their planet. Reuses the POINT shader (uMode=0 makes
+    // it look identical to a star) with additive blend and depth-test-only.
+    const satCount = this.uploadSatellites(frame);
+    if (satCount > 0) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      gl.depthMask(false);
+      gl.useProgram(this.point.prog);
+      gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform1f(this.point.uniforms.uTime!, frame.time);
+      gl.uniform1f(this.point.uniforms.uMode!, 0);
+      gl.bindVertexArray(this.satVao);
+      gl.drawArrays(gl.POINTS, 0, satCount);
+      this.stats.drawCalls++;
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
     }
 
     // Cloud shells (alpha-blended). Between the opaque planet and the
