@@ -72,6 +72,24 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         />
       </div>
 
+      <div className="row">
+        <label htmlFor="set-freecam">Free camera</label>
+        <input
+          id="set-freecam"
+          type="checkbox"
+          checked={s.freeCamera}
+          onChange={(e) => engine.setFreeCamera(e.target.checked)}
+        />
+      </div>
+      {s.freeCamera && (
+        <div
+          className="row"
+          style={{ color: 'var(--muted)', fontSize: 12, marginTop: -4 }}
+        >
+          WASD to fly · Shift to boost · Space to creep · drag to look
+        </div>
+      )}
+
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span style={{ color: 'var(--muted)', fontSize: 12 }}>
           Renderer: {s.backend ?? '—'} · {s.activeTier}

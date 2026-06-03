@@ -13,6 +13,7 @@ import {
   buildPlanetModels,
   instanceFromModel,
   poiMarkerDistance,
+  PLANET_SPACING,
   type PlanetModel,
 } from './Scene';
 import { QualityManager, QUALITY_PRESETS, type QualityPreference } from './QualityManager';
@@ -48,6 +49,14 @@ export interface EngineSnapshot {
   reducedMotion: ReducedMotionPref;
   debugHud: boolean;
   wireframe: boolean;
+  freeCamera: boolean;
+  // Populated only while free camera is active. Yaw/pitch are in degrees;
+  // yaw is normalized to (-180, 180].
+  freeCameraState: {
+    position: Vec3;
+    yawDeg: number;
+    pitchDeg: number;
+  } | null;
   stats: RenderStats & { fps: number };
 }
 
@@ -63,6 +72,20 @@ export type EngineEvents = {
 const FLY_IN_SECONDS = 2.2;
 const FLY_IN_DISTANCE = 42;
 const KEY_LIGHT: Vec3 = vec3.normalize([0.4, 0.85, -0.45]);
+
+// Free-fly camera tuning. FLY_SPEED is in world units/sec; PLANET_SPACING=9
+// puts a single hop between planets at roughly one second of held W.
+const FLY_SPEED = 8;
+const FLY_VELOCITY_DAMP = 5; // half-life ~0.14s → noticeable but snappy momentum
+const LOOK_SENSITIVITY = 0.0025; // rad / px
+const PITCH_LIMIT = Math.PI / 2 - 0.01;
+
+// Normalize a yaw in degrees to (-180, 180]. Used for HUD readout.
+function normalizeYawDeg(deg: number): number {
+  let d = ((deg + 180) % 360) - 180;
+  if (d <= -180) d += 360;
+  return d;
+}
 
 export class Engine {
   readonly events = new TinyEventEmitter<EngineEvents>();
@@ -92,6 +115,12 @@ export class Engine {
 
   private cinematicActive = true;
   private cinematicT = 0;
+
+  // Free-fly camera state. Authoritative when settings.freeCamera is true.
+  private freePos: Vec3 = [0, 0, 0];
+  private freeVelocity: Vec3 = [0, 0, 0];
+  private freeYaw = 0;
+  private freePitch = 0;
 
   private running = false;
   private rafId = 0;
@@ -141,6 +170,7 @@ export class Engine {
       onKeyJump: (t) =>
         this.jumpToPlanet(t === 'start' ? 0 : this.models.length - 1),
       onUserInteract: () => this.onUserInteract(),
+      onLook: (dx, dy) => this.onLook(dx, dy),
     });
 
     this.snapshot = this.buildSnapshot();
@@ -183,6 +213,12 @@ export class Engine {
       this.quality.startProbe(performance.now(), 4000, (tier) => {
         this.applyTier(QUALITY_PRESETS[tier]);
       });
+    }
+
+    // Honor a persisted free-camera preference: seed the fly-cam state and
+    // switch input routing before the RAF loop begins.
+    if (this.settings.freeCamera) {
+      this.enterFreeCamera();
     }
 
     this.running = true;
@@ -244,27 +280,31 @@ export class Engine {
     const modalOpen = this.openPoi !== null;
     this.blurCurrent = damp(this.blurCurrent, modalOpen ? 1 : 0, 9, dt);
 
-    if (this.cinematicActive) {
-      this.cinematicT += dt / FLY_IN_SECONDS;
-      const e = easing.cubicOut(Math.min(1, this.cinematicT));
-      this.camera.setExtraDistance(lerp(FLY_IN_DISTANCE, 0, e));
-      if (this.cinematicT >= 1) {
-        this.cinematicActive = false;
-        this.camera.setExtraDistance(0);
-        this.events.emit('flyInDone', null);
+    if (this.settings.freeCamera) {
+      this.updateFreeCamera(dt, ts, modalOpen);
+    } else {
+      if (this.cinematicActive) {
+        this.cinematicT += dt / FLY_IN_SECONDS;
+        const e = easing.cubicOut(Math.min(1, this.cinematicT));
+        this.camera.setExtraDistance(lerp(FLY_IN_DISTANCE, 0, e));
+        if (this.cinematicT >= 1) {
+          this.cinematicActive = false;
+          this.camera.setExtraDistance(0);
+          this.events.emit('flyInDone', null);
+        }
       }
-    }
 
-    if (!modalOpen) {
-      this.time += dt;
-      this.scrubCurrent = damp(this.scrubCurrent, this.scrubTarget, 8, dt);
-      this.zoomCurrent = damp(this.zoomCurrent, this.zoomTarget, 9, dt);
-      this.updateRotations(dt, ts);
-      this.updateFocus();
-    }
+      if (!modalOpen) {
+        this.time += dt;
+        this.scrubCurrent = damp(this.scrubCurrent, this.scrubTarget, 8, dt);
+        this.zoomCurrent = damp(this.zoomCurrent, this.zoomTarget, 9, dt);
+        this.updateRotations(dt, ts);
+        this.updateFocus();
+      }
 
-    this.camera.setZoom(this.zoomCurrent);
-    this.camera.update(this.scrubCurrent);
+      this.camera.setZoom(this.zoomCurrent);
+      this.camera.update(this.scrubCurrent);
+    }
     this.renderFrame();
 
     if (!this.ready) {
@@ -273,6 +313,83 @@ export class Engine {
       this.commit();
     }
   };
+
+  // Free-fly camera: integrate input axes into velocity (damped → momentum),
+  // integrate position, then push the resulting eye+orientation to the camera.
+  // Always drives the camera while free mode is on — even with a modal open,
+  // so the rendered viewpoint stays put instead of snapping behind the modal.
+  private updateFreeCamera(dt: number, ts: number, modalOpen: boolean): void {
+    if (!modalOpen) {
+      this.time += dt;
+      this.updateRotations(dt, ts);
+    }
+
+    let fAx = 0;
+    let rAx = 0;
+    let speedMul = 1;
+    if (!modalOpen) {
+      const a = this.input.getMovementAxes();
+      fAx = a.forward;
+      rAx = a.right;
+      speedMul = this.input.getSpeedModifier();
+    }
+
+    const cp = Math.cos(this.freePitch);
+    const sp = Math.sin(this.freePitch);
+    const cy = Math.cos(this.freeYaw);
+    const sy = Math.sin(this.freeYaw);
+    // Forward includes pitch (so pitching up/down lifts/dives the camera);
+    // right is screen-horizontal. No dedicated up axis — Shift/Space modify
+    // speed, not direction.
+    const fwdX = sy * cp;
+    const fwdY = sp;
+    const fwdZ = -cy * cp;
+    const rightX = cy;
+    const rightZ = sy;
+
+    // Normalize axes so diagonal presses don't move faster than a cardinal.
+    const axesMag = Math.hypot(fAx, rAx);
+    let nf = 0;
+    let nr = 0;
+    if (axesMag > 0) {
+      nf = fAx / axesMag;
+      nr = rAx / axesMag;
+    }
+    const speed = FLY_SPEED * speedMul;
+    const targetVx = (fwdX * nf + rightX * nr) * speed;
+    const targetVy = fwdY * nf * speed;
+    const targetVz = (fwdZ * nf + rightZ * nr) * speed;
+
+    this.freeVelocity[0] = damp(this.freeVelocity[0], targetVx, FLY_VELOCITY_DAMP, dt);
+    this.freeVelocity[1] = damp(this.freeVelocity[1], targetVy, FLY_VELOCITY_DAMP, dt);
+    this.freeVelocity[2] = damp(this.freeVelocity[2], targetVz, FLY_VELOCITY_DAMP, dt);
+
+    this.freePos[0] += this.freeVelocity[0] * dt;
+    this.freePos[1] += this.freeVelocity[1] * dt;
+    this.freePos[2] += this.freeVelocity[2] * dt;
+
+    this.camera.updateFree(this.freePos, this.freeYaw, this.freePitch);
+  }
+
+  // Seed free-fly state from the current dolly camera so toggling on doesn't
+  // teleport. Also cancels the intro cinematic; bypasses scrub plumbing.
+  private enterFreeCamera(): void {
+    const eye: Vec3 = [
+      this.camera.position[0],
+      this.camera.position[1],
+      this.camera.position[2],
+    ];
+    const focusZ = this.scrubCurrent * PLANET_SPACING;
+    const center: Vec3 = [0, 0, focusZ - 1.5];
+    const fwd = vec3.normalize(vec3.sub(center, eye));
+    this.freePos = eye;
+    this.freeYaw = Math.atan2(fwd[0], -fwd[2]);
+    this.freePitch = Math.asin(clamp(fwd[1], -1, 1));
+    this.freeVelocity = [0, 0, 0];
+    this.cinematicActive = false;
+    this.camera.setExtraDistance(0);
+    this.input.setFreeMode(true);
+  }
 
   private updateRotations(dt: number, ts: number): void {
     if (this.reducedMotion()) return;
@@ -392,6 +509,15 @@ export class Engine {
   private onZoom(factor: number): void {
     if (this.openPoi) return;
     this.zoomTarget = clamp(this.zoomTarget * factor, 0.6, 1.6);
+  }
+
+  // Pointer drag in free-fly mode. Drag right → yaw++, drag down → pitch--.
+  private onLook(dx: number, dy: number): void {
+    if (!this.settings.freeCamera || this.openPoi) return;
+    this.freeYaw += dx * LOOK_SENSITIVITY;
+    this.freePitch -= dy * LOOK_SENSITIVITY;
+    if (this.freePitch > PITCH_LIMIT) this.freePitch = PITCH_LIMIT;
+    else if (this.freePitch < -PITCH_LIMIT) this.freePitch = -PITCH_LIMIT;
   }
 
   private handlePick(ndcX: number, ndcY: number): void {
@@ -529,6 +655,19 @@ export class Engine {
     this.commit();
   }
 
+  setFreeCamera(on: boolean): void {
+    if (this.settings.freeCamera === on) return;
+    this.settings.freeCamera = on;
+    saveSettings(this.settings);
+    if (on) {
+      this.enterFreeCamera();
+    } else {
+      this.input.setFreeMode(false);
+      this.freeVelocity = [0, 0, 0];
+    }
+    this.commit();
+  }
+
   skipIntro(): void {
     this.onUserInteract();
   }
@@ -541,8 +680,10 @@ export class Engine {
 
   // Planets more recent than the focused one (higher index after the timeline
   // was reversed) fade out so only the selected planet and older ones receding
-  // behind it remain.
+  // behind it remain. In free-fly mode all planets stay fully visible so the
+  // user can fly toward any of them without timeline fade-out hiding them.
   private planetVisibility(i: number): number {
+    if (this.settings.freeCamera) return 1;
     const rel = i - this.scrubCurrent; // > 0 => planet i is more recent
     if (rel <= 0.2) return 1;
     return clamp(1 - (rel - 0.2) / 0.7, 0, 1);
@@ -576,6 +717,17 @@ export class Engine {
       triangles: 0,
       gpuMemoryMB: 0,
     };
+    const freeCameraState = this.settings.freeCamera
+      ? {
+          position: [
+            this.freePos[0],
+            this.freePos[1],
+            this.freePos[2],
+          ] as Vec3,
+          yawDeg: normalizeYawDeg((this.freeYaw * 180) / Math.PI),
+          pitchDeg: (this.freePitch * 180) / Math.PI,
+        }
+      : null;
     return {
       backend: this.backend,
       ready: this.ready,
@@ -588,6 +740,8 @@ export class Engine {
       reducedMotion: this.settings.reducedMotion,
       debugHud: this.settings.debugHud,
       wireframe: this.settings.wireframe,
+      freeCamera: this.settings.freeCamera,
+      freeCameraState,
       stats: { ...stats, fps: Math.round(this.fps) },
     };
   }

@@ -146,7 +146,21 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let mie = pow(max(dot(rd, sun), 0.0), 8.0) * dayGlow * 0.22;
   col = col + atmoColor * mie * intensity;
 
-  col = col * limbSun;
+  // Surface-aware limb gate: limbSun is geared for *limb* (miss) rays where
+  // it kills the night-side rim glow. For rays that pierce the planet's
+  // disk, the per-sample `sunAmt` smoothstep above already provides a
+  // smooth terminator on the haze accumulated through the column — and
+  // applying the cubed limbSun on top of that paints a sharp angular cut
+  // across the lit disk (visible from close-up free-cam views). Soft-blend
+  // from limbSun at the silhouette to 1.0 inside the disk using the
+  // ray's chord length through the inner sphere, so the silhouette stays
+  // a continuous ring rather than swapping discretely.
+  let hitsPlanet = inner.x > 0.0 && inner.x < inner.y;
+  let innerSpan = max(inner.y - inner.x, 0.0);
+  let surfaceBlend = smoothstep(0.0, thickness * 0.25, innerSpan);
+  let limbBlend = select(0.0, surfaceBlend, hitsPlanet);
+  let surfaceGate = mix(limbSun, 1.0, limbBlend);
+  col = col * surfaceGate;
 
   // Distance fog (matches planet + ring): additive shell, so just attenuate
   // the contribution rather than mixing toward a colour.

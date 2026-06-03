@@ -258,13 +258,19 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let base = mix(land, water, waterMask);
 
   // --- Cook-Torrance PBR direct lighting from the key sun ---
-  // Per-pixel material: water is a smooth dielectric (low roughness, low F0
-  // ~ water IOR 1.33 -> F0 0.02); land is a rough dielectric (high roughness,
-  // F0 0.04). Both share a single lighting path so the glint shape and the
-  // matte response come purely from the material parameters.
+  // Per-pixel material: water is a smooth-ish dielectric (moderate roughness,
+  // low F0 ~ water IOR 1.33 -> F0 0.02); land is a rough dielectric (high
+  // roughness, F0 0.04). Both share a single lighting path so the glint shape
+  // and the matte response come purely from the material parameters.
+  //
+  // Water roughness floor (0.35) is chosen so the GGX highlight FWHM stays
+  // wider than a UV-sphere triangle face at the equator (~5.6° arc on a
+  // 48x64 mesh; see geometry.ts). Below ~0.30 the highlight gets sharp
+  // enough that its sub-triangle peak snaps to mesh seams, producing a
+  // visible polygonal/chevron kink right in the brightest pixels.
   let albedo = base;
   let metallic = 0.0;
-  let roughness = mix(0.92, 0.12, waterMask);
+  let roughness = mix(0.92, 0.35, waterMask);
   let F0base = mix(vec3<f32>(0.04), vec3<f32>(0.02), waterMask);
   let F0 = mix(F0base, albedo, metallic);
 

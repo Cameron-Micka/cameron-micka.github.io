@@ -417,7 +417,16 @@ void main(){
   vec3 col=atmoColor*dayGlow*0.55*intensity;
   float mie=pow(max(dot(rd,sun),0.0),8.0)*dayGlow*0.22;
   col+=atmoColor*mie*intensity;
-  col*=limbSun;
+  // Surface-aware limb gate: only apply limbSun to limb (miss) rays. Over
+  // the planet's disk, per-sample sunAmt already smooths the terminator;
+  // double-gating with cubed limbSun paints a sharp angular cut. Soft-blend
+  // by chord length so the silhouette ring stays continuous.
+  bool hitsPlanet=inner.x>0.0&&inner.x<inner.y;
+  float innerSpan=max(inner.y-inner.x,0.0);
+  float surfaceBlend=smoothstep(0.0,thickness*0.25,innerSpan);
+  float limbBlend=hitsPlanet?surfaceBlend:0.0;
+  float surfaceGate=mix(limbSun,1.0,limbBlend);
+  col*=surfaceGate;
   // Distance fog (additive shell -> attenuate).
   float dist=distance(vWorld,ro);float fs=dist*0.030;
   col*=exp(-fs*fs);

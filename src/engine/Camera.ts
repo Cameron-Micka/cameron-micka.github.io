@@ -47,4 +47,23 @@ export class Camera {
     mat4.multiply(this.viewProj, this.proj, this.view);
     mat4.invert(this.invViewProj, this.viewProj);
   }
+
+  // Update from an arbitrary eye + Euler yaw/pitch (no roll). Used by the
+  // free-fly camera; bypasses the scrub/zoom/extra plumbing.
+  // Convention: yaw=0 looks down -Z; positive yaw turns right.
+  updateFree(eye: Vec3, yaw: number, pitch: number): void {
+    const cy = Math.cos(pitch);
+    const sy = Math.sin(pitch);
+    const cyaw = Math.cos(yaw);
+    const syaw = Math.sin(yaw);
+    const fx = syaw * cy;
+    const fy = sy;
+    const fz = -cyaw * cy;
+    this.position = [eye[0], eye[1], eye[2]];
+    const center: Vec3 = [eye[0] + fx, eye[1] + fy, eye[2] + fz];
+    mat4.lookAt(this.view, this.position, center, [0, 1, 0]);
+    mat4.perspective(this.proj, FOV, this.aspect, NEAR, FAR);
+    mat4.multiply(this.viewProj, this.proj, this.view);
+    mat4.invert(this.invViewProj, this.viewProj);
+  }
 }
