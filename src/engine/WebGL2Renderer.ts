@@ -168,8 +168,8 @@ float cVnoise(vec3 x){
 }
 float cFbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*cVnoise(p);p*=2.03;a*=.5;}return v;}
 float cloudRotation(float time,float seedf,float reducedMotion){
-  float baseSpeed=0.03;
-  float jitter=fract(seedf*0.000371)*0.05;
+  float baseSpeed=0.015;
+  float jitter=fract(seedf*0.000371)*0.025;
   float dir=fract(seedf*0.0007)<0.30?-1.0:1.0;
   float mult=reducedMotion>0.5?0.10:1.0;
   return time*(baseSpeed+jitter)*dir*mult;
@@ -180,9 +180,15 @@ float cloudDensity(vec3 localDir,float time,float seedf,float reducedMotion){
   float cs=cos(rot),sn=sin(rot);
   vec3 rp=vec3(cs*localDir.x+sn*localDir.z,localDir.y,-sn*localDir.x+cs*localDir.z);
   vec3 seedShift=vec3(seedf*0.0017,seedf*0.0023,seedf*0.0029);
-  float n=cFbm(rp*3.2+seedShift);
+  vec3 p=rp*4.8+seedShift;
+  // Domain warp (iq): two extra fbm samples form a warp vector, the final
+  // sample re-evaluates the field at the warped position. Produces the
+  // characteristic swirly, turbulent look that pure additive fbm lacks.
+  float qx=cFbm(p);
+  float qy=cFbm(p+vec3(5.2,1.3,2.8));
+  float n=cFbm(p+0.85*vec3(qx-0.5,qy-0.5,(qx-qy)*0.7));
   float cov=cloudCoverage(seedf);
-  float lo=0.62-cov*0.30;float hi=lo+0.18;
+  float lo=0.62-cov*0.30;float hi=lo+0.14;
   return smoothstep(lo,hi,n);
 }
 // Cloud shadow on the planet surface. vLocal is the unit-sphere local pos;
@@ -525,8 +531,8 @@ float cVnoise(vec3 x){
 }
 float cFbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*cVnoise(p);p*=2.03;a*=.5;}return v;}
 float cloudRotation(float time,float seedf,float reducedMotion){
-  float baseSpeed=0.03;
-  float jitter=fract(seedf*0.000371)*0.05;
+  float baseSpeed=0.015;
+  float jitter=fract(seedf*0.000371)*0.025;
   float dir=fract(seedf*0.0007)<0.30?-1.0:1.0;
   float mult=reducedMotion>0.5?0.10:1.0;
   return time*(baseSpeed+jitter)*dir*mult;
@@ -537,9 +543,12 @@ float cloudDensity(vec3 localDir,float time,float seedf,float reducedMotion){
   float cs=cos(rot),sn=sin(rot);
   vec3 rp=vec3(cs*localDir.x+sn*localDir.z,localDir.y,-sn*localDir.x+cs*localDir.z);
   vec3 seedShift=vec3(seedf*0.0017,seedf*0.0023,seedf*0.0029);
-  float n=cFbm(rp*3.2+seedShift);
+  vec3 p=rp*4.8+seedShift;
+  float qx=cFbm(p);
+  float qy=cFbm(p+vec3(5.2,1.3,2.8));
+  float n=cFbm(p+0.85*vec3(qx-0.5,qy-0.5,(qx-qy)*0.7));
   float cov=cloudCoverage(seedf);
-  float lo=0.62-cov*0.30;float hi=lo+0.18;
+  float lo=0.62-cov*0.30;float hi=lo+0.14;
   return smoothstep(lo,hi,n);
 }
 float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf,float reducedMotion){

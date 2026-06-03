@@ -108,6 +108,10 @@ export class Engine {
   private zoomCurrent = 1;
   private blurCurrent = 0;
   private time = 0;
+  // Separate clock used to drive moon orbits so we can slow them way down
+  // under reduced motion without affecting the global time used by shaders
+  // (cloud rotation, etc. already apply their own reduced-motion multipliers).
+  private moonTime = 0;
   private focusedIndex = 0;
   private openPoi: OpenPoiRef | null = null;
   private lastOrbitIndex = -1;
@@ -296,6 +300,7 @@ export class Engine {
 
       if (!modalOpen) {
         this.time += dt;
+        this.moonTime += dt * (this.reducedMotion() ? 0.1 : 1.0);
         this.scrubCurrent = damp(this.scrubCurrent, this.scrubTarget, 8, dt);
         this.zoomCurrent = damp(this.zoomCurrent, this.zoomTarget, 9, dt);
         this.updateRotations(dt, ts);
@@ -321,6 +326,7 @@ export class Engine {
   private updateFreeCamera(dt: number, ts: number, modalOpen: boolean): void {
     if (!modalOpen) {
       this.time += dt;
+      this.moonTime += dt * (this.reducedMotion() ? 0.1 : 1.0);
       this.updateRotations(dt, ts);
     }
 
@@ -421,7 +427,7 @@ export class Engine {
       const focus = clamp(1 - Math.abs(i - this.scrubCurrent) * 0.6, 0, 1);
       return instanceFromModel(
         m,
-        this.time,
+        this.moonTime,
         this.orientations[i] ?? quat.identity(),
         focus,
         this.planetVisibility(i),

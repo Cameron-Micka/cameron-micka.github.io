@@ -224,8 +224,8 @@ fn cFbm(p : vec3<f32>) -> f32 {
 }
 
 fn cloudRotation(time : f32, seedf : f32, reducedMotion : f32) -> f32 {
-  let baseSpeed = 0.03;
-  let jitter = fract(seedf * 0.000371) * 0.05;
+  let baseSpeed = 0.015;
+  let jitter = fract(seedf * 0.000371) * 0.025;
   let dir = select(1.0, -1.0, fract(seedf * 0.0007) < 0.30);
   let mult = select(1.0, 0.10, reducedMotion > 0.5);
   return time * (baseSpeed + jitter) * dir * mult;
@@ -245,7 +245,13 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32, reducedMotion : f
     -sn * localDir.x + cs * localDir.z,
   );
   let seedShift = vec3<f32>(seedf * 0.0017, seedf * 0.0023, seedf * 0.0029);
-  let n = cFbm(rp * 4.8 + seedShift);
+  let p = rp * 4.8 + seedShift;
+  // Domain warp (iq): two extra fbm samples form a warp vector, the final
+  // sample re-evaluates the field at the warped position. Produces the
+  // characteristic swirly, turbulent look that pure additive fbm lacks.
+  let qx = cFbm(p);
+  let qy = cFbm(p + vec3<f32>(5.2, 1.3, 2.8));
+  let n = cFbm(p + 0.85 * vec3<f32>(qx - 0.5, qy - 0.5, (qx - qy) * 0.7));
   let cov = cloudCoverage(seedf);
   let lo = 0.62 - cov * 0.30;
   let hi = lo + 0.14;

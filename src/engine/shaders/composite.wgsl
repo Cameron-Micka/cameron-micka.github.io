@@ -41,18 +41,30 @@ fn sampleScene(uv : vec2<f32>) -> vec3<f32> {
   return textureSample(sceneTex, samp, clamp(uv, vec2<f32>(0.001), vec2<f32>(0.999))).rgb;
 }
 
-// Cheap bloom: threshold bright areas across a small disk of taps.
+// Cheap bloom: threshold bright areas across a small Gaussian-weighted disk
+// of taps. A 5x5 grid (25 taps) with Gaussian weights produces a smooth
+// filled blur instead of the hollow ring artifact a single-ring kernel
+// leaves around small bright sources (e.g. the lit limb of a far-away
+// planet's atmosphere). Each bright HDR pixel must contribute to a disk,
+// not a hollow circle, or you see its silhouette echoed at the kernel
+// radius.
 fn bloom(uv : vec2<f32>) -> vec3<f32> {
   var acc = vec3<f32>(0.0);
-  let r = post.texel.xy * 3.0;
-  for (var i = 0; i < 12; i = i + 1) {
-    let ang = f32(i) * 0.5236;
-    let o = vec2<f32>(cos(ang), sin(ang));
-    let s = sampleScene(uv + o * r * 2.0);
-    let bright = max(s - vec3<f32>(0.7), vec3<f32>(0.0));
-    acc = acc + bright;
+  var wsum = 0.0;
+  let step = post.texel.xy * 2.0;
+  for (var i = -2; i <= 2; i = i + 1) {
+    for (var j = -2; j <= 2; j = j + 1) {
+      let o = vec2<f32>(f32(i), f32(j));
+      // sigma ~1.3 taps; weights at radius 2 are ~exp(-0.59) = 0.55 of
+      // center, so the kernel fills its support cleanly.
+      let w = exp(-dot(o, o) * 0.30);
+      let s = sampleScene(uv + o * step);
+      let bright = max(s - vec3<f32>(0.7), vec3<f32>(0.0));
+      acc = acc + bright * w;
+      wsum = wsum + w;
+    }
   }
-  return acc / 12.0;
+  return acc / wsum;
 }
 
 // Wide gaussian-ish blur for the frozen modal backdrop. Uses a 13x13 kernel

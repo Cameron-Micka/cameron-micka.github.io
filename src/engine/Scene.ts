@@ -103,9 +103,13 @@ export function poiFocusFade(focus: number): number {
 }
 
 // Produce the renderable instance for a planet at a given time / focus.
+// `moonTime` advances the moon orbit angles; it is independent of the global
+// shader clock so reduced motion can slow the orbits without affecting other
+// time-driven shader effects (e.g. cloud rotation, which applies its own
+// reduced-motion multiplier in-shader).
 export function instanceFromModel(
   model: PlanetModel,
-  time: number,
+  moonTime: number,
   orientation: Quat,
   focus: number,
   visibility: number,
@@ -127,7 +131,7 @@ export function instanceFromModel(
     clouds: f.clouds,
     moons: model.moonSpecs.map((m) => ({
       orbitRadius: m.orbitRadius,
-      angle: m.phase + time * m.speed,
+      angle: m.phase + moonTime * m.speed,
       size: m.size,
     })),
     pois: model.poiDirs,
