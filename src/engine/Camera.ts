@@ -5,9 +5,19 @@ import { PLANET_SPACING } from './Scene';
 const FOV = (50 * Math.PI) / 180;
 const NEAR = 0.1;
 const FAR = 200;
-const VIEW_DISTANCE = 8.5;
-const EYE_HEIGHT = 1.8;
-const EYE_SIDE_OFFSET = 1.25;
+// Default ("dolly") camera pose. Position is measured as an offset from the
+// focused planet's center (z = scrub * PLANET_SPACING) and the look angle is
+// baked in from world-space yaw/pitch so framing stays consistent across
+// every focused planet rather than swinging through a fixed look-at point.
+// Captured live from free-cam to dial in a flattering off-axis 3/4 view.
+const VIEW_DISTANCE = 8.68;
+const EYE_HEIGHT = 2.26;
+const EYE_SIDE_OFFSET = 10.28;
+const YAW = (-36.8 * Math.PI) / 180;
+const PITCH = (-8.6 * Math.PI) / 180;
+const FORWARD_X = Math.sin(YAW) * Math.cos(PITCH);
+const FORWARD_Y = Math.sin(PITCH);
+const FORWARD_Z = -Math.cos(YAW) * Math.cos(PITCH);
 
 export class Camera {
   view: Mat4 = mat4.create();
@@ -35,12 +45,24 @@ export class Camera {
   // scrub: continuous index in [0, planetCount-1]; camera frames that planet.
   // The timeline is reversed (higher index = more recent), so the camera sits on
   // the +z side and looks toward -z, leaving older planets receding ahead.
+  //
+  // Zoom and the cinematic `extra` pull-back both dolly the camera along its
+  // own forward vector (rather than just sliding eyeZ) so ctrl+wheel pulls
+  // straight in toward whatever the camera is looking at, regardless of the
+  // off-axis 3/4 view angle. Look direction is unchanged by dolly.
   update(scrub: number): void {
     const focusZ = scrub * PLANET_SPACING;
-    const dist = VIEW_DISTANCE * this.zoom + this.extra;
-    const eyeZ = focusZ + dist;
-    this.position = [EYE_SIDE_OFFSET, EYE_HEIGHT, eyeZ];
-    const center: Vec3 = [0, 0, focusZ - 1.5];
+    const dolly = (1 - this.zoom) * VIEW_DISTANCE - this.extra;
+    this.position = [
+      EYE_SIDE_OFFSET + FORWARD_X * dolly,
+      EYE_HEIGHT + FORWARD_Y * dolly,
+      focusZ + VIEW_DISTANCE + FORWARD_Z * dolly,
+    ];
+    const center: Vec3 = [
+      this.position[0] + FORWARD_X,
+      this.position[1] + FORWARD_Y,
+      this.position[2] + FORWARD_Z,
+    ];
 
     mat4.lookAt(this.view, this.position, center, [0, 1, 0]);
     mat4.perspective(this.proj, FOV, this.aspect, NEAR, FAR);
