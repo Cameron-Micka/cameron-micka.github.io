@@ -11,6 +11,7 @@ import { WebGL2Renderer } from './WebGL2Renderer';
 import { Camera } from './Camera';
 import {
   buildPlanetModels,
+  buildFlightPath,
   instanceFromModel,
   poiMarkerDistance,
   PLANET_SPACING,
@@ -49,6 +50,7 @@ export interface EngineSnapshot {
   debugHud: boolean;
   wireframe: boolean;
   freeCamera: boolean;
+  flightPath: boolean;
   // Populated only while free camera is active. Yaw/pitch are in degrees;
   // yaw is normalized to (-180, 180].
   freeCameraState: {
@@ -108,6 +110,9 @@ export class Engine {
   // shares the global clock and would keep drifting through a "stopped" planet.
   private cloudTimes: number[];
   private cloudPace: number[];
+  // Static spacecraft trajectory polyline. Planet centers never move, so this
+  // is built once at startup and re-used every frame.
+  private flightPath: Float32Array;
   private scrubCurrent = 0;
   private scrubTarget = 0;
   private zoomTarget = 1;
@@ -156,6 +161,7 @@ export class Engine {
     );
     this.cloudTimes = this.models.map(() => 0);
     this.cloudPace = this.models.map(() => 1);
+    this.flightPath = buildFlightPath(this.models);
     // Open focused on the current role (the one still ongoing) rather than the
     // first planet in the sequence, so e.g. a reversed timeline still starts on
     // "Now". Falls back to the first planet if none is marked current.
@@ -479,6 +485,7 @@ export class Engine {
       blur: this.blurCurrent,
       reducedMotion: this.reducedMotion(),
       wireframe: this.settings.wireframe,
+      flightPath: this.settings.flightPath ? this.flightPath : new Float32Array(0),
     };
     r.render(frame);
   }
@@ -692,6 +699,13 @@ export class Engine {
     this.commit();
   }
 
+  setFlightPath(on: boolean): void {
+    if (this.settings.flightPath === on) return;
+    this.settings.flightPath = on;
+    saveSettings(this.settings);
+    this.commit();
+  }
+
   skipIntro(): void {
     this.onUserInteract();
   }
@@ -765,6 +779,7 @@ export class Engine {
       wireframe: this.settings.wireframe,
       freeCamera: this.settings.freeCamera,
       freeCameraState,
+      flightPath: this.settings.flightPath,
       stats: { ...stats, fps: Math.round(this.fps) },
     };
   }

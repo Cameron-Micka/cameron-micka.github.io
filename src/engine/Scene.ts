@@ -126,6 +126,175 @@ export function poiMarkerDistance(effectiveRadius: number): number {
   return effectiveRadius * 1.18 + 0.3;
 }
 
+// Spacecraft trajectory polyline that hops through every planet on the
+// timeline, looping around each one and connecting consecutive loops with a
+// cubic-Hermite arc. The polyline is sampled densely enough that a thin
+// ribbon line will read smoothly; planet centers never move, so the array
+// is computed once and uploaded as a static vertex buffer. Returns a flat
+// Float32Array of XYZ triples (length = N * 3 for N points).
+//
+// Route is reverse-chronological: starts at the most recent role's planet
+// (highest `index`) and ends at the earliest (index 0). Endpoint planets get
+// extra revolutions so the path reads as "departing" / "arriving" instead of
+// just brushing past them.
+export function buildFlightPath(models: PlanetModel[]): Float32Array {
+  if (models.length < 2) return new Float32Array(0);
+  const route = [...models].sort((a, b) => b.index - a.index);
+
+  // Build a per-planet tilted orbital basis. Starting from the XY plane
+  // (perpendicular to the timeline Z axis so loops face the camera) and
+  // rotated by small random tilts around X and Y, so each planet's loop
+  // sits in a slightly different plane.
+  type Orbit = {
+    center: Vec3;
+    radius: number;
+    u: Vec3;
+    v: Vec3;
+    w: Vec3;
+  };
+  const orbits: Orbit[] = route.map((m) => {
+    const rnd = mulberry32(m.seed ^ 0xcafebabe);
+    const tiltX = (rnd() - 0.5) * 0.8;
+    const tiltY = (rnd() - 0.5) * 0.8;
+    let u: Vec3 = [1, 0, 0];
+    let v: Vec3 = [0, 1, 0];
+    const cy = Math.cos(tiltY);
+    const sy = Math.sin(tiltY);
+    u = [u[0] * cy + u[2] * sy, u[1], -u[0] * sy + u[2] * cy];
+    v = [v[0] * cy + v[2] * sy, v[1], -v[0] * sy + v[2] * cy];
+    const cx = Math.cos(tiltX);
+    const sx = Math.sin(tiltX);
+    u = [u[0], u[1] * cx - u[2] * sx, u[1] * sx + u[2] * cx];
+    v = [v[0], v[1] * cx - v[2] * sx, v[1] * sx + v[2] * cx];
+    // Perpendicular to the orbit plane; the corkscrew wiggle is applied
+    // along this axis so the loop "drifts" out of its plane as it sweeps.
+    const w = vec3.normalize(vec3.cross(u, v));
+    return { center: [0, 0, m.z] as Vec3, radius: m.radius * 1.18, u, v, w };
+  });
+
+  // Position / orbit-tangent at angle `a` on orbit `i`. The tangent is the
+  // derivative of position with respect to angle, NOT normalized — its
+  // magnitude (orbit radius) feeds the Hermite tangent scaling naturally.
+  function pointAt(i: number, a: number): Vec3 {
+    const o = orbits[i]!;
+    const c = Math.cos(a) * o.radius;
+    const s = Math.sin(a) * o.radius;
+    return [
+      o.center[0] + o.u[0] * c + o.v[0] * s,
+      o.center[1] + o.u[1] * c + o.v[1] * s,
+      o.center[2] + o.u[2] * c + o.v[2] * s,
+    ];
+  }
+  function tangentAt(i: number, a: number): Vec3 {
+    const o = orbits[i]!;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    return [
+      (-o.u[0] * s + o.v[0] * c) * o.radius,
+      (-o.u[1] * s + o.v[1] * c) * o.radius,
+      (-o.u[2] * s + o.v[2] * c) * o.radius,
+    ];
+  }
+  // Angle on orbit i whose orbital position is closest to the given world
+  // direction. Used to pick entry/exit angles facing the neighboring planet.
+  function angleFacing(i: number, dir: Vec3): number {
+    const o = orbits[i]!;
+    return Math.atan2(vec3.dot(o.v, dir), vec3.dot(o.u, dir));
+  }
+
+  const pts: number[] = [];
+  const push = (p: Vec3) => pts.push(p[0], p[1], p[2]);
+
+  for (let i = 0; i < route.length; i++) {
+    const isStart = i === 0;
+    const isEnd = i === route.length - 1;
+    const o = orbits[i]!;
+
+    const entryAngle = isStart
+      ? 0
+      : angleFacing(i, vec3.normalize(vec3.sub(orbits[i - 1]!.center, o.center)));
+    const targetExit = isEnd
+      ? entryAngle
+      : angleFacing(i, vec3.normalize(vec3.sub(orbits[i + 1]!.center, o.center)));
+
+    // Half an orbital revolution per planet before the path moves on.
+    const turns = 0.5;
+    let delta = targetExit - entryAngle;
+    while (delta <= 0) delta += Math.PI * 2;
+    const minDelta = Math.PI * 2 * turns;
+    while (delta < minDelta) delta += Math.PI * 2;
+    const exitAngle = entryAngle + delta;
+
+    // Corkscrew wiggle along the orbit's perpendicular axis. Envelope is
+    // sin²(π·t) so the displacement AND its derivative are zero at both
+    // endpoints — the Hermite transit between orbits doesn't need to know
+    // about the wiggle, and the in-plane orbital tangent remains correct.
+    // Frequency scales with the number of turns so each loop gets a
+    // consistent number of wiggles regardless of how many revolutions it
+    // takes to reach the exit angle.
+    const helixCycles = Math.max(2, Math.round(turns * 2.5));
+    const helixAmp = o.radius * 0.15;
+
+    // Smooth sampling: ~24 samples per radian for the arc, and at least
+    // ~16 samples per helix cycle so the corkscrew oscillations don't
+    // look polygonal.
+    const segs = Math.max(
+      48,
+      Math.ceil(delta * 24),
+      Math.ceil(helixCycles * 16),
+    );
+    for (let s = 0; s <= segs; s++) {
+      const t = s / segs;
+      const a = entryAngle + t * delta;
+      const env = Math.sin(Math.PI * t);
+      const wiggle = helixAmp * env * env * Math.sin(2 * Math.PI * helixCycles * t);
+      const base = pointAt(i, a);
+      push([
+        base[0] + o.w[0] * wiggle,
+        base[1] + o.w[1] * wiggle,
+        base[2] + o.w[2] * wiggle,
+      ]);
+    }
+
+    // Cubic-Hermite transit from this orbit's exit to the next orbit's entry,
+    // with tangents = orbit derivative at the boundary. Tangent magnitude is
+    // scaled by half the chord length so the transit reads as a smooth arc
+    // (not a tight S-curve or a barely-curved line).
+    if (!isEnd) {
+      const j = i + 1;
+      const nextEntryAngle = angleFacing(
+        j,
+        vec3.normalize(vec3.sub(o.center, orbits[j]!.center)),
+      );
+      const p0 = pointAt(i, exitAngle);
+      const p1 = pointAt(j, nextEntryAngle);
+      const t0 = tangentAt(i, exitAngle);
+      const t1 = tangentAt(j, nextEntryAngle);
+      const chord = vec3.length(vec3.sub(p1, p0));
+      const tScale = chord * 0.5;
+      const t0u = vec3.scale(vec3.normalize(t0), tScale);
+      const t1u = vec3.scale(vec3.normalize(t1), tScale);
+      const tsegs = 64;
+      // Skip s=0 (already at exit point) and s=tsegs (the next loop's first
+      // sample lands exactly there).
+      for (let s = 1; s < tsegs; s++) {
+        const t = s / tsegs;
+        const h00 = 2 * t * t * t - 3 * t * t + 1;
+        const h10 = t * t * t - 2 * t * t + t;
+        const h01 = -2 * t * t * t + 3 * t * t;
+        const h11 = t * t * t - t * t;
+        push([
+          h00 * p0[0] + h10 * t0u[0] + h01 * p1[0] + h11 * t1u[0],
+          h00 * p0[1] + h10 * t0u[1] + h01 * p1[1] + h11 * t1u[1],
+          h00 * p0[2] + h10 * t0u[2] + h01 * p1[2] + h11 * t1u[2],
+        ]);
+      }
+    }
+  }
+
+  return new Float32Array(pts);
+}
+
 // POIs are only shown for the focused ("current") planet. This smoothly fades
 // them in as a planet approaches full focus and out as it loses focus, so they
 // pop neither on nor off while scrubbing the timeline.

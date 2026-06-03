@@ -63,6 +63,16 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="row">
+        <label htmlFor="set-flightpath">Flight path</label>
+        <input
+          id="set-flightpath"
+          type="checkbox"
+          checked={s.flightPath}
+          onChange={(e) => engine.setFlightPath(e.target.checked)}
+        />
+      </div>
+
+      <div className="row">
         <label htmlFor="set-freecam">Free camera</label>
         <input
           id="set-freecam"

@@ -482,6 +482,58 @@ void main(){
   frag=vec4((vColor.rgb+0.15)*a,a);
 }`;
 
+// Spacecraft trajectory ribbon. Camera-facing quad per polyline segment,
+// instanced via prev/next world positions. Mirrors flight_path.wgsl.
+const FLIGHT_VERT = `#version 300 es
+layout(location=0) in vec3 aPrev;
+layout(location=1) in vec3 aNext;
+uniform mat4 uViewProj;
+uniform float uAspect;
+uniform float uThick; // half-thickness in aspect-corrected NDC
+out float vEdge;
+out vec3 vWorld;
+void main(){
+  const float ends[6]  = float[6](0.0, 1.0, 1.0, 0.0, 1.0, 0.0);
+  const float sides[6] = float[6](-1.0, -1.0, 1.0, -1.0, 1.0, 1.0);
+  int vid = gl_VertexID;
+  bool isEnd = ends[vid] > 0.5;
+  float side = sides[vid];
+  vec2 ac = vec2(uAspect, 1.0);
+  vec4 cp = uViewProj * vec4(aPrev, 1.0);
+  vec4 cn = uViewProj * vec4(aNext, 1.0);
+  vec2 ap = (cp.xy / cp.w) * ac;
+  vec2 an = (cn.xy / cn.w) * ac;
+  vec2 dir = an - ap;
+  float len = length(dir);
+  dir = len > 1e-6 ? dir / len : vec2(0.0, 1.0);
+  vec2 perp = vec2(-dir.y, dir.x);
+  vec2 chosen = isEnd ? an : ap;
+  float z = isEnd ? cn.z : cp.z;
+  float w = isEnd ? cn.w : cp.w;
+  vec2 p = chosen + perp * side * uThick;
+  vec2 ndc = vec2(p.x / uAspect, p.y);
+  gl_Position = vec4(ndc * w, z, w);
+  vEdge = side;
+  vWorld = isEnd ? aNext : aPrev;
+}`;
+
+const FLIGHT_FRAG = `#version 300 es
+precision highp float;
+in float vEdge;
+in vec3 vWorld;
+uniform vec3 uCamera;
+out vec4 frag;
+const float FOG_DENSITY=0.030;
+void main(){
+  float aa=fwidth(vEdge);
+  float cov=1.0-smoothstep(1.0-aa,1.0,abs(vEdge));
+  float d=distance(vWorld,uCamera);
+  float s=d*FOG_DENSITY;
+  float fogA=exp(-s*s);
+  float a=0.85*cov*fogA;
+  frag=vec4(vec3(1.0)*a,a);
+}`;
+
 const WIRE_FRAG = `#version 300 es
 precision highp float;
 out vec4 frag;
@@ -687,6 +739,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private wire!: Program;
   private atmosphere!: Program;
   private clouds!: Program;
+  private flight!: Program;
 
   private sphereVao!: WebGLVertexArrayObject;
   private sphereCount = 0;
@@ -714,6 +767,13 @@ export class WebGL2Renderer implements SceneRenderer {
   private poiLineVao!: WebGLVertexArrayObject;
   private poiLineBuf!: WebGLBuffer;
   private poiLineVerts = 0;
+  // Rocket trajectory ribbon: instanced quads, one per polyline segment.
+  // Geometry is static (planet centers don't move), so buffer/VAO are
+  // (re)built only when the polyline length changes.
+  private flightVao: WebGLVertexArrayObject | null = null;
+  private flightBuf: WebGLBuffer | null = null;
+  private flightSegments = 0;
+  private flightPoints = 0;
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
@@ -759,6 +819,9 @@ export class WebGL2Renderer implements SceneRenderer {
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uTint', 'uCenter',
       'uTime', 'uSeed', 'uVisibility', 'uReducedMotion',
       'uShadowCount', 'uShadowSpheres[0]',
+    ]);
+    this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
+      'uViewProj', 'uAspect', 'uThick', 'uCamera',
     ]);
 
     this.buildSphere();
@@ -1238,8 +1301,84 @@ export class WebGL2Renderer implements SceneRenderer {
       this.stats.drawCalls++;
     }
 
+    // Rocket trajectory ribbon. Drawn after everything else in the scene
+    // pass so it overlays clouds/atmosphere, with depth less-equal + no
+    // depth write so opaque planet bodies still occlude segments behind
+    // them. Alpha blend (not additive) so the line stays calm and doesn't
+    // bloom-bleed when crossing bright atmospheres.
+    this.uploadFlightPath(frame.flightPath);
+    if (this.flightSegments > 0 && this.flightVao) {
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthMask(false);
+      gl.enable(gl.BLEND);
+      gl.blendFuncSeparate(
+        gl.SRC_ALPHA,
+        gl.ONE_MINUS_SRC_ALPHA,
+        gl.ONE,
+        gl.ONE_MINUS_SRC_ALPHA,
+      );
+      gl.useProgram(this.flight.prog);
+      gl.uniformMatrix4fv(this.flight.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform1f(this.flight.uniforms.uAspect!, this.width / this.height);
+      gl.uniform1f(this.flight.uniforms.uThick!, 0.0022);
+      gl.uniform3fv(this.flight.uniforms.uCamera!, frame.cameraPos);
+      gl.bindVertexArray(this.flightVao);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.flightSegments);
+      gl.depthMask(true);
+      this.stats.drawCalls++;
+      this.stats.triangles += this.flightSegments * 2;
+    }
+
     gl.bindVertexArray(null);
     gl.disable(gl.BLEND);
+  }
+
+  // Build per-segment instance data (prev.xyz, next.xyz) from the trajectory
+  // polyline. Only re-allocates the buffer/VAO when the polyline length
+  // changes; in practice that happens once on first frame.
+  private uploadFlightPath(path: Float32Array): void {
+    const gl = this.gl;
+    const points = path.length / 3;
+    if (points < 2) {
+      this.flightSegments = 0;
+      return;
+    }
+    if (points === this.flightPoints && this.flightVao && this.flightBuf) {
+      // Buffer still valid from a previous frame (e.g. user toggled the path
+      // off and back on). Restore the segment count so the draw runs again.
+      this.flightSegments = points - 1;
+      return;
+    }
+    const segments = points - 1;
+    const data = new Float32Array(segments * 6);
+    for (let i = 0; i < segments; i++) {
+      const o = i * 6;
+      data[o + 0] = path[i * 3 + 0]!;
+      data[o + 1] = path[i * 3 + 1]!;
+      data[o + 2] = path[i * 3 + 2]!;
+      data[o + 3] = path[(i + 1) * 3 + 0]!;
+      data[o + 4] = path[(i + 1) * 3 + 1]!;
+      data[o + 5] = path[(i + 1) * 3 + 2]!;
+    }
+    if (this.flightBuf) gl.deleteBuffer(this.flightBuf);
+    if (this.flightVao) gl.deleteVertexArray(this.flightVao);
+    const vao = gl.createVertexArray()!;
+    gl.bindVertexArray(vao);
+    const buf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    const stride = 6 * 4;
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, stride, 0);
+    gl.vertexAttribDivisor(0, 1);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, stride, 12);
+    gl.vertexAttribDivisor(1, 1);
+    gl.bindVertexArray(null);
+    this.flightVao = vao;
+    this.flightBuf = buf;
+    this.flightSegments = segments;
+    this.flightPoints = points;
   }
 
   private drawSphere(

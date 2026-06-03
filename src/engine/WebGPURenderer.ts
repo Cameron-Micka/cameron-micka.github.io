@@ -16,6 +16,7 @@ import nebulaWGSL from './shaders/nebula.wgsl?raw';
 import starfieldWGSL from './shaders/starfield.wgsl?raw';
 import poiWGSL from './shaders/poi.wgsl?raw';
 import poiLineWGSL from './shaders/poi_line.wgsl?raw';
+import flightPathWGSL from './shaders/flight_path.wgsl?raw';
 import ringWGSL from './shaders/ring.wgsl?raw';
 import compositeWGSL from './shaders/composite.wgsl?raw';
 import wireframeWGSL from './shaders/wireframe.wgsl?raw';
@@ -104,6 +105,11 @@ export class WebGPURenderer implements SceneRenderer {
   private satelliteScratch!: Float32Array;
   private poiBuf!: GPUBuffer;
   private poiCapacity = 0;
+  // Rocket trajectory ribbon. Geometry never changes, so the buffer is
+  // (re)allocated only when the polyline length changes.
+  private flightPathBuf: GPUBuffer | null = null;
+  private flightPathSegmentCount = 0;
+  private flightPathPointCount = 0;
 
   private frameBG!: GPUBindGroup;
   private objBG!: GPUBindGroup;
@@ -118,6 +124,7 @@ export class WebGPURenderer implements SceneRenderer {
     satellite: GPURenderPipeline;
     poi: GPURenderPipeline;
     poiLine: GPURenderPipeline;
+    flightPath: GPURenderPipeline;
     composite: GPURenderPipeline;
     wireframe: GPURenderPipeline;
     atmosphere: GPURenderPipeline;
@@ -328,6 +335,7 @@ export class WebGPURenderer implements SceneRenderer {
     const starMod = d.createShaderModule({ code: starfieldWGSL });
     const poiMod = d.createShaderModule({ code: poiWGSL });
     const poiLineMod = d.createShaderModule({ code: poiLineWGSL });
+    const flightPathMod = d.createShaderModule({ code: flightPathWGSL });
     const compositeMod = d.createShaderModule({ code: compositeWGSL });
     const wireframeMod = d.createShaderModule({ code: wireframeWGSL });
     const atmosphereMod = d.createShaderModule({ code: atmosphereWGSL });
@@ -518,6 +526,39 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
+    // Camera-facing ribbon for the rocket trajectory. One instanced quad per
+    // polyline segment; vertex buffer stores (prev, next) world positions per
+    // instance. Alpha-blended (not additive) so the white line stays calm and
+    // doesn't blow out the bloom pass.
+    const flightPathInstanceLayout: GPUVertexBufferLayout = {
+      arrayStride: 6 * 4,
+      stepMode: 'instance',
+      attributes: [
+        { shaderLocation: 0, offset: 0, format: 'float32x3' }, // prev
+        { shaderLocation: 1, offset: 12, format: 'float32x3' }, // next
+      ],
+    };
+    const flightPath = d.createRenderPipeline({
+      layout: sceneFramePL,
+      vertex: {
+        module: flightPathMod,
+        entryPoint: 'vs',
+        buffers: [flightPathInstanceLayout],
+      },
+      fragment: {
+        module: flightPathMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
+      },
+      primitive: { topology: 'triangle-list' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: false,
+        depthCompare: 'less-equal',
+      },
+      multisample,
+    });
+
     const compositePL = d.createPipelineLayout({
       bindGroupLayouts: [this.compositeLayout],
     });
@@ -583,7 +624,7 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    this.pipelines = { nebula, planet, ring, star, satellite, poi, poiLine, composite, wireframe, atmosphere, clouds };
+    this.pipelines = { nebula, planet, ring, star, satellite, poi, poiLine, flightPath, composite, wireframe, atmosphere, clouds };
   }
 
   private buildStars(count: number): void {
@@ -936,6 +977,7 @@ export class WebGPURenderer implements SceneRenderer {
       objIndex * OBJ_FLOATS,
     );
     this.uploadPois(poiData);
+    this.uploadFlightPath(frame.flightPath);
 
     // Post uniform.
     const post = this.postScratch;
@@ -1117,6 +1159,18 @@ export class WebGPURenderer implements SceneRenderer {
       this.stats.triangles += this.poiCount * 2;
     }
 
+    // Rocket trajectory ribbon. Drawn last so it overlays clouds/atmosphere,
+    // but with depth less-equal + no depth write so opaque planet bodies still
+    // occlude segments that pass behind them.
+    if (this.flightPathSegmentCount > 0 && this.flightPathBuf) {
+      scenePass.setPipeline(this.pipelines.flightPath);
+      scenePass.setBindGroup(0, this.frameBG);
+      scenePass.setVertexBuffer(0, this.flightPathBuf);
+      scenePass.draw(6, this.flightPathSegmentCount);
+      this.stats.drawCalls++;
+      this.stats.triangles += this.flightPathSegmentCount * 2;
+    }
+
     scenePass.end();
 
     // Composite pass to swapchain.
@@ -1194,6 +1248,43 @@ export class WebGPURenderer implements SceneRenderer {
       });
     }
     this.device.queue.writeBuffer(this.poiBuf, 0, arr);
+  }
+
+  // Build a per-segment instance buffer (prev.xyz, next.xyz) from the flight
+  // path polyline. Only re-uploads when the polyline length changes, which in
+  // practice means once on first frame.
+  private uploadFlightPath(path: Float32Array): void {
+    const pointCount = path.length / 3;
+    if (pointCount < 2) {
+      this.flightPathSegmentCount = 0;
+      return;
+    }
+    if (pointCount === this.flightPathPointCount && this.flightPathBuf) {
+      // Buffer is still valid from a previous frame (e.g. user toggled the
+      // path off and back on). Restore the segment count so the draw call
+      // runs again.
+      this.flightPathSegmentCount = pointCount - 1;
+      return;
+    }
+    const segments = pointCount - 1;
+    const instance = new Float32Array(segments * 6);
+    for (let i = 0; i < segments; i++) {
+      const o = i * 6;
+      instance[o + 0] = path[i * 3 + 0]!;
+      instance[o + 1] = path[i * 3 + 1]!;
+      instance[o + 2] = path[i * 3 + 2]!;
+      instance[o + 3] = path[(i + 1) * 3 + 0]!;
+      instance[o + 4] = path[(i + 1) * 3 + 1]!;
+      instance[o + 5] = path[(i + 1) * 3 + 2]!;
+    }
+    this.flightPathBuf?.destroy();
+    this.flightPathBuf = this.device.createBuffer({
+      size: instance.byteLength,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(this.flightPathBuf, 0, instance);
+    this.flightPathSegmentCount = segments;
+    this.flightPathPointCount = pointCount;
   }
 
   // Pack visible planets' satellites into the per-frame instance buffer. Each

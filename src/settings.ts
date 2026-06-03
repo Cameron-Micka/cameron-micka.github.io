@@ -9,6 +9,7 @@ export interface PersistedSettings {
   wireframe: boolean;
   forceBackend: 'auto' | 'webgpu' | 'webgl2';
   freeCamera: boolean;
+  flightPath: boolean;
 }
 
 const KEY = 'cm-portfolio-settings';
@@ -20,6 +21,7 @@ const DEFAULTS: PersistedSettings = {
   wireframe: false,
   forceBackend: 'auto',
   freeCamera: false,
+  flightPath: true,
 };
 
 function isValidQuality(q: unknown): q is QualityPreference {
