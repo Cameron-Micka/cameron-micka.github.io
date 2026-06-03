@@ -20,6 +20,7 @@ import ringWGSL from './shaders/ring.wgsl?raw';
 import compositeWGSL from './shaders/composite.wgsl?raw';
 import wireframeWGSL from './shaders/wireframe.wgsl?raw';
 import atmosphereWGSL from './shaders/atmosphere.wgsl?raw';
+import cloudsWGSL from './shaders/clouds.wgsl?raw';
 
 const OBJ_STRIDE = 256; // bytes; >= minUniformBufferOffsetAlignment
 const OBJ_FLOATS = OBJ_STRIDE / 4;
@@ -28,6 +29,10 @@ const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
 const MOON_ROCK_LOW: [number, number, number] = [0.22, 0.23, 0.24];
 const MOON_ROCK_MID: [number, number, number] = [0.44, 0.43, 0.41];
 const MOON_ROCK_HIGH: [number, number, number] = [0.64, 0.62, 0.58];
+// Must match CLOUD_SHELL_SCALE in clouds.wgsl and planet.wgsl: surface-point
+// projection in the planet shader assumes the cloud shell sits at this radius
+// (in unit-sphere local space) so the shadow lands exactly under the puff.
+const CLOUD_SHELL_SCALE = 1.006;
 
 function createRingGeometry(inner = 1.35, outer = 2.1, segments = 96): GeometryData {
   const positions: number[] = [];
@@ -108,6 +113,7 @@ export class WebGPURenderer implements SceneRenderer {
     composite: GPURenderPipeline;
     wireframe: GPURenderPipeline;
     atmosphere: GPURenderPipeline;
+    clouds: GPURenderPipeline;
   };
   private frameLayout!: GPUBindGroupLayout;
   private objLayout!: GPUBindGroupLayout;
@@ -306,6 +312,7 @@ export class WebGPURenderer implements SceneRenderer {
     const compositeMod = d.createShaderModule({ code: compositeWGSL });
     const wireframeMod = d.createShaderModule({ code: wireframeWGSL });
     const atmosphereMod = d.createShaderModule({ code: atmosphereWGSL });
+    const cloudsMod = d.createShaderModule({ code: cloudsWGSL });
 
     const addBlend: GPUBlendState = {
       color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
@@ -517,7 +524,24 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    this.pipelines = { nebula, planet, ring, star, poi, poiLine, composite, wireframe, atmosphere };
+    const clouds = d.createRenderPipeline({
+      layout: sceneObjPL,
+      vertex: { module: cloudsMod, entryPoint: 'vs', buffers: [meshLayout] },
+      fragment: {
+        module: cloudsMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: false,
+        depthCompare: 'less',
+      },
+      multisample,
+    });
+
+    this.pipelines = { nebula, planet, ring, star, poi, poiLine, composite, wireframe, atmosphere, clouds };
   }
 
   private buildStars(count: number): void {
@@ -700,11 +724,13 @@ export class WebGPURenderer implements SceneRenderer {
     const model = mat4.create();
 
     for (const p of frame.planets) {
-      if (objIndex >= MAX_OBJECTS - 6) break;
+      // Budget: planet + atmosphere + clouds = up to 3 shells + ring + moons.
+      if (objIndex >= MAX_OBJECTS - 8) break;
       const vis = p.visibility;
       if (vis <= 0.02) continue; // fully hidden — skip planet, POIs, moons
       const er = p.radius * vis;
       const rot = p.orientation;
+      const cloudShadowStrength = p.clouds && !frame.wireframe ? vis : 0;
       mat4.fromRotationTranslationScale(model, rot, p.center, er);
       this.writeObject(
         objIndex,
@@ -718,7 +744,7 @@ export class WebGPURenderer implements SceneRenderer {
         p.paletteHigh,
         p.focus,
         1,
-        0,
+        cloudShadowStrength,
         p.oceans ? 1 : 0,
       );
       objects.push({ kind: 0, index: objIndex });
@@ -745,6 +771,32 @@ export class WebGPURenderer implements SceneRenderer {
           0,
         );
         objects.push({ kind: 4, index: objIndex });
+        objIndex++;
+      }
+
+      // Optional cloud shell, between the planet surface and atmosphere. Same
+      // mesh, slightly larger radius; alpha-blended. Skip in wireframe and
+      // when the setting is off. Per-planet variation (rotation speed/dir,
+      // coverage, noise offset) is derived from the seed inside the shader.
+      if (p.clouds && !frame.wireframe && objIndex < MAX_OBJECTS) {
+        const cloudR = er * CLOUD_SHELL_SCALE;
+        mat4.fromRotationTranslationScale(model, rot, p.center, cloudR);
+        this.writeObject(
+          objIndex,
+          model,
+          er,            // p0.x = planet world radius (used for tint cohesion)
+          CLOUD_SHELL_SCALE, // p0.y = shell scale
+          frame.time,    // p0.z = time
+          5,             // p0.w = kind (clouds)
+          p.paletteHigh, // unused
+          p.paletteHigh, // unused
+          p.paletteHigh, // palHigh.rgb = atmosphere tint
+          p.focus,       // p1.x = focus
+          p.seed % 100000, // p1.y = seed (overload, normally hasAtmo)
+          0,             // p1.z = unused for clouds
+          vis,           // p1.w = visibility (overload, normally oceans flag)
+        );
+        objects.push({ kind: 5, index: objIndex });
         objIndex++;
       }
 
@@ -830,10 +882,11 @@ export class WebGPURenderer implements SceneRenderer {
 
     // Post uniform.
     const post = this.postScratch;
-    post[0] = frame.blur;
-    post[1] = 0.55;
-    post[2] = frame.quality.chromaticAberration ? 0.0035 : 0;
-    post[3] = frame.quality.bloomMips > 0 ? 0.8 : 0;
+    const lowNoPost = frame.quality.tier === 'low';
+    post[0] = lowNoPost ? 0 : frame.blur;
+    post[1] = lowNoPost ? 0 : 0.55;
+    post[2] = lowNoPost ? 0 : (frame.quality.chromaticAberration ? 0.0035 : 0);
+    post[3] = lowNoPost ? 0 : (frame.quality.bloomMips > 0 ? 0.8 : 0);
     post[4] = 1 / this.width;
     post[5] = 1 / this.height;
     d.queue.writeBuffer(this.postUBO, 0, post);
@@ -918,6 +971,18 @@ export class WebGPURenderer implements SceneRenderer {
       for (const o of objects) {
         if (o.kind !== 0 && o.kind !== 3) continue;
         scenePass.setPipeline(this.pipelines.planet);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.sphere.count);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.sphere.count / 3;
+      }
+
+      // Cloud shells (alpha blended) — between the opaque planet and the
+      // additive atmosphere so haze can still glow over the cloud silhouette.
+      for (const o of objects) {
+        if (o.kind !== 5) continue;
+        scenePass.setPipeline(this.pipelines.clouds);
         scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphere.count);

@@ -17,7 +17,7 @@ struct Obj {
   palLow : vec4<f32>,
   palMid : vec4<f32>,
   palHigh : vec4<f32>,
-  p1 : vec4<f32>, // x=focus, y=hasAtmosphere, z=rotationY, w=oceans flag
+  p1 : vec4<f32>, // x=focus, y=hasAtmosphere, z=cloudShadow, w=oceans flag
 };
 
 @group(0) @binding(0) var<uniform> frame : Frame;
@@ -180,6 +180,117 @@ fn shadowFactor(p : vec3<f32>, L : vec3<f32>) -> f32 {
   return s;
 }
 
+// ---- cloud noise (must match clouds.wgsl's copy exactly) ------------------
+// These three functions and the two parameter helpers below are duplicated
+// verbatim in clouds.wgsl so cast shadows on the planet line up with the
+// rendered cloud puffs. Keep in sync — any edit to one must edit both.
+fn cHash3(p : vec3<f32>) -> f32 {
+  let q = fract(p * 0.3183099 + vec3<f32>(0.1, 0.2, 0.3));
+  let r = q * 17.0;
+  return fract(r.x * r.y * r.z * (r.x + r.y + r.z));
+}
+
+fn cVnoise(x : vec3<f32>) -> f32 {
+  let i = floor(x);
+  let f = fract(x);
+  let u = f * f * (3.0 - 2.0 * f);
+  let n000 = cHash3(i + vec3<f32>(0.0, 0.0, 0.0));
+  let n100 = cHash3(i + vec3<f32>(1.0, 0.0, 0.0));
+  let n010 = cHash3(i + vec3<f32>(0.0, 1.0, 0.0));
+  let n110 = cHash3(i + vec3<f32>(1.0, 1.0, 0.0));
+  let n001 = cHash3(i + vec3<f32>(0.0, 0.0, 1.0));
+  let n101 = cHash3(i + vec3<f32>(1.0, 0.0, 1.0));
+  let n011 = cHash3(i + vec3<f32>(0.0, 1.0, 1.0));
+  let n111 = cHash3(i + vec3<f32>(1.0, 1.0, 1.0));
+  let nx00 = mix(n000, n100, u.x);
+  let nx10 = mix(n010, n110, u.x);
+  let nx01 = mix(n001, n101, u.x);
+  let nx11 = mix(n011, n111, u.x);
+  let nxy0 = mix(nx00, nx10, u.y);
+  let nxy1 = mix(nx01, nx11, u.y);
+  return mix(nxy0, nxy1, u.z);
+}
+
+fn cFbm(p : vec3<f32>) -> f32 {
+  var v = 0.0;
+  var a = 0.5;
+  var q = p;
+  for (var i = 0; i < 4; i = i + 1) {
+    v = v + a * cVnoise(q);
+    q = q * 2.03;
+    a = a * 0.5;
+  }
+  return v;
+}
+
+fn cloudRotation(time : f32, seedf : f32, reducedMotion : f32) -> f32 {
+  let baseSpeed = 0.03;
+  let jitter = fract(seedf * 0.000371) * 0.05;
+  let dir = select(1.0, -1.0, fract(seedf * 0.0007) < 0.30);
+  let mult = select(1.0, 0.10, reducedMotion > 0.5);
+  return time * (baseSpeed + jitter) * dir * mult;
+}
+
+fn cloudCoverage(seedf : f32) -> f32 {
+  return 0.40 + 0.30 * fract(seedf * 0.00091);
+}
+
+fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32, reducedMotion : f32) -> f32 {
+  let rot = cloudRotation(time, seedf, reducedMotion);
+  let cs = cos(rot);
+  let sn = sin(rot);
+  let rp = vec3<f32>(
+    cs * localDir.x + sn * localDir.z,
+    localDir.y,
+    -sn * localDir.x + cs * localDir.z,
+  );
+  let seedShift = vec3<f32>(seedf * 0.0017, seedf * 0.0023, seedf * 0.0029);
+  let n = cFbm(rp * 4.8 + seedShift);
+  let cov = cloudCoverage(seedf);
+  let lo = 0.62 - cov * 0.30;
+  let hi = lo + 0.14;
+  return smoothstep(lo, hi, n);
+}
+
+const CLOUD_SHADOW_STRENGTH : f32 = 1.0;
+// Shadow-projection shell, intentionally HIGHER than the rendered cloud shell
+// (1.006 in clouds.wgsl). At the true render altitude the cast shadow would
+// land within ~1-3 deg of the puff and stay hidden directly beneath the
+// opaque cloud. Projecting the shadow ray against a taller shell displaces
+// the shadow toward the anti-solar side by ~4-8 deg so it clears the puff
+// and reads as a real cloud shadow. Cloud cells are ~9 deg radius (cFbm
+// freq 3.2), so this is the minimum gap that makes shadows visible.
+const CLOUD_SHADOW_SHELL : f32 = 1.06;
+
+// Cloud shadow on the planet surface. From the surface fragment (vLocal is
+// the unit-sphere local position), march along the local-space sun direction
+// to the exact ray-sphere intersection with the cloud shell, sample the same
+// cloud density function the cloud shader uses, and attenuate direct light.
+// Returns a multiplier in [1 - STRENGTH, 1] for the direct term, or 1.0 on
+// the night side where NdL would already kill the direct contribution.
+fn cloudShadow(vLocal : vec3<f32>, worldL : vec3<f32>, time : f32, seedf : f32, reducedMotion : f32, enabled : f32) -> f32 {
+  if (enabled < 0.001) { return 1.0; }
+  // Recover the planet's rotation from the model matrix columns. Scale is
+  // uniform (T*R*S with s = radius*visibility), so normalizing the columns
+  // gives the rotation basis vectors in world space. localL = R^T * worldL.
+  let r0 = normalize(obj.model[0].xyz);
+  let r1 = normalize(obj.model[1].xyz);
+  let r2 = normalize(obj.model[2].xyz);
+  let localL = vec3<f32>(dot(r0, worldL), dot(r1, worldL), dot(r2, worldL));
+  let vn = normalize(vLocal);
+  let nL = dot(vn, localL);
+  if (nL <= 0.0) { return 1.0; }
+  // Exact ray-sphere intersection from a unit-length surface point along a
+  // unit-length direction with a shell at radius R: t = -nL + sqrt(nL^2 + R^2 - 1).
+  // Uses the taller CLOUD_SHADOW_SHELL (not the render shell) so the shadow is
+  // displaced far enough from the cloud to be visible.
+  let R2m1 = CLOUD_SHADOW_SHELL * CLOUD_SHADOW_SHELL - 1.0;
+  let t = -nL + sqrt(nL * nL + R2m1);
+  let cloudDir = normalize(vn + localL * t);
+  let density = cloudDensity(cloudDir, time, seedf, reducedMotion);
+  return 1.0 - density * CLOUD_SHADOW_STRENGTH * enabled;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let seed = obj.p0.y;
@@ -298,11 +409,24 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // because the lit-side test gives t <= 0 (the receiver's own sphere is
   // sun-ward, so the ray to the sun never re-enters).
   let shadow = shadowFactor(in.worldPos, lightDir);
-  let direct = (kD * albedo / PI + specular) * sunRadiance * NdL * shadow;
+  // Cloud shadow: gated by p1.z (renderer sets this to the planet's visibility
+  // when clouds are on, 0 otherwise, so shadows fade in lockstep with the
+  // alpha-blended cloud shell). Uses the same noise/rotation as clouds.wgsl
+  // so the shadow lands directly under the rendered puff.
+  let cloudShadowMul = cloudShadow(
+    in.localPos,
+    lightDir,
+    obj.p0.z,
+    obj.p0.y,
+    frame.misc.y,
+    obj.p1.z,
+  );
+  let direct = (kD * albedo / PI + specular) * sunRadiance * NdL * shadow * cloudShadowMul;
 
   // Very faint ambient so the unlit hemisphere reads as deep shadow without
   // being pitch black — surface noise stays just barely legible.
-  let ambient = albedo * 0.01;
+  let ambientShadowMul = 0.10 + 0.90 * cloudShadowMul;
+  let ambient = albedo * 0.01 * ambientShadowMul;
   var color = ambient + direct;
 
   let atmoStrength = obj.p1.y;

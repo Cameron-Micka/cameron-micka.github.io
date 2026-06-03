@@ -27,7 +27,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     starCount: 0,
     ssao: false,
     chromaticAberration: false,
-    bloomMips: 1,
+    bloomMips: 0,
     msaa: 1,
     shadows: false,
   },

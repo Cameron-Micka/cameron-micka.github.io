@@ -19,7 +19,7 @@ const raw: CompanyInput[] = [
       'rendering tooling, and developer experience for mixed reality.',
     seed: 'microsoft-mesh-mrtk-hololens',
     palette: { low: '#0a2a4a', mid: '#1f6fb2', high: '#7ad6ff' },
-    features: { rings: false, ringTilt: 0.4, oceans: true, moons: 2 },
+    features: { rings: false, ringTilt: 0.4, oceans: true, clouds: true, moons: 2 },
     pois: [
       {
         slug: 'mrtk-graphics-tools',
@@ -167,7 +167,7 @@ const raw: CompanyInput[] = [
       'real-time graphics education built around shipping games every year.',
     seed: 'digipen-rtis',
     palette: { low: '#0a3a1e', mid: '#2f9e54', high: '#a8ffce' },
-    features: { rings: false, ringTilt: 0.4, moons: 3 },
+    features: { rings: false, ringTilt: 0.4, clouds: true, moons: 3 },
     pois: [
       {
         slug: 'student-games',

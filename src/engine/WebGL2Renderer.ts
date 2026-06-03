@@ -11,6 +11,10 @@ import { poiMarkerDistance, poiFocusFade } from './Scene';
 const MOON_ROCK_LOW: [number, number, number] = [0.22, 0.23, 0.24];
 const MOON_ROCK_MID: [number, number, number] = [0.44, 0.43, 0.41];
 const MOON_ROCK_HIGH: [number, number, number] = [0.64, 0.62, 0.58];
+// Must match CLOUD_SHELL_SCALE in clouds.wgsl / planet.wgsl / PLANET_FRAG /
+// CLOUDS_FRAG: cloud-shadow projection in the planet shader assumes the
+// shell sits exactly here in unit-sphere local space.
+const CLOUD_SHELL_SCALE_WEBGL2 = 1.006;
 
 const NEBULA_VERT = `#version 300 es
 out vec2 vUv;
@@ -101,6 +105,9 @@ out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
+uniform float uTime;uniform float uReducedMotion;
+uniform float uCloudShadow; // 0 = clouds off, >0 = shadow strength multiplier
+uniform mat4 uModel;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
@@ -148,6 +155,62 @@ float shadowFactor(vec3 p,vec3 L){
     s*=smoothstep(R2,R2*1.10,c2);
   }
   return s;
+}
+// ---- cloud noise (must match clouds.wgsl / CLOUDS_FRAG exactly) ---------
+// The same density function is sampled in CLOUDS_FRAG so the cloud shadow
+// projected onto the surface here lines up with the rendered cloud puff.
+float cHash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
+float cVnoise(vec3 x){
+  vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
+  float n000=cHash3(i),n100=cHash3(i+vec3(1,0,0)),n010=cHash3(i+vec3(0,1,0)),n110=cHash3(i+vec3(1,1,0));
+  float n001=cHash3(i+vec3(0,0,1)),n101=cHash3(i+vec3(1,0,1)),n011=cHash3(i+vec3(0,1,1)),n111=cHash3(i+vec3(1,1,1));
+  return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
+}
+float cFbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*cVnoise(p);p*=2.03;a*=.5;}return v;}
+float cloudRotation(float time,float seedf,float reducedMotion){
+  float baseSpeed=0.03;
+  float jitter=fract(seedf*0.000371)*0.05;
+  float dir=fract(seedf*0.0007)<0.30?-1.0:1.0;
+  float mult=reducedMotion>0.5?0.10:1.0;
+  return time*(baseSpeed+jitter)*dir*mult;
+}
+float cloudCoverage(float seedf){return 0.40+0.30*fract(seedf*0.00091);}
+float cloudDensity(vec3 localDir,float time,float seedf,float reducedMotion){
+  float rot=cloudRotation(time,seedf,reducedMotion);
+  float cs=cos(rot),sn=sin(rot);
+  vec3 rp=vec3(cs*localDir.x+sn*localDir.z,localDir.y,-sn*localDir.x+cs*localDir.z);
+  vec3 seedShift=vec3(seedf*0.0017,seedf*0.0023,seedf*0.0029);
+  float n=cFbm(rp*3.2+seedShift);
+  float cov=cloudCoverage(seedf);
+  float lo=0.62-cov*0.30;float hi=lo+0.18;
+  return smoothstep(lo,hi,n);
+}
+// Cloud shadow on the planet surface. vLocal is the unit-sphere local pos;
+// world light is converted to the planet's local rotation frame via the
+// normalized model columns (uniform scale). Then we hit the (taller, see
+// below) cloud shadow shell with the exact ray-sphere intersection and
+// sample the same density the cloud shader rendered. Returns the multiplier
+// on direct light (1.0 = unshadowed, [1-STRENGTH] = fully shadowed).
+const float CLOUD_SHADOW_STRENGTH=1.0;
+// Shadow-projection shell, intentionally taller than the rendered cloud shell
+// (1.006) so the cast shadow is displaced toward the anti-solar side and
+// clears the opaque puff instead of hiding directly beneath it. See the
+// matching note in planet.wgsl.
+const float CLOUD_SHADOW_SHELL=1.06;
+float cloudShadow(vec3 vLocal,vec3 worldL,float time,float seedf,float reducedMotion,float enabled){
+  if(enabled<0.001)return 1.0;
+  vec3 r0=normalize(uModel[0].xyz);
+  vec3 r1=normalize(uModel[1].xyz);
+  vec3 r2=normalize(uModel[2].xyz);
+  vec3 localL=vec3(dot(r0,worldL),dot(r1,worldL),dot(r2,worldL));
+  vec3 vn=normalize(vLocal);
+  float nL=dot(vn,localL);
+  if(nL<=0.0)return 1.0;
+  float R2m1=CLOUD_SHADOW_SHELL*CLOUD_SHADOW_SHELL-1.0;
+  float t=-nL+sqrt(nL*nL+R2m1);
+  vec3 cloudDir=normalize(vn+localL*t);
+  float density=cloudDensity(cloudDir,time,seedf,reducedMotion);
+  return 1.0-density*CLOUD_SHADOW_STRENGTH*enabled;
 }
 void main(){
   vec3 n=normalize(vNrm);
@@ -199,10 +262,11 @@ void main(){
   vec3 water=mix(deepOcean,shallowOcean,depth);
   vec3 base=mix(land,water,waterMask);
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
-  // (roughness 0.12, F0 0.02 for IOR ~1.33); land = rough dielectric.
+  // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere
+  // triangle face, see planet.wgsl for the FWHM derivation); land = rough.
   vec3 albedo=base;
   float metallic=0.0;
-  float roughness=mix(0.92,0.12,waterMask);
+  float roughness=mix(0.92,0.35,waterMask);
   vec3 F0base=mix(vec3(0.04),vec3(0.02),waterMask);
   vec3 F0=mix(F0base,albedo,metallic);
   vec3 L=lightDir;vec3 V=viewDir;vec3 H=normalize(L+V);
@@ -219,8 +283,13 @@ void main(){
   // Pre-multiply sun radiance by PI so diffuse simplifies to kD*albedo*NdL.
   vec3 sunRadiance=vec3(PI);
   float shadow=shadowFactor(vWorld,L);
-  vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL*shadow;
-  vec3 ambient=albedo*0.01;
+  // Cloud shadow uses the same noise + rotation as CLOUDS_FRAG so the
+  // shadow lands directly under the rendered puff (gated by uCloudShadow,
+  // which the renderer sets to visibility when clouds are on, 0 otherwise).
+  float cloudShadowMul=cloudShadow(vLocal,L,uTime,uSeed,uReducedMotion,uCloudShadow);
+  vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL*shadow*cloudShadowMul;
+  float ambientShadowMul=0.10+0.90*cloudShadowMul;
+  vec3 ambient=albedo*0.01*ambientShadowMul;
   vec3 col=ambient+direct;
   col+=uHigh*rim*NdL*0.55*shadow;
   col*=(0.85+0.3*uFocus);
@@ -433,6 +502,100 @@ void main(){
   frag=vec4(aces(col),1.0);
 }`;
 
+// Cloud shell (alpha-blended, drawn between the planet surface and the
+// additive atmosphere). Mirrors clouds.wgsl. Uses PLANET_VERT to get vLocal,
+// vWorld, vNrm. The cloud noise + rotation MUST match the planet shader's
+// cloudShadow so the projected shadow lines up with the rendered puff.
+const CLOUDS_FRAG = `#version 300 es
+precision highp float;
+in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
+out vec4 frag;
+uniform vec3 uCamera;uniform vec3 uLight;
+uniform vec3 uTint;uniform vec3 uCenter;
+uniform mat4 uModel;
+uniform float uTime;uniform float uSeed;uniform float uVisibility;
+uniform float uReducedMotion;
+uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
+float cHash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
+float cVnoise(vec3 x){
+  vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
+  float n000=cHash3(i),n100=cHash3(i+vec3(1,0,0)),n010=cHash3(i+vec3(0,1,0)),n110=cHash3(i+vec3(1,1,0));
+  float n001=cHash3(i+vec3(0,0,1)),n101=cHash3(i+vec3(1,0,1)),n011=cHash3(i+vec3(0,1,1)),n111=cHash3(i+vec3(1,1,1));
+  return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
+}
+float cFbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*cVnoise(p);p*=2.03;a*=.5;}return v;}
+float cloudRotation(float time,float seedf,float reducedMotion){
+  float baseSpeed=0.03;
+  float jitter=fract(seedf*0.000371)*0.05;
+  float dir=fract(seedf*0.0007)<0.30?-1.0:1.0;
+  float mult=reducedMotion>0.5?0.10:1.0;
+  return time*(baseSpeed+jitter)*dir*mult;
+}
+float cloudCoverage(float seedf){return 0.40+0.30*fract(seedf*0.00091);}
+float cloudDensity(vec3 localDir,float time,float seedf,float reducedMotion){
+  float rot=cloudRotation(time,seedf,reducedMotion);
+  float cs=cos(rot),sn=sin(rot);
+  vec3 rp=vec3(cs*localDir.x+sn*localDir.z,localDir.y,-sn*localDir.x+cs*localDir.z);
+  vec3 seedShift=vec3(seedf*0.0017,seedf*0.0023,seedf*0.0029);
+  float n=cFbm(rp*3.2+seedShift);
+  float cov=cloudCoverage(seedf);
+  float lo=0.62-cov*0.30;float hi=lo+0.18;
+  return smoothstep(lo,hi,n);
+}
+float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf,float reducedMotion){
+  vec3 r0=normalize(uModel[0].xyz);
+  vec3 r1=normalize(uModel[1].xyz);
+  vec3 r2=normalize(uModel[2].xyz);
+  vec3 localSun=normalize(vec3(dot(r0,worldSun),dot(r1,worldSun),dot(r2,worldSun)));
+  float d1=cloudDensity(normalize(localDir+localSun*0.045),time,seedf,reducedMotion);
+  float d2=cloudDensity(normalize(localDir+localSun*0.090),time,seedf,reducedMotion);
+  float d3=cloudDensity(normalize(localDir+localSun*0.160),time,seedf,reducedMotion);
+  float occ=clamp(0.55*d1+0.30*d2+0.15*d3,0.0,1.0);
+  float grain=cFbm(localDir*14.0+vec3(seedf*0.011,seedf*0.013,seedf*0.017));
+  float occDetail=clamp(occ*mix(0.75,1.20,grain),0.0,1.0);
+  return 1.0-occDetail*0.70;
+}
+void main(){
+  vec3 n=normalize(vNrm);
+  vec3 sun=normalize(uLight);
+  vec3 viewDir=normalize(uCamera-vWorld);
+  // Interpolated vLocal isn't exactly unit length across triangle interiors;
+  // normalize so the noise lookup lines up with the shadow projection.
+  vec3 localDir=normalize(vLocal);
+  float density=cloudDensity(localDir,uTime,uSeed,uReducedMotion);
+  float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed,uReducedMotion);
+  float NdL=clamp(dot(n,sun),0.0,1.0);
+  vec3 albedo=mix(vec3(1.0),uTint,0.08);
+  vec3 col=albedo*(0.05+0.95*NdL)*selfShadow;
+  // Other-planet shadows (no self-exclude: parent surface is along L past
+  // the cloud fragment).
+  float s=1.0;
+  for(int i=0;i<8;i++){
+    if(i>=uShadowCount)break;
+    vec4 sph=uShadowSpheres[i];
+    if(distance(sph.xyz,uCenter)<1e-3)continue;
+    vec3 d=sph.xyz-vWorld;
+    float t=dot(d,sun);
+    if(t<=0.0)continue;
+    float c2=dot(d,d)-t*t;
+    float R2=sph.w*sph.w;
+    s*=smoothstep(R2,R2*1.10,c2);
+  }
+  col*=s;
+  // Soft terminator on the cloud alpha so we don't see bright clouds on
+  // the night-side hemisphere.
+  float dayMask=smoothstep(-0.10,0.25,dot(n,sun));
+  // Taper alpha at the silhouette so back-face culling doesn't make a hard
+  // edge at the limb.
+  float edgeFade=smoothstep(0.05,0.30,dot(n,viewDir));
+  float alpha=density*dayMask*edgeFade*uVisibility;
+  // Distance fog attenuation on the alpha so far clouds don't punch holes
+  // in the haze.
+  float dist=distance(vWorld,uCamera);float sd=dist*0.030;
+  alpha*=exp(-sd*sd);
+  frag=vec4(col,alpha);
+}`;
+
 interface Program {
   prog: WebGLProgram;
   uniforms: Record<string, WebGLUniformLocation | null>;
@@ -451,6 +614,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private line!: Program;
   private wire!: Program;
   private atmosphere!: Program;
+  private clouds!: Program;
 
   private sphereVao!: WebGLVertexArrayObject;
   private sphereCount = 0;
@@ -495,6 +659,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uFocus', 'uOceans',
+      'uTime', 'uReducedMotion', 'uCloudShadow',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
@@ -507,6 +672,11 @@ export class WebGL2Renderer implements SceneRenderer {
     this.atmosphere = this.makeProgram(PLANET_VERT, ATMOSPHERE_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uColor', 'uCenter',
       'uInner', 'uOuter', 'uFocus', 'uIntensity',
+      'uShadowCount', 'uShadowSpheres[0]',
+    ]);
+    this.clouds = this.makeProgram(PLANET_VERT, CLOUDS_FRAG, [
+      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uTint', 'uCenter',
+      'uTime', 'uSeed', 'uVisibility', 'uReducedMotion',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
 
@@ -740,6 +910,8 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
+    gl.uniform1f(this.planet.uniforms.uTime!, frame.time);
+    gl.uniform1f(this.planet.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
     this.bindShadowUniforms(this.planet, frame);
     gl.bindVertexArray(this.sphereVao);
     const idxType = this.sphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
@@ -747,7 +919,10 @@ export class WebGL2Renderer implements SceneRenderer {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
       const er = p.radius * vis;
-      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, model, idxType);
+      // Cloud shadow strength fades with visibility so it tracks the cloud
+      // shell's alpha; 0 when the toggle is off.
+      const cloudShadow = p.clouds ? vis : 0;
+      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, idxType);
       for (const m of p.moons) {
         const orbit = m.orbitRadius * vis;
         // Moon orbit offset lives in the planet's local frame; rotate it by
@@ -772,10 +947,57 @@ export class WebGL2Renderer implements SceneRenderer {
           MOON_ROCK_MID,
           MOON_ROCK_HIGH,
           false,
+          0, // moons don't get cloud shadows
           model,
           idxType,
         );
       }
+    }
+
+    // Cloud shells (alpha-blended). Between the opaque planet and the
+    // additive atmosphere so the haze still wraps around the limb above
+    // the clouds. Same sphere mesh, scaled up by CLOUD_SHELL_SCALE.
+    // Per-planet — only set up state if at least one visible planet has
+    // clouds enabled in its company definition.
+    const anyClouds = frame.planets.some((p) => p.clouds && p.visibility > 0.02);
+    if (anyClouds) {
+      gl.enable(gl.BLEND);
+      gl.blendFuncSeparate(
+        gl.SRC_ALPHA,
+        gl.ONE_MINUS_SRC_ALPHA,
+        gl.ONE,
+        gl.ONE_MINUS_SRC_ALPHA,
+      );
+      gl.depthMask(false);
+      gl.enable(gl.CULL_FACE);
+      gl.cullFace(gl.BACK);
+      gl.useProgram(this.clouds.prog);
+      gl.uniformMatrix4fv(this.clouds.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform3fv(this.clouds.uniforms.uCamera!, frame.cameraPos);
+      gl.uniform3fv(this.clouds.uniforms.uLight!, frame.keyLightDir);
+      gl.uniform1f(this.clouds.uniforms.uTime!, frame.time);
+      gl.uniform1f(this.clouds.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
+      this.bindShadowUniforms(this.clouds, frame);
+      gl.bindVertexArray(this.sphereVao);
+      for (const p of frame.planets) {
+        if (!p.clouds) continue;
+        const vis = p.visibility;
+        if (vis <= 0.02) continue;
+        const er = p.radius * vis;
+        const cloudR = er * CLOUD_SHELL_SCALE_WEBGL2;
+        mat4.fromRotationTranslationScale(model, p.orientation, p.center, cloudR);
+        gl.uniformMatrix4fv(this.clouds.uniforms.uModel!, false, model);
+        gl.uniform3fv(this.clouds.uniforms.uTint!, p.paletteHigh);
+        gl.uniform3fv(this.clouds.uniforms.uCenter!, p.center);
+        gl.uniform1f(this.clouds.uniforms.uSeed!, p.seed % 100000);
+        gl.uniform1f(this.clouds.uniforms.uVisibility!, vis);
+        gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.sphereCount / 3;
+      }
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
     }
 
     // Atmospheric scattering shells (additive, camera-facing hemisphere only).
@@ -851,6 +1073,7 @@ export class WebGL2Renderer implements SceneRenderer {
     mid: [number, number, number],
     high: [number, number, number],
     oceans: boolean,
+    cloudShadow: number,
     model: Float32Array,
     idxType: number,
   ): void {
@@ -863,6 +1086,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.planet.uniforms.uSeed!, p.seed % 100000);
     gl.uniform1f(this.planet.uniforms.uFocus!, p.focus);
     gl.uniform1f(this.planet.uniforms.uOceans!, oceans ? 1 : 0);
+    gl.uniform1f(this.planet.uniforms.uCloudShadow!, cloudShadow);
     gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
     this.stats.drawCalls++;
     this.stats.triangles += this.sphereCount / 3;

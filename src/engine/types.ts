@@ -32,6 +32,7 @@ export interface PlanetInstance {
   ringTilt: number;
   thinRing: boolean;
   oceans: boolean;
+  clouds: boolean;
   moons: { orbitRadius: number; angle: number; size: number }[];
   // POIs in local sphere space (unit directions) + accent color + facing flag.
   pois: {

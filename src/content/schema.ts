@@ -46,6 +46,10 @@ export const companySchema = z.object({
     // depth-graded blue and a tight specular highlight, instead of the
     // textured land used everywhere else on the planet.
     oceans: z.boolean().default(false),
+    // When true, an alpha-blended cloud shell sits just above the planet
+    // surface (below the atmosphere) and rotates at a different speed
+    // from the planet, casting matching fake shadows onto the surface.
+    clouds: z.boolean().default(false),
     moons: z.number().int().min(0).max(6),
   }),
   pois: z.array(poiSchema),

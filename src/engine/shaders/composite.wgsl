@@ -87,22 +87,31 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   if (blurAmt > 0.001) {
     scene = blurScene(uv, blurAmt);
   } else {
-    // Chromatic aberration: offset channels radially from center.
-    let dir = uv - vec2<f32>(0.5);
-    let ca = dir * caAmt;
-    let rC = sampleScene(uv + ca).r;
-    let gC = sampleScene(uv).g;
-    let bC = sampleScene(uv - ca).b;
-    scene = vec3<f32>(rC, gC, bC);
+    if (caAmt > 0.00001) {
+      // Chromatic aberration: offset channels radially from center.
+      let dir = uv - vec2<f32>(0.5);
+      let ca = dir * caAmt;
+      let rC = sampleScene(uv + ca).r;
+      let gC = sampleScene(uv).g;
+      let bC = sampleScene(uv - ca).b;
+      scene = vec3<f32>(rC, gC, bC);
+    } else {
+      scene = sampleScene(uv);
+    }
   }
 
-  let col = scene + bloom(uv) * post.params.w;
+  var col = scene;
+  if (post.params.w > 0.001) {
+    col = col + bloom(uv) * post.params.w;
+  }
   var mapped = aces(col);
 
-  // Vignette.
-  let d = distance(uv, vec2<f32>(0.5));
-  let vig = 1.0 - post.params.y * smoothstep(0.35, 0.85, d);
-  mapped = mapped * vig;
+  if (post.params.y > 0.001) {
+    // Vignette.
+    let d = distance(uv, vec2<f32>(0.5));
+    let vig = 1.0 - post.params.y * smoothstep(0.35, 0.85, d);
+    mapped = mapped * vig;
+  }
 
   // Dim the frozen backdrop a touch so the modal pops.
   mapped = mapped * (1.0 - 0.25 * blurAmt);
