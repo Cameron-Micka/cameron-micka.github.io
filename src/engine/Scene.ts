@@ -143,6 +143,7 @@ export function poiFocusFade(focus: number): number {
 export function instanceFromModel(
   model: PlanetModel,
   moonTime: number,
+  cloudTime: number,
   orientation: Quat,
   focus: number,
   visibility: number,
@@ -162,6 +163,8 @@ export function instanceFromModel(
     thinRing: f.thinRing,
     oceans: f.oceans,
     clouds: f.clouds,
+    cityLights: f.cityLights,
+    cloudTime,
     moons: model.moonSpecs.map((m) => ({
       orbitRadius: m.orbitRadius,
       angle: m.phase + moonTime * m.speed,

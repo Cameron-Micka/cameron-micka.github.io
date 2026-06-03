@@ -693,6 +693,7 @@ export class WebGPURenderer implements SceneRenderer {
     hasAtmo: number,
     rotationY: number,
     extra: number = 0,
+    extra2: number = 0,
   ): void {
     const base = index * OBJ_FLOATS;
     const s = this.objScratch;
@@ -717,6 +718,11 @@ export class WebGPURenderer implements SceneRenderer {
     s[base + 33] = hasAtmo;
     s[base + 34] = rotationY;
     s[base + 35] = extra;
+    // p2.x — planet shader's cityLights flag. Other shaders ignore p2.
+    s[base + 36] = extra2;
+    s[base + 37] = 0;
+    s[base + 38] = 0;
+    s[base + 39] = 0;
   }
 
   render(frame: FrameState): void {
@@ -787,7 +793,7 @@ export class WebGPURenderer implements SceneRenderer {
         model,
         p.radius,
         p.seed % 100000,
-        frame.time,
+        p.cloudTime,
         0,
         p.paletteLow,
         p.paletteMid,
@@ -796,6 +802,7 @@ export class WebGPURenderer implements SceneRenderer {
         1,
         cloudShadowStrength,
         p.oceans ? 1 : 0,
+        p.cityLights ? 1 : 0,
       );
       objects.push({ kind: 0, index: objIndex });
       objIndex++;
@@ -836,7 +843,7 @@ export class WebGPURenderer implements SceneRenderer {
           model,
           er,            // p0.x = planet world radius (used for tint cohesion)
           CLOUD_SHELL_SCALE, // p0.y = shell scale
-          frame.time,    // p0.z = time
+          p.cloudTime,   // p0.z = per-planet cloud time (pauses with spin)
           5,             // p0.w = kind (clouds)
           p.paletteHigh, // unused
           p.paletteHigh, // unused

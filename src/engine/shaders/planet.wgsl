@@ -18,6 +18,7 @@ struct Obj {
   palMid : vec4<f32>,
   palHigh : vec4<f32>,
   p1 : vec4<f32>, // x=focus, y=hasAtmosphere, z=cloudShadow, w=oceans flag
+  p2 : vec4<f32>, // x=cityLights flag, yzw=unused
 };
 
 @group(0) @binding(0) var<uniform> frame : Frame;
@@ -434,6 +435,85 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let ambientShadowMul = 0.10 + 0.90 * cloudShadowMul;
   let ambient = albedo * 0.01 * ambientShadowMul;
   var color = ambient + direct;
+
+  // City lights on the night side of land masses. Gated by p2.x (planet
+  // feature flag). Population density driven by the same continent field
+  // that placed the oceans so cities cluster on coastlines and dense
+  // interiors; sparse high-frequency cell hash places the actual pixel-scale
+  // lights; per-cell twinkle uses time. Cloud shadows attenuate so the
+  // lights flicker out under overcast cells.
+  let cityFlag = obj.p2.x;
+  if (cityFlag > 0.5) {
+    // Hoist cell coordinate + screen-space footprint OUTSIDE the per-fragment
+    // gates below. Derivatives (fwidth) require uniform control flow; only
+    // the cityFlag branch is uniform per-draw, the night/land/presence
+    // checks vary per fragment.
+    let cityScale = 40.0;
+    let cityCoord = in.localPos * cityScale
+      + vec3<f32>(seed * 0.013, seed * 0.011, seed * 0.017);
+    let fw = fwidth(cityCoord);
+    let footprint = max(fw.x, max(fw.y, fw.z));
+    // LOD fade: when one fragment spans a sizable fraction of a cell, the
+    // hash-grid pattern aliases (sparkles). Fade lights out as the cell
+    // approaches pixel size — they smoothly disappear at distance instead
+    // of flickering.
+    let lodFade = 1.0 - smoothstep(0.35, 0.9, footprint);
+
+    let nightFactor = smoothstep(0.18, -0.05, NdL);
+    let landFactor = 1.0 - waterMask;
+    if (nightFactor > 0.001 && landFactor > 0.05 && lodFade > 0.001) {
+      // Population proxy: continents at moderate freq with a coastline boost
+      // (smoothstep peak where oceanField hovers near waterLevel).
+      let popNoise = continentFbm(in.localPos * 2.2 + vec3<f32>(seed * 0.0019));
+      let popMask = smoothstep(0.42, 0.72, popNoise);
+      let coastBoost = smoothstep(0.07, 0.0, abs(oceanField - 0.60));
+      let pop = clamp(max(popMask, coastBoost * 0.75), 0.0, 1.0);
+
+      // City placement is two-layer:
+      //   1. Low-frequency "city zone" mask carves out a handful of regions
+      //      per planet where civilization clusters. Narrow threshold band
+      //      gives tight clusters; squared falloff sharpens the cluster
+      //      edges so lights pool in the cluster cores instead of fading
+      //      gently out across the surrounding land.
+      //   2. Inside those zones, a medium-frequency hash grid plants
+      //      individual point lights. Larger cells = larger on-screen dots.
+      let zoneNoise = vnoise(in.localPos * 4.5
+        + vec3<f32>(seed * 0.0021, seed * 0.0017, seed * 0.0033));
+      let zoneMask = smoothstep(0.66, 0.80, zoneNoise);
+      let cityPresence = zoneMask * zoneMask * (0.40 + 0.60 * pop);
+
+      if (cityPresence > 0.01) {
+        let cellId = floor(cityCoord);
+        let sub = fract(cityCoord);
+        // High threshold even at peak presence — fewer, more distinct lights
+        // (rather than a continuous speckle).
+        let threshold = mix(0.92, 0.62, cityPresence);
+        // Sample the surrounding 3x3x3 cells so a light placed near a cell
+        // boundary still contributes to neighboring sub-cells. Without this
+        // the glow gets sliced flat at cell walls, producing the visible
+        // rectangular clips. Worley-style nearest-feature loop.
+        let glowRadius = 0.30;
+        var bestGlow = 0.0;
+        for (var dx: i32 = -1; dx <= 1; dx = dx + 1) {
+          for (var dy: i32 = -1; dy <= 1; dy = dy + 1) {
+            for (var dz: i32 = -1; dz <= 1; dz = dz + 1) {
+              let off = vec3<f32>(f32(dx), f32(dy), f32(dz));
+              let nh = hash3(cellId + off);
+              if (nh >= threshold) {
+                let dotPos = vec3<f32>(fract(nh * 1.7), fract(nh * 7.3), fract(nh * 13.1));
+                let d = length(sub - (off + dotPos));
+                bestGlow = max(bestGlow, smoothstep(glowRadius, 0.0, d));
+              }
+            }
+          }
+        }
+        let cloudMask = mix(1.0, cloudShadowMul, 0.7);
+        let intensity = bestGlow * nightFactor * landFactor * cloudMask * lodFade;
+        let cityColor = vec3<f32>(1.0, 0.72, 0.32);
+        color = color + cityColor * intensity * 4.0;
+      }
+    }
+  }
 
   let atmoStrength = obj.p1.y;
   // Multiplied by NdL (not (a + b*NdL)) so the rim fresnel fully zeroes on

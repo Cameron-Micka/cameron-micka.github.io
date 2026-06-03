@@ -50,6 +50,10 @@ export const companySchema = z.object({
     // surface (below the atmosphere) and rotates at a different speed
     // from the planet, casting matching fake shadows onto the surface.
     clouds: z.boolean().default(false),
+    // When true, the planet's night side shows sparse warm "city light"
+    // clusters on land (gated to dark hemisphere + non-ocean). Twinkles
+    // subtly. Implemented purely in the planet shader.
+    cityLights: z.boolean().default(false),
     moons: z.number().int().min(0).max(6),
   }),
   pois: z.array(poiSchema),

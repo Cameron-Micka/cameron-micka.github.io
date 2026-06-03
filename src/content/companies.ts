@@ -19,7 +19,7 @@ const raw: CompanyInput[] = [
       'rendering tooling, and developer experience for mixed reality.',
     seed: 'microsoft-mesh-mrtk-hololens',
     palette: { low: '#0a2a4a', mid: '#1f6fb2', high: '#7ad6ff' },
-    features: { rings: false, ringTilt: 0.4, oceans: true, clouds: true, moons: 2 },
+    features: { rings: false, ringTilt: 0.4, oceans: true, clouds: true, cityLights: true, moons: 2 },
     pois: [
       {
         slug: 'mrtk-graphics-tools',
@@ -99,7 +99,7 @@ const raw: CompanyInput[] = [
       'cutting-edge rendering for AAA titles.',
     seed: 'lucasarts-entertainment',
     palette: { low: '#3a2e10', mid: '#b89b3e', high: '#ffe9a8' },
-    features: { rings: true, ringTilt: 0.8, thinRing: true, moons: 0 },
+    features: { rings: true, ringTilt: 0.8, thinRing: true, cityLights: true, moons: 0 },
     pois: [
       {
         slug: 'aaa-rendering',

@@ -33,6 +33,12 @@ export interface PlanetInstance {
   thinRing: boolean;
   oceans: boolean;
   clouds: boolean;
+  cityLights: boolean;
+  // Per-planet time used by cloud rotation (planet body cloud-shadow sampling
+  // + cloud shell). Eases to a halt when the planet's spin is paused (e.g.
+  // user just orbited it) so clouds visibly slow with the surface instead of
+  // continuing to drift independently.
+  cloudTime: number;
   moons: { orbitRadius: number; angle: number; size: number }[];
   // Tiny "satellite" point-sprites orbiting the planet. World-locked orbits
   // (don't inherit planet spin) — meant to read as the same pin-prick white

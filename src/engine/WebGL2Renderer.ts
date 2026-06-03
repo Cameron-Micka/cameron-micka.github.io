@@ -110,6 +110,7 @@ out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
+uniform float uCityLights;
 uniform float uTime;uniform float uReducedMotion;
 uniform float uCloudShadow; // 0 = clouds off, >0 = shadow strength multiplier
 uniform mat4 uModel;
@@ -302,6 +303,63 @@ void main(){
   float ambientShadowMul=0.10+0.90*cloudShadowMul;
   vec3 ambient=albedo*0.01*ambientShadowMul;
   vec3 col=ambient+direct;
+  // City lights on the night side of land masses (planet-feature gated).
+  // Population proxy: low-freq continent fbm + coastline boost. Lights are
+  // a sparse hash-grid: each cell rolls a hash; populated cells emit one
+  // sub-cell point with twinkle. Mirrors planet.wgsl.
+  if(uCityLights>0.5){
+    // Hoist cell coordinate + screen-space footprint outside the per-fragment
+    // gates. fwidth requires uniform control flow; only uCityLights is
+    // uniform per draw — night/land/presence checks vary per fragment.
+    float cityScale=40.0;
+    vec3 cityCoord=vLocal*cityScale+vec3(uSeed*0.013,uSeed*0.011,uSeed*0.017);
+    vec3 fw=fwidth(cityCoord);
+    float footprint=max(fw.x,max(fw.y,fw.z));
+    // LOD fade: smoothly fade out when one fragment spans a sizable fraction
+    // of a cell (prevents sparkling/aliasing at distance or for small planets).
+    float lodFade=1.0-smoothstep(0.35,0.9,footprint);
+    float nightFactor=smoothstep(0.18,-0.05,NdL);
+    float landFactor=1.0-waterMask;
+    if(nightFactor>0.001 && landFactor>0.05 && lodFade>0.001){
+      float popNoise=continentFbm(vLocal*2.2+vec3(uSeed*0.0019));
+      float popMask=smoothstep(0.42,0.72,popNoise);
+      float coastBoost=smoothstep(0.07,0.0,abs(oceanField-0.60));
+      float pop=clamp(max(popMask,coastBoost*0.75),0.0,1.0);
+      // Two-layer placement: low-freq zone mask carves out a few clusters,
+      // medium-freq hash grid plants individual lights inside those zones.
+      // Squared falloff on the zone mask tightens cluster cores so lights
+      // pool together instead of fading across the surrounding land.
+      float zoneNoise=vnoise(vLocal*4.5+vec3(uSeed*0.0021,uSeed*0.0017,uSeed*0.0033));
+      float zoneMask=smoothstep(0.66,0.80,zoneNoise);
+      float cityPresence=zoneMask*zoneMask*(0.40+0.60*pop);
+      if(cityPresence>0.01){
+        vec3 cellId=floor(cityCoord);
+        vec3 sub=fract(cityCoord);
+        float threshold=mix(0.92,0.62,cityPresence);
+        // Sample 3x3x3 neighborhood so lights near cell walls don't get
+        // sliced off at the boundary (fixes the visible rectangular clips).
+        float glowRadius=0.30;
+        float bestGlow=0.0;
+        for(int dx=-1;dx<=1;dx++){
+          for(int dy=-1;dy<=1;dy++){
+            for(int dz=-1;dz<=1;dz++){
+              vec3 off=vec3(float(dx),float(dy),float(dz));
+              float nh=hash3(cellId+off);
+              if(nh>=threshold){
+                vec3 dotPos=vec3(fract(nh*1.7),fract(nh*7.3),fract(nh*13.1));
+                float dd=length(sub-(off+dotPos));
+                bestGlow=max(bestGlow,smoothstep(glowRadius,0.0,dd));
+              }
+            }
+          }
+        }
+        float cloudMask=mix(1.0,cloudShadowMul,0.7);
+        float intensity=bestGlow*nightFactor*landFactor*cloudMask*lodFade;
+        vec3 cityColor=vec3(1.0,0.72,0.32);
+        col+=cityColor*intensity*4.0;
+      }
+    }
+  }
   col+=uHigh*rim*NdL*0.55*shadow;
   col*=(0.85+0.3*uFocus);
   col=mix(col,FOG_COLOR,fogFactor(vWorld,uCamera));
@@ -681,7 +739,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
-      'uSeed', 'uFocus', 'uOceans',
+      'uSeed', 'uFocus', 'uOceans', 'uCityLights',
       'uTime', 'uReducedMotion', 'uCloudShadow',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
@@ -1007,7 +1065,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
-    gl.uniform1f(this.planet.uniforms.uTime!, frame.time);
     gl.uniform1f(this.planet.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
     this.bindShadowUniforms(this.planet, frame);
     gl.bindVertexArray(this.sphereVao);
@@ -1019,7 +1076,10 @@ export class WebGL2Renderer implements SceneRenderer {
       // Cloud shadow strength fades with visibility so it tracks the cloud
       // shell's alpha; 0 when the toggle is off.
       const cloudShadow = p.clouds ? vis : 0;
-      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, idxType);
+      // Use per-planet cloud time so cloud-shadow sampling on the planet
+      // body slows in lockstep with the cloud shell when the planet pauses.
+      gl.uniform1f(this.planet.uniforms.uTime!, p.cloudTime);
+      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, idxType, p.cityLights);
       for (const m of p.moons) {
         const orbit = m.orbitRadius * vis;
         // Moon orbit offset lives in the planet's local frame; rotate it by
@@ -1092,7 +1152,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.clouds.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform3fv(this.clouds.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.clouds.uniforms.uLight!, frame.keyLightDir);
-      gl.uniform1f(this.clouds.uniforms.uTime!, frame.time);
       gl.uniform1f(this.clouds.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
       this.bindShadowUniforms(this.clouds, frame);
       gl.bindVertexArray(this.sphereVao);
@@ -1108,6 +1167,8 @@ export class WebGL2Renderer implements SceneRenderer {
         gl.uniform3fv(this.clouds.uniforms.uCenter!, p.center);
         gl.uniform1f(this.clouds.uniforms.uSeed!, p.seed % 100000);
         gl.uniform1f(this.clouds.uniforms.uVisibility!, vis);
+        // Per-planet cloud time so drift halts with the planet's spin.
+        gl.uniform1f(this.clouds.uniforms.uTime!, p.cloudTime);
         gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
         this.stats.drawCalls++;
         this.stats.triangles += this.sphereCount / 3;
@@ -1193,6 +1254,7 @@ export class WebGL2Renderer implements SceneRenderer {
     cloudShadow: number,
     model: Float32Array,
     idxType: number,
+    cityLights: boolean = false,
   ): void {
     const gl = this.gl;
     mat4.fromRotationTranslationScale(model, rotation, center, radius);
@@ -1203,6 +1265,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.planet.uniforms.uSeed!, p.seed % 100000);
     gl.uniform1f(this.planet.uniforms.uFocus!, p.focus);
     gl.uniform1f(this.planet.uniforms.uOceans!, oceans ? 1 : 0);
+    gl.uniform1f(this.planet.uniforms.uCityLights!, cityLights ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCloudShadow!, cloudShadow);
     gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
     this.stats.drawCalls++;

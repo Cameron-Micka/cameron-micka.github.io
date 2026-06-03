@@ -102,6 +102,13 @@ export class Engine {
   private activeTier: QualityTier = 'high';
 
   private orientations: Quat[];
+  // Per-planet cloud-time accumulator. Advances at a rate eased between 0
+  // and 1 by `cloudPace[i]`, so when a planet's surface spin is paused
+  // (recently orbited / reduced motion), the cloud drift smoothly halts
+  // along with it. Decoupled from `time` because cloud rotation otherwise
+  // shares the global clock and would keep drifting through a "stopped" planet.
+  private cloudTimes: number[];
+  private cloudPace: number[];
   private scrubCurrent = 0;
   private scrubTarget = 0;
   private zoomTarget = 1;
@@ -148,6 +155,8 @@ export class Engine {
     this.orientations = this.models.map((_, i) =>
       quat.fromAxisAngle([0, 1, 0], i * 0.7),
     );
+    this.cloudTimes = this.models.map(() => 0);
+    this.cloudPace = this.models.map(() => 1);
     // Open focused on the current role (the one still ongoing) rather than the
     // first planet in the sequence, so e.g. a reversed timeline still starts on
     // "Now". Falls back to the first planet if none is marked current.
@@ -398,8 +407,22 @@ export class Engine {
   }
 
   private updateRotations(dt: number, ts: number): void {
-    if (this.reducedMotion()) return;
+    const reduced = this.reducedMotion();
     const recentlyOrbited = ts / 1000 - this.lastInteract < 2.5;
+
+    // Per-planet cloud pacing: ease the drift toward 0 when the planet's
+    // spin is paused so clouds visibly decelerate with the surface. Under
+    // reduced motion the cloud shader already applies its own slowdown
+    // multiplier, so keep pace at 1 there and let the shader handle it.
+    const k = 1 - Math.exp(-dt * 3);
+    for (let i = 0; i < this.cloudPace.length; i++) {
+      const paused = !reduced && recentlyOrbited && i === this.lastOrbitIndex;
+      const target = paused ? 0 : 1;
+      this.cloudPace[i] = this.cloudPace[i]! + (target - this.cloudPace[i]!) * k;
+      this.cloudTimes[i] = this.cloudTimes[i]! + dt * this.cloudPace[i]!;
+    }
+
+    if (reduced) return;
     for (let i = 0; i < this.orientations.length; i++) {
       if (recentlyOrbited && i === this.lastOrbitIndex) continue;
       const focusDist = Math.abs(i - this.scrubCurrent);
@@ -428,6 +451,7 @@ export class Engine {
       return instanceFromModel(
         m,
         this.moonTime,
+        this.cloudTimes[i] ?? 0,
         this.orientations[i] ?? quat.identity(),
         focus,
         this.planetVisibility(i),
