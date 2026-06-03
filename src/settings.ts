@@ -4,7 +4,6 @@ export type ReducedMotionPref = 'auto' | 'on' | 'off';
 
 export interface PersistedSettings {
   quality: QualityPreference;
-  sound: boolean;
   reducedMotion: ReducedMotionPref;
   debugHud: boolean;
   wireframe: boolean;
@@ -16,7 +15,6 @@ const KEY = 'cm-portfolio-settings';
 
 const DEFAULTS: PersistedSettings = {
   quality: 'auto',
-  sound: false,
   reducedMotion: 'auto',
   debugHud: false,
   wireframe: false,

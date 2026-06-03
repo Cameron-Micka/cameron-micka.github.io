@@ -13,13 +13,12 @@ import { HINTS, UI } from './strings';
 
 function SoundBridge() {
   const engine = useEngine();
-  const { sound } = useEngineSnapshot();
   const ref = useRef<SoundManager | null>(null);
   if (!ref.current) ref.current = new SoundManager(engine);
   useEffect(() => {
-    ref.current?.setEnabled(sound);
-  }, [sound]);
-  useEffect(() => () => ref.current?.destroy(), []);
+    ref.current?.setEnabled(true);
+    return () => ref.current?.destroy();
+  }, []);
   return null;
 }
 

@@ -15,19 +15,28 @@ export class SoundManager {
       engine.events.on('poiClosed', () => this.blip(330, 0.1, 'sine')),
     );
     this.unsub.push(
-      engine.events.on('focusChanged', () => this.blip(220, 0.06, 'triangle')),
+      engine.events.on('focusChanged', (i: number) => {
+        // Walk up the timeline in whole steps (+2 semitones per entry) from
+        // a G3 base, so each company has a distinct pitch and the sequence
+        // reads as a rising scale when scrubbing forward in time.
+        const freq = 196 * Math.pow(2, (i * 2) / 12);
+        this.blip(freq, 0.08, 'triangle');
+      }),
     );
   }
 
   setEnabled(on: boolean): void {
     this.enabled = on;
-    if (on && !this.ctx && typeof AudioContext !== 'undefined') {
-      this.ctx = new AudioContext();
-    }
+    // AudioContext is created lazily on first blip(), so we don't construct
+    // it before a user gesture (browsers warn / suspend otherwise).
   }
 
   private blip(freq: number, dur: number, type: OscillatorType): void {
-    if (!this.enabled || !this.ctx) return;
+    if (!this.enabled) return;
+    if (!this.ctx && typeof AudioContext !== 'undefined') {
+      this.ctx = new AudioContext();
+    }
+    if (!this.ctx) return;
     const ctx = this.ctx;
     if (ctx.state === 'suspended') void ctx.resume();
     const osc = ctx.createOscillator();

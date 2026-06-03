@@ -43,16 +43,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="row">
-        <label htmlFor="set-sound">Sound</label>
-        <input
-          id="set-sound"
-          type="checkbox"
-          checked={s.sound}
-          onChange={(e) => engine.setSound(e.target.checked)}
-        />
-      </div>
-
-      <div className="row">
         <label htmlFor="set-debug">Debug HUD</label>
         <input
           id="set-debug"

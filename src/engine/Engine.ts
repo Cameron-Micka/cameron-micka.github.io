@@ -45,7 +45,6 @@ export interface EngineSnapshot {
   openPoi: OpenPoiRef | null;
   quality: QualityPreference;
   activeTier: QualityTier;
-  sound: boolean;
   reducedMotion: ReducedMotionPref;
   debugHud: boolean;
   wireframe: boolean;
@@ -658,12 +657,6 @@ export class Engine {
     this.commit();
   }
 
-  setSound(on: boolean): void {
-    this.settings.sound = on;
-    saveSettings(this.settings);
-    this.commit();
-  }
-
   setReducedMotion(pref: ReducedMotionPref): void {
     this.settings.reducedMotion = pref;
     saveSettings(this.settings);
@@ -767,7 +760,6 @@ export class Engine {
       openPoi: this.openPoi,
       quality: this.settings.quality,
       activeTier: this.activeTier,
-      sound: this.settings.sound,
       reducedMotion: this.settings.reducedMotion,
       debugHud: this.settings.debugHud,
       wireframe: this.settings.wireframe,
