@@ -9,6 +9,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     chromaticAberration: true,
     bloomMips: 3,
     msaa: 4,
+    fxaa: true,
     shadows: true,
   },
   med: {
@@ -19,6 +20,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     chromaticAberration: true,
     bloomMips: 2,
     msaa: 4,
+    fxaa: false,
     shadows: true,
   },
   low: {
@@ -29,6 +31,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     chromaticAberration: false,
     bloomMips: 0,
     msaa: 4,
+    fxaa: false,
     shadows: false,
   },
   webgl2: {
@@ -39,6 +42,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     chromaticAberration: false,
     bloomMips: 1,
     msaa: 1,
+    fxaa: false,
     shadows: false,
   },
 };

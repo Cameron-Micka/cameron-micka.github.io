@@ -398,14 +398,16 @@ Because backside POIs are visible (just dimmed), users may try to click them. **
 
 ### 7.7 Quality presets
 
-| Preset    | DPR cap | Stars | SSAO | Clouds | CA  | Bloom mips | MSAA | Notes              |
-| --------- | ------- | ----- | ---- | ------ | --- | ---------- | ---- | ------------------ |
-| High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Default if probe passes |
-| Med       | 1.25    | 2k    | off  | on     | on  | 2          | 4x   |                    |
-| Low       | 1.0     | 0     | off  | off    | off | 1          | 4x   | Hard fallback      |
-| WebGL2    | 1.0     | 2k    | off  | on     | off | 1          | off  | The fallback renderer always runs at this fidelity ceiling |
+| Preset    | DPR cap | Stars | SSAO | Clouds | CA  | Bloom mips | MSAA | FXAA | Notes              |
+| --------- | ------- | ----- | ---- | ------ | --- | ---------- | ---- | ---- | ------------------ |
+| High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | on   | Default if probe passes |
+| Med       | 1.25    | 2k    | off  | on     | on  | 2          | 4x   | off  |                    |
+| Low       | 1.0     | 0     | off  | off    | off | 1          | 4x   | off  | Hard fallback      |
+| WebGL2    | 1.0     | 2k    | off  | on     | off | 1          | off  | off  | The fallback renderer always runs at this fidelity ceiling |
 
 > MSAA applies to the WebGPU scene pass only. WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x.
+>
+> FXAA runs as an extra fullscreen pass after composite/tonemap (WebGPU only), smoothing luminance edges that survive MSAA (shader aliasing on highlights, thin POI lines, planet limbs). Enabled on High only.
 
 **Selection:** On first load, run a 5-second perf probe (render the scene normally, measure median frame time). Map the result to a tier:
 
