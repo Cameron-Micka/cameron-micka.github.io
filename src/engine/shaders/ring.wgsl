@@ -116,7 +116,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let h3 = fract(sin(seed * 0.713 + 5.7) * 7853.7);
   let h4 = fract(sin(seed * 0.521 + 8.2) * 51247.7);
 
-  let bandFreqBroad = 70.0 + h1 * 70.0;     // 70..140 bands
+  let bandFreqBroad = 120.0 + h1 * 120.0;   // 120..240 bands
   let gap1Freq = 5.0 + h2 * 9.0;            // 5..14
   let gap2Freq = 12.0 + h3 * 11.0;          // 12..23
   let gap2Phase = h4 * 6.2831853;
@@ -130,8 +130,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // stripes. Selected per-planet via obj.p1.w (set when thinRing=true).
   let isThin = obj.p1.w;
   let bandFreq = mix(bandFreqBroad, 115.0, isThin);
-  let innerStart = mix(innerBroad, 0.55, isThin);
-  let outerEnd = mix(outerBroad, 0.76, isThin);
+  let innerStart = mix(innerBroad, 0.62, isThin);
+  let outerEnd = mix(outerBroad, 0.72, isThin);
   // Broad rings keep the original wide soft fade to the geometry edge; thin
   // rings use a tight 0.06-wide outer fade so the band actually reads narrow.
   let outerFadeStart = mix(1.0, outerEnd + 0.06, isThin);
@@ -145,7 +145,31 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Curved bands: cosine in radial with a very small angular sine offset so
   // the rings stay essentially concentric, just enough imperfection to avoid
   // looking machined.
-  let bands = 0.5 + 0.5 * cos(radial * bandFreq - 0.6 * sin(angle * 7.0 + time * 0.03));
+  let broadBands = 0.5 + 0.5 * cos(radial * bandFreq - 0.6 * sin(angle * 7.0 + time * 0.03));
+  // Fine Saturn-style sub-striations: a higher-frequency band set carved into
+  // the broad bands so the disk reads as hundreds of thin concentric ringlets
+  // instead of a few wide stripes. Faded out for thin rings (isThin) so those
+  // keep their clean ~3-stripe look.
+  let fineBands = 0.5 + 0.5 * cos(radial * bandFreq * 2.6 + 0.25 * sin(angle * 11.0));
+  // Frequency-aware contrast attenuation (analytic AA, after iq's "filtering
+  // procedural textures"). A band set's on-screen rate in cycles/pixel is
+  // freq/(2π)·fwidth(radial); once it nears the Nyquist limit (~0.5) the bands
+  // can't be resolved and post-threshold AA can't recover them — they shimmer
+  // and moiré. So fade each set's contrast to its mean (0.5) as it approaches
+  // Nyquist, converging undersampled rings to a smooth average instead.
+  let invTwoPi = 0.15915494;
+  let broadAtt = 1.0 - smoothstep(0.20, 0.45, bandFreq * rw * invTwoPi);
+  let fineAtt = 1.0 - smoothstep(0.20, 0.45, bandFreq * 2.6 * rw * invTwoPi);
+  // Bias the faded (far-field) mean above 0.5 so attenuated rings read as solid
+  // bands instead of washing out to half-translucent — the resolved bright
+  // bands were near-opaque, so their true area-average opacity is well above
+  // the raw 0.5 band mean. This is a mix toward a constant: it adds no spatial
+  // frequency, so no shimmer/moiré returns. Low-frequency gaps still cut through.
+  let bandFar = 0.8;
+  let broadF = mix(bandFar, broadBands, broadAtt);
+  let fineF = mix(bandFar, fineBands, fineAtt);
+  let fineAmt = 0.45 * (1.0 - isThin);
+  let bands = broadF * (1.0 - fineAmt + fineAmt * fineF);
 
   // Layered fBm noise sampled in (radial, angle) so it stays seamless around
   // the loop. Drives fine dust/clump variation independent of the bands.

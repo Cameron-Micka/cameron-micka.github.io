@@ -785,7 +785,7 @@ void main(){
   float h2=fract(sin(seed*0.357+2.5)*21758.3);
   float h3=fract(sin(seed*0.713+5.7)*7853.7);
   float h4=fract(sin(seed*0.521+8.2)*51247.7);
-  float bandFreqBroad=70.0+h1*70.0;
+  float bandFreqBroad=120.0+h1*120.0;
   float gap1Freq=5.0+h2*9.0;
   float gap2Freq=12.0+h3*11.0;
   float gap2Phase=h4*6.2831853;
@@ -793,13 +793,30 @@ void main(){
   float outerBroad=0.82+h3*0.12;
   float isThin=uThin;
   float bandFreq=mix(bandFreqBroad,115.0,isThin);
-  float innerStart=mix(innerBroad,0.55,isThin);
-  float outerEnd=mix(outerBroad,0.76,isThin);
+  float innerStart=mix(innerBroad,0.62,isThin);
+  float outerEnd=mix(outerBroad,0.72,isThin);
   float outerFadeStart=mix(1.0,outerEnd+0.06,isThin);
   float rw=fwidth(radial);
   float edge=aaStep(innerStart,innerStart+0.06,radial,rw)*
              aaStep(outerFadeStart,outerEnd,radial,rw);
-  float bands=0.5+0.5*cos(radial*bandFreq-0.6*sin(angle*7.0+time*0.03));
+  float broadBands=0.5+0.5*cos(radial*bandFreq-0.6*sin(angle*7.0+time*0.03));
+  // Fine Saturn-style sub-striations carved into the broad bands; faded out for
+  // thin rings. Mirror of ring.wgsl.
+  float fineBands=0.5+0.5*cos(radial*bandFreq*2.6+0.25*sin(angle*11.0));
+  // Frequency-aware contrast attenuation (analytic AA): fade each band set to
+  // its mean as its on-screen rate (freq/(2pi)*fwidth) approaches the Nyquist
+  // limit so undersampled rings stop shimmering / moiré. Mirror of ring.wgsl.
+  float invTwoPi=0.15915494;
+  float broadAtt=1.0-smoothstep(0.20,0.45,bandFreq*rw*invTwoPi);
+  float fineAtt=1.0-smoothstep(0.20,0.45,bandFreq*2.6*rw*invTwoPi);
+  // Bias the faded far-field mean above 0.5 so attenuated rings stay solid
+  // rather than washing out to half-translucent (mix to a constant adds no
+  // frequency, so no aliasing returns). Mirror of ring.wgsl.
+  float bandFar=0.8;
+  float broadF=mix(bandFar,broadBands,broadAtt);
+  float fineF=mix(bandFar,fineBands,fineAtt);
+  float fineAmt=0.45*(1.0-isThin);
+  float bands=broadF*(1.0-fineAmt+fineAmt*fineF);
   vec2 np=vec2(radial*22.0,angle*3.2);
   float n=fbm2(np)*0.65+fbm2(np*2.7+vec2(11.0,5.0))*0.35;
   float dv=bands*0.85+n*0.35;
