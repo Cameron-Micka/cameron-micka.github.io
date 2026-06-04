@@ -58,6 +58,10 @@ export const companySchema = z.object({
     // clusters on land (gated to dark hemisphere + non-ocean). Twinkles
     // subtly. Implemented purely in the planet shader.
     cityLights: z.boolean().default(false),
+    // When true, the planet surface is advected along a procedural tangent
+    // flow field (Emil Dziewanowski's flow-map technique) so the marbled
+    // surface detail streams like a fluid. Implemented in the planet shader.
+    flowMap: z.boolean().default(false),
     moons: z.number().int().min(0).max(6),
   }),
   pois: z.array(poiSchema),

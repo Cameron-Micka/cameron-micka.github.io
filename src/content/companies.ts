@@ -67,7 +67,7 @@ const raw: CompanyInput[] = [
       'on a small, high-craft team.',
     seed: 'fun-bits-interactive-games',
     palette: { low: '#5a2a0a', mid: '#d2772b', high: '#ffd27a' },
-    features: { rings: true, ringTilt: 0.5, moons: 1 },
+    features: { rings: true, ringTilt: 0.5, flowMap: true, moons: 1 },
     pois: [
       {
         slug: 'console-titles',
@@ -102,7 +102,7 @@ const raw: CompanyInput[] = [
       'cutting-edge rendering for AAA titles.',
     seed: 'lucasarts-entertainment',
     palette: { low: '#3a2e10', mid: '#b89b3e', high: '#ffe9a8' },
-    features: { rings: true, ringTilt: 0.8, thinRing: true, cityLights: true, moons: 0 },
+    features: { rings: true, ringTilt: 0.8, thinRing: true, clouds: true, cityLights: true, moons: 0 },
     pois: [
       {
         slug: 'aaa-rendering',

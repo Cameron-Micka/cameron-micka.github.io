@@ -18,7 +18,7 @@ struct Obj {
   palMid : vec4<f32>,
   palHigh : vec4<f32>,
   p1 : vec4<f32>, // x=focus, y=hasAtmosphere, z=cloudShadow, w=oceans flag
-  p2 : vec4<f32>, // x=cityLights flag, yzw=unused
+  p2 : vec4<f32>, // x=cityLights flag, y=flowMap flag, zw=unused
 };
 
 @group(0) @binding(0) var<uniform> frame : Frame;
@@ -298,6 +298,66 @@ fn cloudShadow(vLocal : vec3<f32>, worldL : vec3<f32>, time : f32, seedf : f32, 
   return 1.0 - density * CLOUD_SHADOW_STRENGTH * enabled;
 }
 
+// Marbled land color + height from the domain-warped fBm at a noise-domain
+// sample position `sp`. Factored out of the fragment body so the flow-field
+// feature can sample it at two advected positions and cross-fade them. `local`
+// is the un-advected surface position used for region-scale biome tinting so
+// climate zones stay put while fine detail streams. Must stay in sync with the
+// WebGL2 mirror (surfaceMarble in PLANET_FRAG).
+struct Surf {
+  color : vec3<f32>,
+  height : f32,
+};
+
+fn surfaceMarble(sp : vec3<f32>, local : vec3<f32>, seed : f32) -> Surf {
+  let q = vec3<f32>(
+    fbm(sp),
+    fbm(sp + vec3<f32>(5.2, 1.3, 2.8)),
+    fbm(sp + vec3<f32>(7.1, 4.4, 6.9)),
+  );
+  let warpQ = sp + 2.5 * q;
+  let r = vec3<f32>(
+    fbm(warpQ + vec3<f32>(1.7, 9.2, 3.5)),
+    fbm(warpQ + vec3<f32>(8.3, 2.8, 4.1)),
+    fbm(warpQ + vec3<f32>(4.7, 7.7, 1.9)),
+  );
+  let height = clamp(fbm(sp + 2.5 * r), 0.0, 1.0);
+  var land = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.25, 0.55, height));
+  land = mix(land, obj.palHigh.rgb, smoothstep(0.6, 0.85, height));
+  let qLen = clamp(length(q) * 0.55, 0.0, 1.0);
+  let rLen = clamp(length(r) * 0.55, 0.0, 1.0);
+  land = mix(land, obj.palLow.rgb * 0.55, qLen * 0.22);
+  land = mix(land, obj.palHigh.rgb * 1.15, rLen * 0.20);
+  let biomeR = vnoise(local * 0.55 + vec3<f32>(11.3, 3.7, 5.1));
+  let biomeG = vnoise(local * 0.55 + vec3<f32>(24.7, 6.2, 9.4));
+  let biomeB = vnoise(local * 0.55 + vec3<f32>(37.1, 8.9, 2.6));
+  let biomeColor = mix(obj.palLow.rgb, obj.palHigh.rgb, vec3<f32>(biomeR, biomeG, biomeB));
+  land = mix(land, biomeColor, 0.18);
+  let ridge = ridgedFbm(warpQ * 0.5);
+  let mountainMask = smoothstep(0.62, 0.74, ridge) * smoothstep(0.42, 0.62, height);
+  let mountainRock = mix(obj.palMid.rgb * 0.55, vec3<f32>(0.48, 0.28, 0.16), 0.75);
+  land = mix(land, mountainRock, mountainMask * 0.85);
+  let snowMask = smoothstep(0.78, 0.95, height) * smoothstep(0.58, 0.74, ridge);
+  land = mix(land, vec3<f32>(0.94, 0.95, 0.97), snowMask * 0.9);
+  return Surf(land, height);
+}
+
+// Smooth unit tangent flow direction for the flow-field feature: a
+// low-frequency 3-channel noise vector projected onto the surface tangent
+// plane gives a coherent swirling field the surface detail is advected along.
+fn flowDir(local : vec3<f32>, n : vec3<f32>, seed : f32) -> vec3<f32> {
+  let fp = local * 1.5 + vec3<f32>(seed * 0.002, seed * 0.0017, seed * 0.0023);
+  var v = vec3<f32>(
+    vnoise(fp) - 0.5,
+    vnoise(fp + vec3<f32>(13.1, 7.7, 2.3)) - 0.5,
+    vnoise(fp + vec3<f32>(5.5, 19.2, 8.8)) - 0.5,
+  );
+  v = v - n * dot(v, n);
+  let l = length(v);
+  if (l < 1e-4) { return vec3<f32>(0.0); }
+  return v / l;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let seed = obj.p0.y;
@@ -306,56 +366,34 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let lightDir = normalize(frame.keyLightDir.xyz);
   let rim = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 3.0);
 
-  // Two-level fBm domain warping (after Inigo Quilez,
-  // https://iquilezles.org/articles/warp/) — extended to 3D so we can sample
-  // it directly on the sphere surface and avoid UV seams. The 2.5× warp
-  // magnitude bends the noise field strongly through itself, producing the
-  // curling, marbled structure that reads as organic geology rather than
-  // uniform fbm hiss.
   let basePos = in.localPos * (2.2 + seed * 0.0001) + vec3<f32>(seed * 0.001);
-  let q = vec3<f32>(
-    fbm(basePos),
-    fbm(basePos + vec3<f32>(5.2, 1.3, 2.8)),
-    fbm(basePos + vec3<f32>(7.1, 4.4, 6.9)),
-  );
-  let warpQ = basePos + 2.5 * q;
-  let r = vec3<f32>(
-    fbm(warpQ + vec3<f32>(1.7, 9.2, 3.5)),
-    fbm(warpQ + vec3<f32>(8.3, 2.8, 4.1)),
-    fbm(warpQ + vec3<f32>(4.7, 7.7, 1.9)),
-  );
-  let height = clamp(fbm(basePos + 2.5 * r), 0.0, 1.0);
-  var land = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.25, 0.55, height));
-  land = mix(land, obj.palHigh.rgb, smoothstep(0.6, 0.85, height));
-  // IQ-style color modulation from the warp magnitudes — q drives darker
-  // "trench" pockets, r drives brighter "highland" streaks. Both are kept
-  // subtle so the authored low/mid/high palette still defines the planet.
-  let qLen = clamp(length(q) * 0.55, 0.0, 1.0);
-  let rLen = clamp(length(r) * 0.55, 0.0, 1.0);
-  land = mix(land, obj.palLow.rgb * 0.55, qLen * 0.22);
-  land = mix(land, obj.palHigh.rgb * 1.15, rLen * 0.20);
 
-  // Biome variation: a slow 3-channel noise reads as climate-zone tint
-  // (warmer here, cooler there) so adjacent landmasses don't all look the
-  // same. Sampled at very low frequency for region-scale color shifts.
-  let biomeR = vnoise(in.localPos * 0.55 + vec3<f32>(11.3, 3.7, 5.1));
-  let biomeG = vnoise(in.localPos * 0.55 + vec3<f32>(24.7, 6.2, 9.4));
-  let biomeB = vnoise(in.localPos * 0.55 + vec3<f32>(37.1, 8.9, 2.6));
-  let biomeTint = vec3<f32>(biomeR, biomeG, biomeB);
-  // Tint toward a biome-mixed palette extreme so it stays palette-respecting.
-  let biomeColor = mix(obj.palLow.rgb, obj.palHigh.rgb, biomeTint);
-  land = mix(land, biomeColor, 0.18);
-
-  // Mountain ranges: 2-octave ridged noise gives long continuous "scars"
-  // (Andes/Himalaya-like) rather than splotchy peaks. Sampled at low
-  // frequency on the warped domain so chains follow continental flow and a
-  // tight ridge-spine threshold paints only the actual range, not foothills.
-  let ridge = ridgedFbm(warpQ * 0.5);
-  let mountainMask = smoothstep(0.62, 0.74, ridge) * smoothstep(0.42, 0.62, height);
-  let mountainRock = mix(obj.palMid.rgb * 0.55, vec3<f32>(0.48, 0.28, 0.16), 0.75);
-  land = mix(land, mountainRock, mountainMask * 0.85);
-  let snowMask = smoothstep(0.78, 0.95, height) * smoothstep(0.58, 0.74, ridge);
-  land = mix(land, vec3<f32>(0.94, 0.95, 0.97), snowMask * 0.9);
+  // Flow-field advection (after Emil Dziewanowski,
+  // https://emildziewanowski.com/flowfields/): when the planet's flowMap
+  // feature is on, the marbled surface detail is displaced along a tangent
+  // flow field. Two samples offset by half a cycle are cross-faded with a
+  // triangle weight so the field streams continuously without stretching
+  // unboundedly past a half cycle. Disabled under reduced motion.
+  var land : vec3<f32>;
+  var height : f32;
+  if (obj.p2.y > 0.5) {
+    let rm = frame.misc.y;
+    let speed = select(0.16, 0.0, rm > 0.5);
+    let mag = 1.0;
+    let flow = flowDir(in.localPos, n, seed);
+    let t = obj.p0.z * speed;
+    let ph0 = fract(t);
+    let ph1 = fract(t + 0.5);
+    let s0 = surfaceMarble(basePos - flow * ph0 * mag, in.localPos, seed);
+    let s1 = surfaceMarble(basePos - flow * ph1 * mag, in.localPos, seed);
+    let w = abs(0.5 - ph0) * 2.0;
+    land = mix(s0.color, s1.color, w);
+    height = mix(s0.height, s1.height, w);
+  } else {
+    let s = surfaceMarble(basePos, in.localPos, seed);
+    land = s.color;
+    height = s.height;
+  }
 
   // Oceans: a separate low-frequency "continent" field drives the land/sea
   // split so landmasses clump like Earth's continents instead of fragmenting

@@ -413,6 +413,7 @@ export function instanceFromModel(
     oceans: f.oceans,
     clouds: f.clouds,
     cityLights: f.cityLights,
+    flowMap: f.flowMap,
     cloudTime,
     moons: model.moonSpecs.map((m) => ({
       orbitRadius: m.orbitRadius,

@@ -108,7 +108,7 @@ out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
-uniform float uCityLights;
+uniform float uCityLights;uniform float uFlow;
 uniform float uTime;uniform float uReducedMotion;
 uniform float uCloudShadow; // 0 = clouds off, >0 = shadow strength multiplier
 uniform mat4 uModel;
@@ -222,44 +222,73 @@ float cloudShadow(vec3 vLocal,vec3 worldL,float time,float seedf,float reducedMo
   float density=cloudDensity(cloudDir,time,seedf,reducedMotion);
   return 1.0-density*CLOUD_SHADOW_STRENGTH*enabled;
 }
-void main(){
-  vec3 n=normalize(vNrm);
-  vec3 viewDir=normalize(uCamera-vWorld);
-  vec3 lightDir=normalize(uLight);
-  float rim=pow(1.0-clamp(dot(n,viewDir),0.0,1.0),3.0);
-  // Two-level fBm domain warping (after Inigo Quilez,
-  // https://iquilezles.org/articles/warp/) — 3D so it samples cleanly on the
-  // sphere surface. 2.5x warp magnitude bends the noise field strongly
-  // through itself for the curling, marbled organic structure.
-  vec3 sp=vLocal*2.2+vec3(uSeed*0.001);
+// Marbled land color + height from domain-warped fBm at noise-domain position
+// sp. Factored out so the flow-field feature can sample two advected
+// positions and cross-fade. local is the un-advected position used for
+// region-scale biome tint. Mirror of surfaceMarble in planet.wgsl.
+struct Surf{vec3 color;float height;};
+Surf surfaceMarble(vec3 sp,vec3 local,float seed){
   vec3 q=vec3(fbm(sp),fbm(sp+vec3(5.2,1.3,2.8)),fbm(sp+vec3(7.1,4.4,6.9)));
   vec3 warpQ=sp+2.5*q;
   vec3 r=vec3(fbm(warpQ+vec3(1.7,9.2,3.5)),fbm(warpQ+vec3(8.3,2.8,4.1)),fbm(warpQ+vec3(4.7,7.7,1.9)));
   float h=clamp(fbm(sp+2.5*r),0.0,1.0);
   vec3 land=mix(uLow,uMid,smoothstep(0.25,0.55,h));
   land=mix(land,uHigh,smoothstep(0.6,0.85,h));
-  // q magnitude darkens "trench" pockets, r magnitude brightens "highland"
-  // streaks. Subtle so the authored palette still drives planet identity.
   float qLen=clamp(length(q)*0.55,0.0,1.0);
   float rLen=clamp(length(r)*0.55,0.0,1.0);
   land=mix(land,uLow*0.55,qLen*0.22);
   land=mix(land,uHigh*1.15,rLen*0.20);
-  // Biome variation: slow 3-channel noise tints continents with climate-zone
-  // shifts so landmasses don't all look identical.
-  float biomeR=vnoise(vLocal*0.55+vec3(11.3,3.7,5.1));
-  float biomeG=vnoise(vLocal*0.55+vec3(24.7,6.2,9.4));
-  float biomeB=vnoise(vLocal*0.55+vec3(37.1,8.9,2.6));
+  float biomeR=vnoise(local*0.55+vec3(11.3,3.7,5.1));
+  float biomeG=vnoise(local*0.55+vec3(24.7,6.2,9.4));
+  float biomeB=vnoise(local*0.55+vec3(37.1,8.9,2.6));
   vec3 biomeColor=mix(uLow,uHigh,vec3(biomeR,biomeG,biomeB));
   land=mix(land,biomeColor,0.18);
-  // Mountain ranges: 2-octave ridged noise sampled at low freq for continuous
-  // continental scars; tight ridge-spine threshold paints only the range
-  // spine, not the surrounding foothills.
   float ridge=ridgedFbm(warpQ*0.5);
   float mountainMask=smoothstep(0.62,0.74,ridge)*smoothstep(0.42,0.62,h);
   vec3 mountainRock=mix(uMid*0.55,vec3(0.48,0.28,0.16),0.75);
   land=mix(land,mountainRock,mountainMask*0.85);
   float snowMask=smoothstep(0.78,0.95,h)*smoothstep(0.58,0.74,ridge);
   land=mix(land,vec3(0.94,0.95,0.97),snowMask*0.9);
+  return Surf(land,h);
+}
+// Smooth unit tangent flow direction: low-frequency 3-channel noise vector
+// projected onto the surface tangent plane. Mirror of flowDir in planet.wgsl.
+vec3 flowDir(vec3 local,vec3 n,float seed){
+  vec3 fp=local*1.5+vec3(seed*0.002,seed*0.0017,seed*0.0023);
+  vec3 v=vec3(vnoise(fp)-0.5,vnoise(fp+vec3(13.1,7.7,2.3))-0.5,vnoise(fp+vec3(5.5,19.2,8.8))-0.5);
+  v=v-n*dot(v,n);
+  float l=length(v);
+  if(l<1e-4)return vec3(0.0);
+  return v/l;
+}
+void main(){
+  vec3 n=normalize(vNrm);
+  vec3 viewDir=normalize(uCamera-vWorld);
+  vec3 lightDir=normalize(uLight);
+  float rim=pow(1.0-clamp(dot(n,viewDir),0.0,1.0),3.0);
+  vec3 sp=vLocal*2.2+vec3(uSeed*0.001);
+  // Flow-field advection (after Emil Dziewanowski,
+  // https://emildziewanowski.com/flowfields/): when uFlow is on, advect the
+  // marbled surface detail along a tangent flow field, cross-fading two
+  // half-cycle-offset samples so it streams without unbounded stretching.
+  // Disabled under reduced motion.
+  vec3 land;float h;
+  if(uFlow>0.5){
+    float speed=uReducedMotion>0.5?0.0:0.16;
+    float mag=1.0;
+    vec3 flow=flowDir(vLocal,n,uSeed);
+    float t=uTime*speed;
+    float ph0=fract(t);
+    float ph1=fract(t+0.5);
+    Surf s0=surfaceMarble(sp-flow*ph0*mag,vLocal,uSeed);
+    Surf s1=surfaceMarble(sp-flow*ph1*mag,vLocal,uSeed);
+    float w=abs(0.5-ph0)*2.0;
+    land=mix(s0.color,s1.color,w);
+    h=mix(s0.height,s1.height,w);
+  }else{
+    Surf s=surfaceMarble(sp,vLocal,uSeed);
+    land=s.color;h=s.height;
+  }
   // Oceans: low-frequency continent field clumps landmasses Earth-like.
   vec3 continentPos=vLocal*1.1+vec3(uSeed*0.0011);
   float continentH=continentFbm(continentPos);
@@ -675,7 +704,7 @@ void main(){
   float fogA=exp(-s*s);
   // Ribbon fades with edge AA; the arrowhead fills solid.
   float a = vShape>0.5 ? 0.95*fogA : 0.85*cov*fogA;
-  frag=vec4(vec3(1.0)*a,a);
+  frag=vec4(vec3(0.75)*a,a);
 }`;
 
 const WIRE_FRAG = `#version 300 es
@@ -1183,7 +1212,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
-      'uSeed', 'uFocus', 'uOceans', 'uCityLights',
+      'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow',
       'uTime', 'uReducedMotion', 'uCloudShadow',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
@@ -1637,7 +1666,7 @@ export class WebGL2Renderer implements SceneRenderer {
       // Use per-planet cloud time so cloud-shadow sampling on the planet
       // body slows in lockstep with the cloud shell when the planet pauses.
       gl.uniform1f(this.planet.uniforms.uTime!, p.cloudTime);
-      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, idxType, p.cityLights);
+      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, idxType, p.cityLights, p.flowMap);
       for (const m of p.moons) {
         const orbit = m.orbitRadius * vis;
         // Moon orbit offset lives in the planet's local frame; rotate it by
@@ -1666,6 +1695,7 @@ export class WebGL2Renderer implements SceneRenderer {
           model,
           idxType,
           false,
+          false, // moons don't flow
           true, // use the coarse moon mesh
         );
       }
@@ -1986,6 +2016,7 @@ export class WebGL2Renderer implements SceneRenderer {
     model: Float32Array,
     idxType: number,
     cityLights: boolean = false,
+    flow: boolean = false,
     moonMesh: boolean = false,
   ): void {
     const gl = this.gl;
@@ -1998,6 +2029,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.planet.uniforms.uFocus!, p.focus);
     gl.uniform1f(this.planet.uniforms.uOceans!, oceans ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCityLights!, cityLights ? 1 : 0);
+    gl.uniform1f(this.planet.uniforms.uFlow!, flow ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCloudShadow!, cloudShadow);
     if (moonMesh) {
       gl.bindVertexArray(this.moonSphereVao);

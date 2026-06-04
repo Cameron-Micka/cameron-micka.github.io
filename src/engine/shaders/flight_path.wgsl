@@ -122,5 +122,5 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let ribbonA = 0.85 * cov * fogA;
   let arrowA = 0.95 * fogA;
   let a = select(ribbonA, arrowA, in.shape > 0.5);
-  return vec4<f32>(vec3<f32>(1.0) * a, a);
+  return vec4<f32>(vec3<f32>(0.75) * a, a);
 }

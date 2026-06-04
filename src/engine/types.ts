@@ -34,6 +34,9 @@ export interface PlanetInstance {
   oceans: boolean;
   clouds: boolean;
   cityLights: boolean;
+  // When true, the planet surface detail is advected along a procedural flow
+  // field (see planet shader) so it streams like a fluid.
+  flowMap: boolean;
   // Per-planet time used by cloud rotation (planet body cloud-shadow sampling
   // + cloud shell). Eases to a halt when the planet's spin is paused (e.g.
   // user just orbited it) so clouds visibly slow with the surface instead of
