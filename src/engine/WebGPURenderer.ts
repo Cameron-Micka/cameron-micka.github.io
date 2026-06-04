@@ -5,7 +5,13 @@ import type {
   RenderStats,
   SceneRenderer,
 } from './types';
-import { createSphere, interleave, trianglesToLineIndices, type GeometryData } from './geometry';
+import {
+  createSphere,
+  createRingGeometry,
+  interleave,
+  trianglesToLineIndices,
+  type GeometryData,
+} from './geometry';
 import { mat4 } from './math/mat4';
 import { quat } from './math/quat';
 import { vec3 } from './math/vec3';
@@ -38,36 +44,6 @@ const CLOUD_SHELL_SCALE = 1.006;
 const MAX_SATELLITES = 64;
 const SAT_FLOATS = 7;
 const SAT_STRIDE = SAT_FLOATS * 4;
-
-function createRingGeometry(inner = 1.35, outer = 2.1, segments = 96): GeometryData {
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    const c = Math.cos(a);
-    const s = Math.sin(a);
-    positions.push(c * inner, 0, s * inner);
-    normals.push(0, 1, 0);
-    uvs.push(0, i / segments);
-    positions.push(c * outer, 0, s * outer);
-    normals.push(0, 1, 0);
-    uvs.push(1, i / segments);
-  }
-  for (let i = 0; i < segments; i++) {
-    const a = i * 2;
-    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-  }
-  return {
-    positions: new Float32Array(positions),
-    normals: new Float32Array(normals),
-    uvs: new Float32Array(uvs),
-    indices: new Uint16Array(indices),
-    vertexCount: positions.length / 3,
-    indexCount: indices.length,
-  };
-}
 
 export class WebGPURenderer implements SceneRenderer {
   readonly backend = 'webgpu' as const;

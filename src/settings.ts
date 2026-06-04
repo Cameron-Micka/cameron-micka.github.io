@@ -2,12 +2,14 @@ import { QUALITY_PRESETS, type QualityPreference } from './engine/QualityManager
 
 export type ReducedMotionPref = 'auto' | 'on' | 'off';
 
+export type BackendPref = 'auto' | 'webgpu' | 'webgl2';
+
 export interface PersistedSettings {
   quality: QualityPreference;
   reducedMotion: ReducedMotionPref;
   debugHud: boolean;
   wireframe: boolean;
-  forceBackend: 'auto' | 'webgpu' | 'webgl2';
+  forceBackend: BackendPref;
   freeCamera: boolean;
   flightPath: boolean;
 }

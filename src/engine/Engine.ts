@@ -32,6 +32,7 @@ import {
   resolveReducedMotion,
   type PersistedSettings,
   type ReducedMotionPref,
+  type BackendPref,
 } from '@/settings';
 
 export interface OpenPoiRef {
@@ -48,6 +49,7 @@ export interface EngineSnapshot {
   quality: QualityPreference;
   activeTier: QualityTier;
   reducedMotion: ReducedMotionPref;
+  forceBackend: BackendPref;
   debugHud: boolean;
   wireframe: boolean;
   freeCamera: boolean;
@@ -701,6 +703,17 @@ export class Engine {
     this.commit();
   }
 
+  setForceBackend(pref: BackendPref): void {
+    if (this.settings.forceBackend === pref) return;
+    this.settings.forceBackend = pref;
+    saveSettings(this.settings);
+    this.commit();
+    // A canvas keeps the same context type (webgpu/webgl2) for its lifetime, so
+    // swapping the active renderer requires a fresh page load. The preference is
+    // persisted above and honored by createRenderer() on the next startup.
+    if (typeof location !== 'undefined') location.reload();
+  }
+
   setDebugHud(on: boolean): void {
     this.settings.debugHud = on;
     saveSettings(this.settings);
@@ -802,6 +815,7 @@ export class Engine {
       quality: this.settings.quality,
       activeTier: this.activeTier,
       reducedMotion: this.settings.reducedMotion,
+      forceBackend: this.settings.forceBackend,
       debugHud: this.settings.debugHud,
       wireframe: this.settings.wireframe,
       freeCamera: this.settings.freeCamera,

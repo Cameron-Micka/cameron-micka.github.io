@@ -56,6 +56,42 @@ export function createSphere(
   };
 }
 
+// Flat annulus in the XZ plane. uv.x = radial fraction (0 inner .. 1 outer),
+// uv.y = angle fraction (0..1 around the ring). Used as the planetary ring mesh.
+export function createRingGeometry(
+  inner = 1.35,
+  outer = 2.1,
+  segments = 96,
+): GeometryData {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    positions.push(c * inner, 0, s * inner);
+    normals.push(0, 1, 0);
+    uvs.push(0, i / segments);
+    positions.push(c * outer, 0, s * outer);
+    normals.push(0, 1, 0);
+    uvs.push(1, i / segments);
+  }
+  for (let i = 0; i < segments; i++) {
+    const a = i * 2;
+    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    uvs: new Float32Array(uvs),
+    indices: new Uint16Array(indices),
+    vertexCount: positions.length / 3,
+    indexCount: indices.length,
+  };
+}
+
 // Interleave position(3) + normal(3) + uv(2) = 8 floats per vertex.
 export function interleave(geo: GeometryData): Float32Array<ArrayBuffer> {
   const out = new Float32Array(geo.vertexCount * 8);

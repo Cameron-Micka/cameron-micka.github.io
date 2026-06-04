@@ -1,5 +1,5 @@
 import type { FrameState, LoadProgressFn, PlanetInstance, RenderStats, SceneRenderer } from './types';
-import { createSphere, interleave, trianglesToLineIndices } from './geometry';
+import { createSphere, createRingGeometry, interleave, trianglesToLineIndices } from './geometry';
 import { mat4 } from './math/mat4';
 import { quat, type Quat } from './math/quat';
 import { vec3 } from './math/vec3';
@@ -675,6 +675,169 @@ precision highp float;
 out vec4 frag;
 void main(){ frag=vec4(0.25,1.0,0.85,1.0); }`;
 
+// Final present pass: samples the resolved scene texture and applies the sRGB
+// OETF (gamma ~2.2). The scene is rendered/tonemapped in linear space into an
+// offscreen buffer; without this encode the canvas displays linear values as
+// if sRGB, which looks much too dark. Mirrors the tail of composite.wgsl.
+// Planetary ring: a flat annulus mesh oriented by uModel. Ported from
+// ring.wgsl. Curved bands (angular sin modulation) + layered fBm + Cassini
+// gaps; palette zones, planet-shadow dimming, forward-scatter, Kajiya-Kay
+// anisotropic specular and distance fog. fwidth-based local AA band-limits the
+// high-frequency bands/gaps/edges. Needs the ring VAO's uv attribute.
+const RING_VERT = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=2) in vec2 aUv;
+uniform mat4 uViewProj;
+uniform mat4 uModel;
+out float vRadial;
+out float vAngle;
+out vec3 vWorld;
+void main(){
+  vec4 world = uModel * vec4(aPos, 1.0);
+  vWorld = world.xyz;
+  vRadial = aUv.x;
+  vAngle = aUv.y * 6.2831853;
+  gl_Position = uViewProj * world;
+}`;
+const RING_FRAG = `#version 300 es
+precision highp float;
+in float vRadial;
+in float vAngle;
+in vec3 vWorld;
+out vec4 frag;
+uniform mat4 uModel;
+uniform vec3 uCamera;uniform vec3 uLight;
+uniform float uTime;uniform float uSeed;uniform float uThin;uniform float uFocus;
+uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
+uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
+float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float vnoise2(vec2 p){
+  vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(hash2(i),hash2(i+vec2(1.0,0.0)),u.x),
+             mix(hash2(i+vec2(0.0,1.0)),hash2(i+vec2(1.0,1.0)),u.x),u.y);
+}
+float fbm2(vec2 p){
+  float v=0.0;float a=0.5;vec2 q=p;
+  for(int i=0;i<4;i++){v+=a*vnoise2(q);q*=2.03;a*=0.5;}
+  return v;
+}
+float shadowFactor(vec3 p,vec3 L){
+  float s=1.0;
+  for(int i=0;i<8;i++){
+    if(i>=uShadowCount)break;
+    vec4 sph=uShadowSpheres[i];
+    vec3 d=sph.xyz-p;
+    float t=dot(d,L);
+    if(t<=0.0)continue;
+    float c2=dot(d,d)-t*t;
+    float R=sph.w;float R2=R*R;
+    s*=smoothstep(R2,R2*1.10,c2);
+  }
+  return s;
+}
+float aaStep(float e0,float e1,float x,float w){
+  if(e0<=e1)return smoothstep(e0-w,e1+w,x);
+  return 1.0-smoothstep(e1-w,e0+w,x);
+}
+void main(){
+  float radial=vRadial;
+  float angle=vAngle;
+  float time=uTime;
+  float seed=uSeed;
+  float h1=fract(sin(seed*0.937+1.0)*43758.5);
+  float h2=fract(sin(seed*0.357+2.5)*21758.3);
+  float h3=fract(sin(seed*0.713+5.7)*7853.7);
+  float h4=fract(sin(seed*0.521+8.2)*51247.7);
+  float bandFreqBroad=70.0+h1*70.0;
+  float gap1Freq=5.0+h2*9.0;
+  float gap2Freq=12.0+h3*11.0;
+  float gap2Phase=h4*6.2831853;
+  float innerBroad=0.02+h2*0.18;
+  float outerBroad=0.82+h3*0.12;
+  float isThin=uThin;
+  float bandFreq=mix(bandFreqBroad,115.0,isThin);
+  float innerStart=mix(innerBroad,0.55,isThin);
+  float outerEnd=mix(outerBroad,0.76,isThin);
+  float outerFadeStart=mix(1.0,outerEnd+0.06,isThin);
+  float rw=fwidth(radial);
+  float edge=aaStep(innerStart,innerStart+0.06,radial,rw)*
+             aaStep(outerFadeStart,outerEnd,radial,rw);
+  float bands=0.5+0.5*cos(radial*bandFreq-0.6*sin(angle*7.0+time*0.03));
+  vec2 np=vec2(radial*22.0,angle*3.2);
+  float n=fbm2(np)*0.65+fbm2(np*2.7+vec2(11.0,5.0))*0.35;
+  float dv=bands*0.85+n*0.35;
+  float density=aaStep(0.20,0.85,dv,fwidth(dv));
+  float s1=0.5+0.5*sin(radial*gap1Freq+h2*6.28);
+  float s2=0.5+0.5*sin(radial*gap2Freq+gap2Phase);
+  float g1=aaStep(0.88,0.95,s1,fwidth(s1));
+  float g2=aaStep(0.92,0.97,s2,fwidth(s2));
+  float gap=clamp(g1+g2*0.7,0.0,1.0);
+  float opaq=max(0.0,density-gap*0.85);
+  float a=edge*(0.18+0.55*opaq)*(0.5+0.5*uFocus);
+  vec2 ang2=vec2(cos(angle),sin(angle));
+  float zoneR=fbm2(vec2(radial*4.5,1.7+h1*6.28));
+  float zoneA=fbm2(ang2*1.7+vec2(h4*5.0,radial*2.1));
+  float palT=clamp(zoneR*0.75+zoneA*0.55-0.10,0.0,1.0);
+  vec3 pal01=mix(uLow,uMid,smoothstep(0.0,0.55,palT));
+  vec3 paletteCol=mix(pal01,uHigh,smoothstep(0.50,1.0,palT));
+  float densityWarm=smoothstep(0.55,0.92,density);
+  vec3 zonedCol=mix(paletteCol,uHigh,densityWarm*0.30);
+  float chroma=vnoise2(ang2*7.3+vec2(radial*9.0,h2*5.0));
+  vec3 chromaCol=mix(uLow,uHigh,chroma);
+  vec3 variedCol=mix(zonedCol,chromaCol,0.18);
+  vec2 grainP=vec2(radial*22.0,0.0)+ang2*8.5;
+  float grain=vnoise2(grainP+vec2(33.0,17.0));
+  float grainBright=0.85+0.30*(grain-0.5);
+  float densityShade=mix(0.70,1.05,smoothstep(0.20,0.85,density));
+  vec3 baseCol=variedCol*densityShade*grainBright;
+  vec3 L=normalize(uLight);
+  float shadow=shadowFactor(vWorld,L);
+  vec3 V=normalize(uCamera-vWorld);
+  float fwd=pow(max(dot(V,-L),0.0),3.0)*shadow;
+  vec3 scatterTint=mix(uMid,uHigh,0.75);
+  float scatterBoost=1.0+fwd*3.2;
+  vec3 scatterCol=mix(vec3(1.0),scatterTint*1.7,fwd);
+  vec3 col0=baseCol*mix(0.0,1.0,shadow)*scatterBoost*scatterCol;
+  float cosA=cos(angle);
+  float sinA=sin(angle);
+  vec3 T=normalize((uModel*vec4(-sinA,0.0,cosA,0.0)).xyz);
+  vec3 HV=L+V;
+  float Hlen=max(length(HV),1e-4);
+  vec3 H=HV/Hlen;
+  float TdotH=dot(T,H);
+  float sinTH=sqrt(max(0.0,1.0-TdotH*TdotH));
+  float anisoBroad=pow(sinTH,18.0);
+  float anisoTight=pow(sinTH,72.0);
+  float aniso=anisoBroad*0.40+anisoTight*0.95;
+  float anisoMask=(0.25+0.75*smoothstep(0.25,0.85,density))
+                *(0.55+0.45*smoothstep(0.30,0.95,grain))
+                *shadow;
+  vec3 anisoCol=mix(uHigh,vec3(1.0),0.60)*1.35;
+  vec3 col=col0+anisoCol*aniso*anisoMask;
+  float alphaGain=1.0+fwd*(0.45+1.40*(1.0-smoothstep(0.45,0.92,density)));
+  float aFinal=a*alphaGain;
+  float dCam=distance(vWorld,uCamera);
+  float sf=dCam*0.030;
+  float fade=exp(-sf*sf);
+  frag=vec4(col*aFinal*1.4*fade,aFinal*fade);
+}`;
+const PRESENT_VERT = `#version 300 es
+out vec2 vUv;
+void main(){
+  vec2 p = vec2((gl_VertexID == 2) ? 3.0 : -1.0, (gl_VertexID == 1) ? 3.0 : -1.0);
+  vUv = p * 0.5 + 0.5;
+  gl_Position = vec4(p, 0.0, 1.0);
+}`;
+const PRESENT_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uScene;
+out vec4 frag;
+void main(){
+  vec3 c = texture(uScene, vUv).rgb;
+  frag = vec4(pow(c, vec3(1.0/2.2)), 1.0);
+}`;
+
 // Atmospheric scattering shell: marches the view ray through a sphere slightly
 // larger than the planet, accumulating altitude-weighted, sun-lit density for a
 // soft blue limb glow. Reuses PLANET_VERT (only uModel/uViewProj attributes).
@@ -875,7 +1038,19 @@ export class WebGL2Renderer implements SceneRenderer {
   private wire!: Program;
   private atmosphere!: Program;
   private clouds!: Program;
+  private ring!: Program;
   private flight!: Program;
+  private present!: Program;
+
+  // Offscreen scene target: the scene is rendered (and per-shader tonemapped)
+  // in linear space into a multisampled buffer, resolved to a texture, then
+  // presented to the canvas with the sRGB gamma encode. Mirrors the WebGPU
+  // HDR-scene + composite split so both backends match in brightness.
+  private msaaFbo: WebGLFramebuffer | null = null;
+  private msaaColor: WebGLRenderbuffer | null = null;
+  private msaaDepth: WebGLRenderbuffer | null = null;
+  private resolveFbo: WebGLFramebuffer | null = null;
+  private sceneTex: WebGLTexture | null = null;
 
   private sphereVao!: WebGLVertexArrayObject;
   private sphereCount = 0;
@@ -886,6 +1061,9 @@ export class WebGL2Renderer implements SceneRenderer {
   private sphereWireVao!: WebGLVertexArrayObject;
   private sphereLineCount = 0;
   private sphereLineU32 = false;
+  private ringVao!: WebGLVertexArrayObject;
+  private ringCount = 0;
+  private ringU32 = false;
 
   private starVao!: WebGLVertexArrayObject;
   private starCount = 0;
@@ -967,9 +1145,15 @@ export class WebGL2Renderer implements SceneRenderer {
       'uTime', 'uSeed', 'uVisibility', 'uReducedMotion',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
+    this.ring = this.makeProgram(RING_VERT, RING_FRAG, [
+      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
+      'uTime', 'uSeed', 'uThin', 'uFocus',
+      'uShadowCount', 'uShadowSpheres[0]',
+    ]);
     this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
       'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe',
     ]);
+    this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene']);
 
     await report(0.75, 'Building scene geometry…');
     this.buildSphere();
@@ -1065,6 +1249,27 @@ export class WebGL2Renderer implements SceneRenderer {
     this.moonSphereVao = moonVao;
     this.moonSphereCount = moonGeo.indexCount;
     this.moonSphereU32 = moonGeo.indices instanceof Uint32Array;
+
+    // Ring annulus (flat, lies in XZ). Enables the uv attribute (location 2)
+    // because the ring shader needs radial/angle from uv, unlike the sphere.
+    const ringGeo = createRingGeometry(1.35, 2.1, 96);
+    const ringData = interleave(ringGeo);
+    const ringVao = gl.createVertexArray()!;
+    gl.bindVertexArray(ringVao);
+    const ringVbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, ringVbo);
+    gl.bufferData(gl.ARRAY_BUFFER, ringData, gl.STATIC_DRAW);
+    const ringIbo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ringIbo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ringGeo.indices, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
+    gl.bindVertexArray(null);
+    this.ringVao = ringVao;
+    this.ringCount = ringGeo.indexCount;
+    this.ringU32 = ringGeo.indices instanceof Uint32Array;
   }
 
   private buildStars(count: number): void {
@@ -1230,11 +1435,70 @@ export class WebGL2Renderer implements SceneRenderer {
     this.canvas.width = this.width;
     this.canvas.height = this.height;
     this.gl.viewport(0, 0, this.width, this.height);
+    this.ensureSceneTargets();
+  }
+
+  // (Re)create the offscreen MSAA color/depth renderbuffers and the resolve
+  // texture at the current canvas size. Called on every resize.
+  private ensureSceneTargets(): void {
+    const gl = this.gl;
+    const w = this.width;
+    const h = this.height;
+    if (this.msaaColor) gl.deleteRenderbuffer(this.msaaColor);
+    if (this.msaaDepth) gl.deleteRenderbuffer(this.msaaDepth);
+    if (this.msaaFbo) gl.deleteFramebuffer(this.msaaFbo);
+    if (this.sceneTex) gl.deleteTexture(this.sceneTex);
+    if (this.resolveFbo) gl.deleteFramebuffer(this.resolveFbo);
+
+    const maxSamples = gl.getParameter(gl.MAX_SAMPLES) as number;
+    const samples = Math.min(4, maxSamples);
+
+    const color = gl.createRenderbuffer()!;
+    gl.bindRenderbuffer(gl.RENDERBUFFER, color);
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.RGBA8, w, h);
+    const depth = gl.createRenderbuffer()!;
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
+    gl.renderbufferStorageMultisample(
+      gl.RENDERBUFFER,
+      samples,
+      gl.DEPTH_COMPONENT24,
+      w,
+      h,
+    );
+    const msaa = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, msaa);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const resolve = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, resolve);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    this.msaaFbo = msaa;
+    this.msaaColor = color;
+    this.msaaDepth = depth;
+    this.resolveFbo = resolve;
+    this.sceneTex = tex;
   }
 
   render(frame: FrameState): void {
     const gl = this.gl;
     this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: this.estimateMemoryMB() };
+    if (!this.msaaFbo) this.ensureSceneTargets();
+    // Render the scene into the offscreen multisampled (linear) target; the
+    // present pass below resolves it and applies the sRGB gamma encode.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.msaaFbo);
     gl.viewport(0, 0, this.width, this.height);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1386,6 +1650,12 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.depthMask(false);
       gl.enable(gl.CULL_FACE);
       gl.cullFace(gl.BACK);
+      // The sphere mesh winds its outward faces clockwise (WebGPU declares the
+      // planet pipeline frontFace='cw'); WebGL2 defaults to CCW, so without
+      // this the BACK cull would remove the near/outer shell faces and leave
+      // only the far faces, which depth-fail against the planet (clouds would
+      // appear only as a thin silhouette rim).
+      gl.frontFace(gl.CW);
       gl.useProgram(this.clouds.prog);
       gl.uniformMatrix4fv(this.clouds.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform3fv(this.clouds.uniforms.uCamera!, frame.cameraPos);
@@ -1412,6 +1682,7 @@ export class WebGL2Renderer implements SceneRenderer {
         this.stats.triangles += this.sphereCount / 3;
       }
       gl.disable(gl.CULL_FACE);
+      gl.frontFace(gl.CCW);
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }
@@ -1446,6 +1717,54 @@ export class WebGL2Renderer implements SceneRenderer {
     }
     gl.disable(gl.CULL_FACE);
     gl.depthMask(true);
+
+    // Planetary rings (alpha-blended, double-sided, depth-test but no write).
+    // Drawn after the atmosphere to match the WebGPU draw order. The ring tilt
+    // is composed with the planet's orientation so rings stay locked to the
+    // equator as the planet spins or is dragged.
+    const anyRings = frame.planets.some((p) => p.hasRing && p.visibility > 0.02);
+    if (anyRings) {
+      gl.enable(gl.BLEND);
+      gl.blendFuncSeparate(
+        gl.SRC_ALPHA,
+        gl.ONE_MINUS_SRC_ALPHA,
+        gl.ONE,
+        gl.ONE_MINUS_SRC_ALPHA,
+      );
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);
+      gl.useProgram(this.ring.prog);
+      gl.uniformMatrix4fv(this.ring.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform3fv(this.ring.uniforms.uCamera!, frame.cameraPos);
+      gl.uniform3fv(this.ring.uniforms.uLight!, frame.keyLightDir);
+      gl.uniform1f(this.ring.uniforms.uTime!, frame.time);
+      this.bindShadowUniforms(this.ring, frame);
+      gl.bindVertexArray(this.ringVao);
+      const ringIdxType = this.ringU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+      for (const p of frame.planets) {
+        if (!p.hasRing) continue;
+        const vis = p.visibility;
+        if (vis <= 0.02) continue;
+        const er = p.radius * vis;
+        const ringRot = quat.multiply(
+          p.orientation,
+          quat.fromAxisAngle([1, 0, 0.2], p.ringTilt),
+        );
+        mat4.fromRotationTranslationScale(model, ringRot, p.center, er);
+        gl.uniformMatrix4fv(this.ring.uniforms.uModel!, false, model);
+        gl.uniform3fv(this.ring.uniforms.uLow!, p.paletteLow);
+        gl.uniform3fv(this.ring.uniforms.uMid!, p.paletteMid);
+        gl.uniform3fv(this.ring.uniforms.uHigh!, p.paletteHigh);
+        gl.uniform1f(this.ring.uniforms.uSeed!, p.seed % 100000);
+        gl.uniform1f(this.ring.uniforms.uThin!, p.thinRing ? 1 : 0);
+        gl.uniform1f(this.ring.uniforms.uFocus!, p.focus);
+        gl.drawElements(gl.TRIANGLES, this.ringCount, ringIdxType, 0);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.ringCount / 3;
+      }
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
     }
 
     // POIs (additive points, depth-tested so planets occlude them).
@@ -1509,6 +1828,27 @@ export class WebGL2Renderer implements SceneRenderer {
 
     gl.bindVertexArray(null);
     gl.disable(gl.BLEND);
+
+    // Resolve the multisampled scene into the single-sample texture, then
+    // present it to the canvas with the sRGB gamma encode (matches the
+    // pow(1/2.2) tail of the WebGPU composite pass).
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msaaFbo);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.resolveFbo);
+    gl.blitFramebuffer(
+      0, 0, this.width, this.height,
+      0, 0, this.width, this.height,
+      gl.COLOR_BUFFER_BIT, gl.NEAREST,
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.width, this.height);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.useProgram(this.present.prog);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
+    gl.uniform1i(this.present.uniforms.uScene!, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    this.stats.drawCalls++;
   }
 
   // Build per-segment instance data (prev.xyz, next.xyz) from the trajectory

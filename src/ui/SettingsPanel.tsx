@@ -1,6 +1,6 @@
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import type { QualityPreference } from '@/engine/QualityManager';
-import type { ReducedMotionPref } from '@/settings';
+import type { ReducedMotionPref, BackendPref } from '@/settings';
 import { UI } from './strings';
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
@@ -39,6 +39,21 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           <option value="auto">System</option>
           <option value="off">Full motion</option>
           <option value="on">Reduced</option>
+        </select>
+      </div>
+
+      <div className="row">
+        <label htmlFor="set-backend">Renderer</label>
+        <select
+          id="set-backend"
+          value={s.forceBackend}
+          onChange={(e) =>
+            engine.setForceBackend(e.target.value as BackendPref)
+          }
+        >
+          <option value="auto">Auto</option>
+          <option value="webgpu">WebGPU</option>
+          <option value="webgl2">WebGL</option>
         </select>
       </div>
 
