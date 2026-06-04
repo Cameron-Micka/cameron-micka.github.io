@@ -146,15 +146,103 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let opaq = max(0.0, density - gap * 0.85);
 
   let a = edge * (0.18 + 0.55 * opaq) * (0.5 + 0.5 * obj.p1.x);
-  let baseCol = mix(obj.palMid.rgb * 0.75, obj.palHigh.rgb, smoothstep(0.2, 0.85, density));
-  // Planet shadow on the ring: dim the color (keep alpha so the silhouette
+
+  // Broad colour zones: low-frequency fBm in both radial AND angular axes
+  // picks a position across the planet's 3-colour palette (low/mid/high).
+  // The radial term gives Saturn-style concentric C/B/A zones; the angular
+  // term breaks the perfect circles so colour also drifts as you sweep
+  // around the ring (one arc leans dusty/dark, the opposite arc leans icy/
+  // bright) — real rings vary in composition along their circumference too,
+  // not just radially. Sampled on a unit circle (cos,sin) so noise is
+  // seamless at the angle=0/2π wrap. Seeded per planet so each ringed body
+  // gets a unique zone layout.
+  let ang2 = vec2<f32>(cos(angle), sin(angle));
+  let zoneR = fbm2(vec2<f32>(radial * 4.5, 1.7 + h1 * 6.28));
+  let zoneA = fbm2(ang2 * 1.7 + vec2<f32>(h4 * 5.0, radial * 2.1));
+  let palT = clamp(zoneR * 0.75 + zoneA * 0.55 - 0.10, 0.0, 1.0);
+  let pal01 = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.0, 0.55, palT));
+  let paletteCol = mix(pal01, obj.palHigh.rgb, smoothstep(0.50, 1.0, palT));
+  // The densest sub-bands lean slightly further toward palHigh, as if the
+  // brighter dust concentrates in the tightest stripes.
+  let densityWarm = smoothstep(0.55, 0.92, density);
+  let zonedCol = mix(paletteCol, obj.palHigh.rgb, densityWarm * 0.30);
+  // Mid-frequency angular chroma jitter: small chunks of dust pick up a
+  // slight palette shift around the ring so even within a single band the
+  // hue varies along the circumference, not just brightness — mimics
+  // distinct particle compositions clumping together. Seamless via ang2.
+  let chroma = vnoise2(ang2 * 7.3 + vec2<f32>(radial * 9.0, h2 * 5.0));
+  let chromaCol = mix(obj.palLow.rgb, obj.palHigh.rgb, chroma);
+  let variedCol = mix(zonedCol, chromaCol, 0.18);
+  // Fine high-frequency grain modulates brightness +/-15% so bands have a
+  // dusty, granular texture instead of reading as flat fills. Sampled on
+  // ang2 * frequency so it stays seamless around the loop.
+  let grainP = vec2<f32>(radial * 22.0, 0.0) + ang2 * 8.5;
+  let grain = vnoise2(grainP + vec2<f32>(33.0, 17.0));
+  let grainBright = 0.85 + 0.30 * (grain - 0.5);
+  // Density-driven luminance keeps the sparse outer dust readably dimmer
+  // than the bright core bands (matches the pre-refactor look).
+  let densityShade = mix(0.70, 1.05, smoothstep(0.20, 0.85, density));
+
+  let baseCol = variedCol * densityShade * grainBright;
+  // Planet shadow on the ring: dim the colour (keep alpha so the silhouette
   // stays the same). Sun direction (L) points from receiver toward the sun.
-  let shadow = shadowFactor(in.worldPos, normalize(frame.keyLightDir.xyz));
-  let col = baseCol * mix(0.18, 1.0, shadow);
+  let L = normalize(frame.keyLightDir.xyz);
+  let shadow = shadowFactor(in.worldPos, L);
+  // Fake subsurface / forward scattering: real ring particles are tiny
+  // translucent ice and dust grains that scatter light forward through
+  // their bodies. When the viewer looks roughly toward the sun through the
+  // ring, individual grains glow as the light passes through — the famous
+  // back-lit Cassini "Saturn from the dark side" look. Strongest in sparse
+  // dust (low density) where the per-grain translucency dominates, biased
+  // toward palHigh (icy/bright tone). Gated by shadow so a particle in the
+  // planet's umbra can't scatter sunlight it isn't receiving.
+  let V = normalize(frame.cameraPos.xyz - in.worldPos);
+  let fwd = pow(max(dot(V, -L), 0.0), 3.0) * shadow;
+  let scatterTint = mix(obj.palMid.rgb, obj.palHigh.rgb, 0.75);
+  let scatterBoost = 1.0 + fwd * 3.2;
+  let scatterCol = mix(vec3<f32>(1.0), scatterTint * 1.7, fwd);
+  let col0 = baseCol * mix(0.0, 1.0, shadow) * scatterBoost * scatterCol;
+  // Anisotropic specular highlights (Kajiya-Kay model). Ring particles
+  // orbit in concentric circular tracks, so the dust/ice surface acts like
+  // brushed metal with "grooves" running tangentially around the ring.
+  // The reflection lobe stretches perpendicular to those grooves, giving
+  // the characteristic bright spec streak that runs along the ring on the
+  // sun-lit side — the look in Saturn reference shots. Unlike Blinn-Phong
+  // (which needs H ≈ N and fails at grazing angles for flat rings), this
+  // fires correctly at any view angle since it only cares about how the
+  // half-vector aligns with the local circumferential tangent.
+  let cosA = cos(angle);
+  let sinA = sin(angle);
+  // Local tangent (along circumference) transformed into world space.
+  // Object-space ring lies in XZ; circumferential direction is (-sin, 0, cos).
+  let T = normalize((obj.model * vec4<f32>(-sinA, 0.0, cosA, 0.0)).xyz);
+  let HV = L + V;
+  let Hlen = max(length(HV), 1e-4);
+  let H = HV / Hlen;
+  let TdotH = dot(T, H);
+  let sinTH = sqrt(max(0.0, 1.0 - TdotH * TdotH));
+  // Two lobes: a broad halo + a tight streak, both perpendicular to the
+  // tangent direction. Together they give a soft glow with a hot core.
+  let anisoBroad = pow(sinTH, 18.0);
+  let anisoTight = pow(sinTH, 72.0);
+  let aniso = anisoBroad * 0.40 + anisoTight * 0.95;
+  // Dense bands shine; sparse outer dust gets only a faint contribution.
+  // Grain adds per-particle sparkle so the streak isn't a smooth band.
+  let anisoMask = (0.25 + 0.75 * smoothstep(0.25, 0.85, density))
+                * (0.55 + 0.45 * smoothstep(0.30, 0.95, grain))
+                * shadow;
+  let anisoCol = mix(obj.palHigh.rgb, vec3<f32>(1.0), 0.60) * 1.35;
+  let col = col0 + anisoCol * aniso * anisoMask;
+  // Thin back-lit dust becomes more visible (translucent grains catch the
+  // sun) — boost alpha where density is low and forward scatter is high.
+  // Even the densest bands get a smaller alpha lift so the whole ring
+  // brightens dramatically when fully back-lit.
+  let alphaGain = 1.0 + fwd * (0.45 + 1.40 * (1.0 - smoothstep(0.45, 0.92, density)));
+  let aFinal = a * alphaGain;
   // Distance fog: attenuate both colour and alpha so distant rings fade into
   // the nebula instead of stamping silhouettes over far-off planets.
   let d = distance(in.worldPos, frame.cameraPos.xyz);
   let s = d * 0.030;
   let fade = exp(-s * s);
-  return vec4<f32>(col * a * 1.4 * fade, a * fade);
+  return vec4<f32>(col * aFinal * 1.4 * fade, aFinal * fade);
 }

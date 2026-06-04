@@ -389,44 +389,121 @@ void main(){
 const POINT_FRAG = `#version 300 es
 precision highp float;
 in vec4 vAttr;in vec3 vColor;in float vDigit;
+uniform float uWireframe;
 out vec4 frag;
-// 3x5 bitmap glyphs for 1..9 packed row-major into 15 bits (bit row*3+col).
-int digitBits(int d){
-  if(d==1)return 29850;
-  if(d==2)return 29671;
-  if(d==3)return 31207;
-  if(d==4)return 18925;
-  if(d==5)return 31183;
-  if(d==6)return 31695;
-  if(d==7)return 9383;
-  if(d==8)return 31727;
-  if(d==9)return 31215;
-  return 0;
+// Roman numerals I..IX rendered as a union of line-segment SDFs in a
+// normalized glyph-local box [-1,1]x[-1,1]. Each numeral lists its strokes;
+// the fragment unions them by min-distance and masks the pixel by
+// smoothstep of distance vs. stroke half-width. Variable-width numerals
+// (VIII especially) fit cleanly without bitmap rasterization artifacts.
+float segDist(vec2 p,vec2 a,vec2 b){
+  vec2 pa=p-a;vec2 ba=b-a;
+  float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-6),0.0,1.0);
+  return length(pa-ba*h);
 }
-float digitMask(vec2 uv,int d){
-  // gl_PointCoord origin is upper-left, so uv.y=-1 is the top of the marker.
-  float halfW=0.20;float halfH=0.30;
-  float cx=(uv.x+halfW)/(halfW*2.0)*3.0;
-  float cy=(uv.y+halfH)/(halfH*2.0)*5.0;
-  if(cx<0.0||cx>=3.0||cy<0.0||cy>=5.0)return 0.0;
-  int col=int(floor(cx));int row=int(floor(cy));
-  int bits=digitBits(d);
-  int mask=1<<(row*3+col);
-  return ((bits&mask)!=0)?1.0:0.0;
+float iStem(vec2 p,float x){
+  // Capital-I stroke: vertical body plus short horizontal top + bottom
+  // serifs so multi-I numerals don't read as pause-button bars.
+  float body=segDist(p,vec2(x,-1.0),vec2(x,1.0));
+  float top=segDist(p,vec2(x-0.2,1.0),vec2(x+0.2,1.0));
+  float bot=segDist(p,vec2(x-0.2,-1.0),vec2(x+0.2,-1.0));
+  return min(body,min(top,bot));
+}
+float romanDist(vec2 p,int d){
+  float dm=1e9;
+  if(d==1){
+    dm=min(dm,iStem(p,0.0));
+  }else if(d==2){
+    dm=min(dm,iStem(p,-0.5));
+    dm=min(dm,iStem(p,0.5));
+  }else if(d==3){
+    dm=min(dm,iStem(p,-0.8));
+    dm=min(dm,iStem(p,0.0));
+    dm=min(dm,iStem(p,0.8));
+  }else if(d==4){
+    dm=min(dm,iStem(p,-0.6));
+    dm=min(dm,segDist(p,vec2(-0.05,1.0),vec2(0.3,-1.0)));
+    dm=min(dm,segDist(p,vec2(0.65,1.0),vec2(0.3,-1.0)));
+  }else if(d==5){
+    dm=min(dm,segDist(p,vec2(-0.6,1.0),vec2(0.0,-1.0)));
+    dm=min(dm,segDist(p,vec2(0.6,1.0),vec2(0.0,-1.0)));
+  }else if(d==6){
+    dm=min(dm,segDist(p,vec2(-0.65,1.0),vec2(-0.3,-1.0)));
+    dm=min(dm,segDist(p,vec2(0.05,1.0),vec2(-0.3,-1.0)));
+    dm=min(dm,iStem(p,0.6));
+  }else if(d==7){
+    dm=min(dm,segDist(p,vec2(-0.75,1.0),vec2(-0.45,-1.0)));
+    dm=min(dm,segDist(p,vec2(-0.15,1.0),vec2(-0.45,-1.0)));
+    dm=min(dm,iStem(p,0.25));
+    dm=min(dm,iStem(p,0.75));
+  }else if(d==8){
+    dm=min(dm,segDist(p,vec2(-0.85,1.0),vec2(-0.6,-1.0)));
+    dm=min(dm,segDist(p,vec2(-0.35,1.0),vec2(-0.6,-1.0)));
+    dm=min(dm,iStem(p,0.0));
+    dm=min(dm,iStem(p,0.4));
+    dm=min(dm,iStem(p,0.8));
+  }else if(d==9){
+    dm=min(dm,iStem(p,-0.7));
+    dm=min(dm,segDist(p,vec2(-0.2,1.0),vec2(0.6,-1.0)));
+    dm=min(dm,segDist(p,vec2(0.6,1.0),vec2(-0.2,-1.0)));
+  }
+  return dm;
 }
 void main(){
   vec2 uv=gl_PointCoord*2.0-1.0;
   float d=length(uv);
   if(vAttr.z>0.5){
+    if(uWireframe>0.5){
+      // Wireframe debug: render the underlying billboard quad as cyan
+      // edges plus the diagonal that splits its two triangles (matches
+      // WebGPU: shared edge runs (1,-1) -> (-1,1), i.e. uv.x+uv.y=0).
+      float edgeDist=min(1.0-abs(uv.x),1.0-abs(uv.y));
+      float diagDist=abs(uv.x+uv.y)*0.70710678;
+      float lineDist=min(edgeDist,diagDist);
+      float aaLine=length(vec2(dFdx(lineDist),dFdy(lineDist)));
+      float a=(1.0-smoothstep(0.0,1.5*aaLine,lineDist))*vAttr.y;
+      frag=vec4(vec3(0.25,1.0,0.85)*a,a);
+      return;
+    }
     float radius=0.85;
-    float aa=fwidth(d);
-    float outline=(1.0-smoothstep(aa,aa+aa,abs(d-radius)))*vAttr.y;
-    float glyph=digitMask(uv,int(vDigit+0.5))*vAttr.y;
-    float a=max(outline,glyph);
+    // Isotropic AA: use the L2 norm of (dFdx, dFdy) instead of fwidth()
+    // (which is L1 and gives a slightly wider band at the diagonals,
+    // making the ring read as bulgier at corners than at cardinals).
+    float aa=length(vec2(dFdx(d),dFdy(d)));
+    // Thin ring: AA-only smoothstep from peak (d=radius) out to 1.5*aa.
+    // No solid core so the line reads ~1.5px wide regardless of marker
+    // size.
+    float outline=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y;
+    // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW
+    // is wide enough to fit even VIII (the broadest numeral) without
+    // crowding the ring at radius 0.85. gl_PointCoord origin is upper-left,
+    // so we flip Y here to match the glyph-local convention where +y = top.
+    float halfW=0.28;float halfH=0.30;
+    vec2 gp=vec2(uv.x/halfW,-uv.y/halfH);
+    int dig=int(vDigit+0.5);
+    float glyphDist=romanDist(gp,dig);
+    // One screen pixel in glyph-local units (isotropic AA).
+    vec2 dgx=dFdx(gp);vec2 dgy=dFdy(gp);
+    float aaG=sqrt(dot(dgx,dgx)+dot(dgy,dgy))*0.5;
+    float strokeW=0.16;
+    float glyphAlpha=(1.0-smoothstep(strokeW-aaG,strokeW+aaG,glyphDist))*vAttr.y;
+    float a=max(outline,glyphAlpha);
     frag=vec4(vec3(a),a);
   }else{
+    if(uWireframe>0.5){
+      // Wireframe debug: render the billboard quad as cyan edges + diagonal,
+      // matching the planet wireframe style instead of a glowing point.
+      float edgeDist=min(1.0-abs(uv.x),1.0-abs(uv.y));
+      float diagDist=abs(uv.x+uv.y)*0.70710678;
+      float lineDist=min(edgeDist,diagDist);
+      float aaLine=length(vec2(dFdx(lineDist),dFdy(lineDist)));
+      float a=1.0-smoothstep(0.0,1.5*aaLine,lineDist);
+      frag=vec4(vec3(0.25,1.0,0.85)*a,a);
+      return;
+    }
     float core=pow(smoothstep(1.0,0.0,d),4.0)*vAttr.x;
-    frag=vec4(mix(vec3(0.7,0.8,1.0),vColor,0.5)*core*1.6,core);
+    vec3 baseCol=mix(vec3(0.7,0.8,1.0),vColor,0.5);
+    frag=vec4(baseCol*core*1.6,core);
   }
 }`;
 
@@ -445,6 +522,7 @@ uniform float uThick;  // half-thickness in aspect-corrected NDC
 uniform float uHeight; // viewport height in pixels
 out vec4 vColor;
 out float vEdge;
+out float vAxial;
 void main(){
   vec2 ac=vec2(uAspect,1.0);
   vec4 ci=uViewProj*vec4(aInner,1.0);
@@ -468,18 +546,37 @@ void main(){
   gl_Position=vec4(ndc*w,z,w);
   vColor=aColor;
   vEdge=aParam.x;
+  vAxial=aParam.y;
 }`;
 
 const LINE_FRAG = `#version 300 es
 precision highp float;
 in vec4 vColor;
 in float vEdge;
+in float vAxial;
+uniform float uWireframe;
 out vec4 frag;
 void main(){
+  if(uWireframe>0.5){
+    // Wireframe debug: 4 quad edges + diagonal (axial = 0.5*(edge+1)).
+    float edgeD=1.0-abs(vEdge);
+    float axialD=min(vAxial,1.0-vAxial);
+    float diagD=abs(vAxial-0.5*(vEdge+1.0));
+    float aaE=fwidth(edgeD);
+    float aaA=fwidth(axialD);
+    float aaD=fwidth(diagD);
+    float covE=1.0-smoothstep(0.0,1.5*aaE,edgeD);
+    float covA=1.0-smoothstep(0.0,1.5*aaA,axialD);
+    float covD=1.0-smoothstep(0.0,1.5*aaD,diagD);
+    float a=max(covE,max(covA,covD));
+    frag=vec4(vec3(0.25,1.0,0.85)*a,a);
+    return;
+  }
   float aa=fwidth(vEdge);
   float cov=1.0-smoothstep(1.0-aa,1.0,abs(vEdge));
   float a=vColor.a*cov;
-  frag=vec4((vColor.rgb+0.15)*a,a);
+  vec3 base=vColor.rgb+0.15;
+  frag=vec4(base*a,a);
 }`;
 
 // Spacecraft trajectory ribbon. Camera-facing quad per polyline segment,
@@ -492,6 +589,7 @@ uniform float uAspect;
 uniform float uThick; // half-thickness in aspect-corrected NDC
 out float vEdge;
 out vec3 vWorld;
+out float vAxial;
 void main(){
   const float ends[6]  = float[6](0.0, 1.0, 1.0, 0.0, 1.0, 0.0);
   const float sides[6] = float[6](-1.0, -1.0, 1.0, -1.0, 1.0, 1.0);
@@ -515,16 +613,34 @@ void main(){
   gl_Position = vec4(ndc * w, z, w);
   vEdge = side;
   vWorld = isEnd ? aNext : aPrev;
+  vAxial = ends[vid];
 }`;
 
 const FLIGHT_FRAG = `#version 300 es
 precision highp float;
 in float vEdge;
 in vec3 vWorld;
+in float vAxial;
 uniform vec3 uCamera;
+uniform float uWireframe;
 out vec4 frag;
 const float FOG_DENSITY=0.030;
 void main(){
+  if(uWireframe>0.5){
+    // Wireframe debug: 4 quad edges + diagonal of each segment.
+    float edgeD=1.0-abs(vEdge);
+    float axialD=min(vAxial,1.0-vAxial);
+    float diagD=abs(vAxial-0.5*(vEdge+1.0));
+    float aaE=fwidth(edgeD);
+    float aaA=fwidth(axialD);
+    float aaD=fwidth(diagD);
+    float covE=1.0-smoothstep(0.0,1.5*aaE,edgeD);
+    float covA=1.0-smoothstep(0.0,1.5*aaA,axialD);
+    float covD=1.0-smoothstep(0.0,1.5*aaD,diagD);
+    float a=max(covE,max(covA,covD));
+    frag=vec4(vec3(0.25,1.0,0.85)*a,a);
+    return;
+  }
   float aa=fwidth(vEdge);
   float cov=1.0-smoothstep(1.0-aa,1.0,abs(vEdge));
   float d=distance(vWorld,uCamera);
@@ -804,10 +920,10 @@ export class WebGL2Renderer implements SceneRenderer {
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
-      'uViewProj', 'uTime', 'uMode',
+      'uViewProj', 'uTime', 'uMode', 'uWireframe',
     ]);
     this.line = this.makeProgram(LINE_VERT, LINE_FRAG, [
-      'uViewProj', 'uAspect', 'uThick', 'uHeight',
+      'uViewProj', 'uAspect', 'uThick', 'uHeight', 'uWireframe',
     ]);
     this.wire = this.makeProgram(PLANET_VERT, WIRE_FRAG, ['uViewProj', 'uModel']);
     this.atmosphere = this.makeProgram(PLANET_VERT, ATMOSPHERE_FRAG, [
@@ -821,7 +937,7 @@ export class WebGL2Renderer implements SceneRenderer {
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
-      'uViewProj', 'uAspect', 'uThick', 'uCamera',
+      'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe',
     ]);
 
     this.buildSphere();
@@ -1084,6 +1200,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 0);
+      gl.uniform1f(this.point.uniforms.uWireframe!, 0);
       gl.bindVertexArray(this.starVao);
       gl.drawArrays(gl.POINTS, 0, Math.min(this.starCount, frame.quality.starCount));
       this.stats.drawCalls++;
@@ -1187,6 +1304,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 0);
+      gl.uniform1f(this.point.uniforms.uWireframe!, 0);
       gl.bindVertexArray(this.satVao);
       gl.drawArrays(gl.POINTS, 0, satCount);
       this.stats.drawCalls++;
@@ -1287,6 +1405,7 @@ export class WebGL2Renderer implements SceneRenderer {
         gl.uniform1f(this.line.uniforms.uAspect!, this.width / this.height);
         gl.uniform1f(this.line.uniforms.uThick!, 0.0035);
         gl.uniform1f(this.line.uniforms.uHeight!, this.height);
+        gl.uniform1f(this.line.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
         gl.bindVertexArray(this.poiLineVao);
         gl.drawArrays(gl.TRIANGLES, 0, this.poiLineVerts);
         this.stats.drawCalls++;
@@ -1295,6 +1414,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 1);
+      gl.uniform1f(this.point.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.poiVao);
       gl.drawArrays(gl.POINTS, 0, this.poiCount);
       gl.depthMask(true);
@@ -1320,8 +1440,9 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.useProgram(this.flight.prog);
       gl.uniformMatrix4fv(this.flight.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.flight.uniforms.uAspect!, this.width / this.height);
-      gl.uniform1f(this.flight.uniforms.uThick!, 0.0022);
+      gl.uniform1f(this.flight.uniforms.uThick!, 0.0032);
       gl.uniform3fv(this.flight.uniforms.uCamera!, frame.cameraPos);
+      gl.uniform1f(this.flight.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.flightVao);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.flightSegments);
       gl.depthMask(true);

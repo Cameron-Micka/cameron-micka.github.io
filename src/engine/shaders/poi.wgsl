@@ -38,52 +38,123 @@ fn vs(
   return out;
 }
 
-// 3x5 bitmap glyphs for the digits 1..9 packed row-major into 15 bits per
-// digit (bit `row*3 + col`, top-left = bit 0). 0 returns an empty glyph so
-// POIs with no assigned numeral render as a plain outline.
-fn digitBits(d : i32) -> u32 {
-  switch (d) {
-    case 1: { return 0x749Au; }
-    case 2: { return 0x73E7u; }
-    case 3: { return 0x79E7u; }
-    case 4: { return 0x49EDu; }
-    case 5: { return 0x79CFu; }
-    case 6: { return 0x7BCFu; }
-    case 7: { return 0x24A7u; }
-    case 8: { return 0x7BEFu; }
-    case 9: { return 0x79EFu; }
-    default: { return 0u; }
-  }
+// Roman numerals I..IX rendered as a union of line-segment SDFs in a
+// normalized glyph-local box [-1,1]x[-1,1]. Each numeral lists its strokes;
+// the fragment shader unions them by min-distance, then masks the marker
+// pixel by smoothstep of (distance vs. stroke half-width). Variable-width
+// numerals (VIII especially) fit cleanly without bitmap rasterization
+// artifacts.
+fn segDist(p : vec2<f32>, a : vec2<f32>, b : vec2<f32>) -> f32 {
+  let pa = p - a;
+  let ba = b - a;
+  let h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+  return length(pa - ba * h);
 }
 
-fn digitMask(uv : vec2<f32>, d : i32) -> f32 {
-  // Glyph occupies roughly the central 60% wide x 90% tall of the marker,
-  // leaving clearance from the outline ring at radius 0.85.
-  let halfW = 0.20;
-  let halfH = 0.30;
-  // uv.y is screen-up (NDC convention); row 0 is at the top, so we invert y.
-  let cx = (uv.x + halfW) / (halfW * 2.0) * 3.0;
-  let cy = (halfH - uv.y) / (halfH * 2.0) * 5.0;
-  if (cx < 0.0 || cx >= 3.0 || cy < 0.0 || cy >= 5.0) { return 0.0; }
-  let col = i32(floor(cx));
-  let row = i32(floor(cy));
-  let bits = digitBits(d);
-  let mask = 1u << u32(row * 3 + col);
-  return select(0.0, 1.0, (bits & mask) != 0u);
+fn iStem(p : vec2<f32>, x : f32) -> f32 {
+  // A capital-I stroke: the vertical body plus short horizontal serifs at
+  // top and bottom so multi-I numerals (II, III, ...) read as Roman
+  // numerals instead of pause-button bars.
+  let body = segDist(p, vec2<f32>(x, -1.0), vec2<f32>(x, 1.0));
+  let top = segDist(p, vec2<f32>(x - 0.2, 1.0), vec2<f32>(x + 0.2, 1.0));
+  let bot = segDist(p, vec2<f32>(x - 0.2, -1.0), vec2<f32>(x + 0.2, -1.0));
+  return min(body, min(top, bot));
+}
+
+fn romanDist(p : vec2<f32>, d : i32) -> f32 {
+  var dm : f32 = 1e9;
+  if (d == 1) {
+    // I
+    dm = min(dm, iStem(p, 0.0));
+  } else if (d == 2) {
+    // II
+    dm = min(dm, iStem(p, -0.5));
+    dm = min(dm, iStem(p, 0.5));
+  } else if (d == 3) {
+    // III
+    dm = min(dm, iStem(p, -0.8));
+    dm = min(dm, iStem(p, 0.0));
+    dm = min(dm, iStem(p, 0.8));
+  } else if (d == 4) {
+    // IV: I on the left, V on the right.
+    dm = min(dm, iStem(p, -0.6));
+    dm = min(dm, segDist(p, vec2<f32>(-0.05, 1.0), vec2<f32>(0.3, -1.0)));
+    dm = min(dm, segDist(p, vec2<f32>(0.65, 1.0), vec2<f32>(0.3, -1.0)));
+  } else if (d == 5) {
+    // V
+    dm = min(dm, segDist(p, vec2<f32>(-0.6, 1.0), vec2<f32>(0.0, -1.0)));
+    dm = min(dm, segDist(p, vec2<f32>(0.6, 1.0), vec2<f32>(0.0, -1.0)));
+  } else if (d == 6) {
+    // VI: V on the left, I on the right.
+    dm = min(dm, segDist(p, vec2<f32>(-0.65, 1.0), vec2<f32>(-0.3, -1.0)));
+    dm = min(dm, segDist(p, vec2<f32>(0.05, 1.0), vec2<f32>(-0.3, -1.0)));
+    dm = min(dm, iStem(p, 0.6));
+  } else if (d == 7) {
+    // VII
+    dm = min(dm, segDist(p, vec2<f32>(-0.75, 1.0), vec2<f32>(-0.45, -1.0)));
+    dm = min(dm, segDist(p, vec2<f32>(-0.15, 1.0), vec2<f32>(-0.45, -1.0)));
+    dm = min(dm, iStem(p, 0.25));
+    dm = min(dm, iStem(p, 0.75));
+  } else if (d == 8) {
+    // VIII: a narrower V on the left to make room for III on the right.
+    dm = min(dm, segDist(p, vec2<f32>(-0.85, 1.0), vec2<f32>(-0.6, -1.0)));
+    dm = min(dm, segDist(p, vec2<f32>(-0.35, 1.0), vec2<f32>(-0.6, -1.0)));
+    dm = min(dm, iStem(p, 0.0));
+    dm = min(dm, iStem(p, 0.4));
+    dm = min(dm, iStem(p, 0.8));
+  } else if (d == 9) {
+    // IX: I on the left, X on the right.
+    dm = min(dm, iStem(p, -0.7));
+    dm = min(dm, segDist(p, vec2<f32>(-0.2, 1.0), vec2<f32>(0.6, -1.0)));
+    dm = min(dm, segDist(p, vec2<f32>(0.6, 1.0), vec2<f32>(-0.2, -1.0)));
+  }
+  return dm;
 }
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
+  let wf = frame.misc.z;
+  if (wf > 0.5) {
+    // Wireframe debug: render the underlying billboard quad as cyan edges
+    // plus the diagonal that splits its two triangles (the shared edge
+    // runs (1,-1) -> (-1,1), i.e. uv.x + uv.y = 0). Matches the planet
+    // wireframe style instead of faking a circle.
+    let edgeDist = min(1.0 - abs(in.uv.x), 1.0 - abs(in.uv.y));
+    let diagDist = abs(in.uv.x + in.uv.y) * 0.70710678;
+    let lineDist = min(edgeDist, diagDist);
+    let aaLine = length(vec2<f32>(dpdx(lineDist), dpdy(lineDist)));
+    let a = (1.0 - smoothstep(0.0, 1.5 * aaLine, lineDist)) * in.dim;
+    return vec4<f32>(vec3<f32>(0.25, 1.0, 0.85) * a, a);
+  }
   let d = length(in.uv);
   // Thin white circle outline with screen-space derivative anti-aliasing.
+  // Use isotropic gradient magnitude (L2 of dFdx/dFdy) rather than fwidth()
+  // (which is the L1 norm). Because d = length(uv) has unit gradient, this
+  // keeps the AA band the same width in every direction; otherwise the ring
+  // reads as slightly fatter at the diagonals than at the cardinals.
   let radius = 0.85;
-  let aa = fwidth(d);
-  let halfWidth = aa;
-  let outline = (1.0 - smoothstep(halfWidth, halfWidth + aa, abs(d - radius))) * in.dim;
-  // Numeric glyph at marker center. Combined with the outline by max so the
-  // digit stays crisp without doubling brightness where they touch.
+  let dx = dpdx(d);
+  let dy = dpdy(d);
+  let aa = length(vec2<f32>(dx, dy));
+  // Thin ring: pure AA-only smoothstep from peak (at d=radius) out to
+  // 1.5*aa. No solid core, so the line stays roughly 1.5px wide regardless
+  // of marker size.
+  let outline = (1.0 - smoothstep(0.0, 1.5 * aa, abs(d - radius))) * in.dim;
   let digit = i32(in.digit + 0.5);
-  let glyph = digitMask(in.uv, digit) * in.dim;
-  let alpha = max(outline, glyph);
+  // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW is
+  // wide enough to fit even VIII (the broadest numeral) without crowding
+  // the ring at radius 0.85.
+  let halfW = 0.28;
+  let halfH = 0.30;
+  let gp = vec2<f32>(in.uv.x / halfW, in.uv.y / halfH);
+  let glyphDist = romanDist(gp, digit);
+  // One screen pixel in glyph-local units (isotropic AA, same trick as the
+  // ring). Stroke half-width is in the same units as the glyph definitions.
+  let dgx = dpdx(gp);
+  let dgy = dpdy(gp);
+  let aaG = sqrt(dot(dgx, dgx) + dot(dgy, dgy)) * 0.5;
+  let strokeW = 0.16;
+  let glyphAlpha = (1.0 - smoothstep(strokeW - aaG, strokeW + aaG, glyphDist)) * in.dim;
+  let alpha = max(outline, glyphAlpha);
   return vec4<f32>(vec3<f32>(alpha), alpha);
 }

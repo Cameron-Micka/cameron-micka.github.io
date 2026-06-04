@@ -13,12 +13,13 @@ struct Frame {
 @group(0) @binding(0) var<uniform> frame : Frame;
 
 // Half-thickness of the trajectory line in aspect-corrected NDC.
-const HALF_THICK : f32 = 0.0022;
+const HALF_THICK : f32 = 0.0032;
 
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
   @location(0) edge : f32, // -1..1 across the line width, for AA
   @location(1) worldPos : vec3<f32>,
+  @location(2) axial : f32, // 0 at prev, 1 at next (for wireframe debug)
 };
 
 @vertex
@@ -55,6 +56,7 @@ fn vs(
   out.pos = vec4<f32>(ndc * w, z, w);
   out.edge = side;
   out.worldPos = select(prev, next, isEnd);
+  out.axial = ends[vid];
   return out;
 }
 
@@ -65,6 +67,22 @@ const FOG_DENSITY : f32 = 0.030;
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
+  let wf = frame.misc.z;
+  if (wf > 0.5) {
+    // Wireframe debug: 4 quad edges + diagonal of each segment's two
+    // triangles, drawn in cyan to match the planet wireframe.
+    let edgeD = 1.0 - abs(in.edge);
+    let axialD = min(in.axial, 1.0 - in.axial);
+    let diagD = abs(in.axial - 0.5 * (in.edge + 1.0));
+    let aaE = fwidth(edgeD);
+    let aaA = fwidth(axialD);
+    let aaD = fwidth(diagD);
+    let covE = 1.0 - smoothstep(0.0, 1.5 * aaE, edgeD);
+    let covA = 1.0 - smoothstep(0.0, 1.5 * aaA, axialD);
+    let covD = 1.0 - smoothstep(0.0, 1.5 * aaD, diagD);
+    let a = max(covE, max(covA, covD));
+    return vec4<f32>(vec3<f32>(0.25, 1.0, 0.85) * a, a);
+  }
   let aa = fwidth(in.edge);
   let cov = 1.0 - smoothstep(1.0 - aa, 1.0, abs(in.edge));
   let d = distance(in.worldPos, frame.cameraPos.xyz);

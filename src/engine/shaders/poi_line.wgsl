@@ -24,6 +24,7 @@ struct VSOut {
   @location(0) color : vec3<f32>,
   @location(1) alpha : f32,
   @location(2) edge : f32,  // -1..1 across the line width, for AA
+  @location(3) axial : f32, // 0 at inner end, 1 at outer end (for wireframe debug)
 };
 
 @vertex
@@ -71,14 +72,32 @@ fn vs(
   // Brighter near the marker, faint where it meets the surface.
   out.alpha = attribs.y * select(0.25, 0.9, isOuter);
   out.edge = side;
+  out.axial = ends[vid];
   return out;
 }
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
+  let wf = frame.misc.z;
+  if (wf > 0.5) {
+    // Wireframe debug: 4 quad edges (|edge|=1, axial=0, axial=1) + the
+    // diagonal that splits its two triangles (axial = 0.5*(edge+1)).
+    let edgeD = 1.0 - abs(in.edge);
+    let axialD = min(in.axial, 1.0 - in.axial);
+    let diagD = abs(in.axial - 0.5 * (in.edge + 1.0));
+    let aaE = fwidth(edgeD);
+    let aaA = fwidth(axialD);
+    let aaD = fwidth(diagD);
+    let covE = 1.0 - smoothstep(0.0, 1.5 * aaE, edgeD);
+    let covA = 1.0 - smoothstep(0.0, 1.5 * aaA, axialD);
+    let covD = 1.0 - smoothstep(0.0, 1.5 * aaD, diagD);
+    let a = max(covE, max(covA, covD));
+    return vec4<f32>(vec3<f32>(0.25, 1.0, 0.85) * a, a);
+  }
   // Screen-space derivative AA across the line width.
   let aa = fwidth(in.edge);
   let cov = 1.0 - smoothstep(1.0 - aa, 1.0, abs(in.edge));
   let a = in.alpha * cov;
-  return vec4<f32>((in.color + vec3<f32>(0.15)) * a, a);
+  let base = in.color + vec3<f32>(0.15);
+  return vec4<f32>(base * a, a);
 }

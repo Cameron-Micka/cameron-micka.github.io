@@ -785,7 +785,10 @@ export class WebGPURenderer implements SceneRenderer {
     f[23] = 0;
     f[24] = frame.time;
     f[25] = frame.reducedMotion ? 1 : 0;
-    f[26] = 1;
+    // misc.z: wireframe debug-view flag. POI marker / connector shaders
+    // sample this to switch to a wireframe-styled rendering (cyan tint,
+    // outline only) so the overlay matches the wireframe planet body.
+    f[26] = frame.wireframe ? 1 : 0;
     f[27] = this.width / this.height;
     // Shadow casters: 8 vec4 spheres at floats 28..59, count at float 60.
     const sCount = Math.min(frame.shadowCasters.length, 8);
