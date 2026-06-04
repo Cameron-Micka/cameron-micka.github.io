@@ -402,7 +402,7 @@ Because backside POIs are visible (just dimmed), users may try to click them. **
 | --------- | ------- | ----- | ---- | ------ | --- | ---------- | ---- | ------------------ |
 | High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Default if probe passes |
 | Med       | 1.25    | 2k    | off  | on     | on  | 2          | 4x   |                    |
-| Low       | 1.0     | 0     | off  | off    | off | 1          | off  | Hard fallback      |
+| Low       | 1.0     | 0     | off  | off    | off | 1          | 4x   | Hard fallback      |
 | WebGL2    | 1.0     | 2k    | off  | on     | off | 1          | off  | The fallback renderer always runs at this fidelity ceiling |
 
 > MSAA applies to the WebGPU scene pass only. WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x.

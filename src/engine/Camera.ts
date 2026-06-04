@@ -11,8 +11,9 @@ const FAR = 200;
 // baked in from world-space yaw/pitch so framing stays consistent across
 // every focused planet rather than swinging through a fixed look-at point.
 // Two poses are dialed in live from free-cam — a 3/4 off-axis framing for
-// desktop, and a higher / more downward-tilted framing for touch devices
-// where the bottom UI ribbon takes a bigger bite out of the viewport.
+// landscape (wide) viewports, and a higher / more downward-tilted framing for
+// portrait (tall) viewports where the bottom UI ribbon takes a bigger bite out
+// of the viewport.
 interface Pose {
   viewDistance: number;
   eyeHeight: number;
@@ -21,7 +22,7 @@ interface Pose {
   pitch: number;
 }
 
-const POSE_DESKTOP: Pose = {
+const POSE_LANDSCAPE: Pose = {
   viewDistance: 8.94,
   eyeHeight: 2.17,
   eyeSideOffset: 5.71,
@@ -29,7 +30,7 @@ const POSE_DESKTOP: Pose = {
   pitch: (-8.7 * Math.PI) / 180,
 };
 
-const POSE_MOBILE: Pose = {
+const POSE_PORTRAIT: Pose = {
   viewDistance: 9.63,
   eyeHeight: 6.30,
   eyeSideOffset: -0.38,
@@ -37,11 +38,8 @@ const POSE_MOBILE: Pose = {
   pitch: (-27.1 * Math.PI) / 180,
 };
 
-function selectPose(): Pose {
-  const coarse =
-    typeof matchMedia !== 'undefined' &&
-    matchMedia('(pointer: coarse)').matches;
-  return coarse ? POSE_MOBILE : POSE_DESKTOP;
+function selectPose(aspect: number): Pose {
+  return aspect >= 1 ? POSE_LANDSCAPE : POSE_PORTRAIT;
 }
 
 export class Camera {
@@ -55,15 +53,27 @@ export class Camera {
   private zoom = 1;
   private extra = 0; // extra pull-back distance, used by the fly-in cinematic
 
-  private readonly viewDistance: number;
-  private readonly eyeHeight: number;
-  private readonly eyeSideOffset: number;
-  private readonly forwardX: number;
-  private readonly forwardY: number;
-  private readonly forwardZ: number;
+  private portrait: boolean;
+  private viewDistance!: number;
+  private eyeHeight!: number;
+  private eyeSideOffset!: number;
+  private forwardX!: number;
+  private forwardY!: number;
+  private forwardZ!: number;
 
   constructor() {
-    const pose = selectPose();
+    // Seed from the current viewport orientation so the initial framing is
+    // correct before the first resize() fires.
+    this.aspect =
+      typeof window !== 'undefined' && window.innerHeight > 0
+        ? window.innerWidth / window.innerHeight
+        : 1;
+    this.portrait = this.aspect < 1;
+    this.applyPose(selectPose(this.aspect));
+    this.position = [this.eyeSideOffset, this.eyeHeight, this.viewDistance];
+  }
+
+  private applyPose(pose: Pose): void {
     this.viewDistance = pose.viewDistance;
     this.eyeHeight = pose.eyeHeight;
     this.eyeSideOffset = pose.eyeSideOffset;
@@ -71,11 +81,17 @@ export class Camera {
     this.forwardX = Math.sin(pose.yaw) * cy;
     this.forwardY = Math.sin(pose.pitch);
     this.forwardZ = -Math.cos(pose.yaw) * cy;
-    this.position = [this.eyeSideOffset, this.eyeHeight, this.viewDistance];
   }
 
   setAspect(aspect: number): void {
     this.aspect = aspect;
+    const portrait = aspect < 1;
+    // Re-dial the framing only when the orientation flips between
+    // landscape and portrait, not on every minor resize.
+    if (portrait !== this.portrait) {
+      this.portrait = portrait;
+      this.applyPose(selectPose(aspect));
+    }
   }
 
   setZoom(zoom: number): void {

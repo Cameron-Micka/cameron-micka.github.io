@@ -28,7 +28,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     ssao: false,
     chromaticAberration: false,
     bloomMips: 0,
-    msaa: 1,
+    msaa: 4,
     shadows: false,
   },
   webgl2: {
@@ -44,6 +44,13 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
 };
 
 export type QualityPreference = 'auto' | QualityTier;
+
+function isCoarsePointer(): boolean {
+  return (
+    typeof matchMedia !== 'undefined' &&
+    matchMedia('(pointer: coarse)').matches
+  );
+}
 
 // Runs a short probe by sampling median frame time, then maps to a tier.
 export class QualityManager {
@@ -72,10 +79,13 @@ export class QualityManager {
 
   private resolve(): void {
     this.probing = false;
-    const median = this.median();
     let tier: QualityTier = 'low';
-    if (median <= 17) tier = 'high';
-    else if (median <= 25) tier = 'med';
+    // On mobile (coarse pointer) devices, Low is the default Auto tier.
+    if (!isCoarsePointer()) {
+      const median = this.median();
+      if (median <= 17) tier = 'high';
+      else if (median <= 25) tier = 'med';
+    }
     this.onResolved?.(tier);
     this.onResolved = null;
   }
