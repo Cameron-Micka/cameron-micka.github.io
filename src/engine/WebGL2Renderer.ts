@@ -986,6 +986,48 @@ float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf,float r
   float occDetail=clamp(occ*mix(0.75,1.20,grain),0.0,1.0);
   return 1.0-occDetail*0.70;
 }
+// ---- thunderstorms: localized, randomly-timed lightning flashes embedded in
+// the cloud field. Mirrors clouds.wgsl exactly so both backends storm alike.
+vec3 cHash3v(vec3 p){
+  vec3 q=vec3(dot(p,vec3(127.1,311.7,74.7)),dot(p,vec3(269.5,183.3,246.1)),dot(p,vec3(113.5,271.9,124.6)));
+  return fract(sin(q)*43758.5453);
+}
+float stormFlicker(float x){
+  return exp(-x*20.0)+0.55*exp(-abs(x-0.05)*45.0)+0.30*exp(-abs(x-0.09)*70.0);
+}
+float cloudStorm(vec3 localDir,float time,float seedf,float density,float reducedMotion){
+  if(reducedMotion>0.5)return 0.0;
+  float freq=5.0;
+  vec3 sOff=vec3(seedf*0.00061,seedf*0.00043,seedf*0.00077);
+  vec3 p=localDir*freq+sOff;
+  vec3 base=floor(p);
+  float energy=0.0;
+  for(int z=-1;z<=1;z++){
+    for(int y=-1;y<=1;y++){
+      for(int x=-1;x<=1;x++){
+        vec3 cell=base+vec3(float(x),float(y),float(z));
+        vec3 rnd=cHash3v(cell);
+        if(rnd.x<0.86)continue; // ~14% of cells host a storm
+        vec3 site=cell+cHash3v(cell+19.0);
+        float d=length(p-site);
+        float glow=exp(-d*d*8.0);
+        if(glow<0.003)continue;
+        float period=4.0+9.0*rnd.y;
+        float tnorm=(time+rnd.z*period)/period;
+        float xph=fract(tnorm);
+        float cycAmp=smoothstep(0.25,1.0,cHash3v(cell+floor(tnorm)*1.37).x);
+        energy+=glow*stormFlicker(xph)*cycAmp;
+      }
+    }
+  }
+  return min(energy*(0.15+0.85*density),3.0);
+}
+vec3 stormColor(float e){
+  vec3 halo=vec3(0.34,0.30,1.00);
+  vec3 core=vec3(0.78,0.88,1.00);
+  float t=clamp(e,0.0,1.0);
+  return mix(halo,core,t*t)*e*2.0;
+}
 void main(){
   vec3 n=normalize(vNrm);
   vec3 sun=normalize(uLight);
@@ -1019,7 +1061,16 @@ void main(){
   // Taper alpha at the silhouette so back-face culling doesn't make a hard
   // edge at the limb.
   float edgeFade=smoothstep(0.05,0.30,dot(n,viewDir));
-  float alpha=density*dayMask*edgeFade*uVisibility;
+  float baseA=density*dayMask*edgeFade*uVisibility;
+  // Thunderstorm flashes: localized purple-blue lightning lighting cloud cells
+  // from within. Brightest on the night side, faint on the day side; stormA
+  // rises with the flash so the emissive survives the alpha blend where the
+  // night-side cloud alpha is otherwise near zero.
+  float storm=cloudStorm(localDir,uTime,uSeed,density,uReducedMotion);
+  float nightBoost=mix(0.55,1.0,1.0-dayMask);
+  col+=stormColor(storm)*nightBoost;
+  float stormA=clamp(storm,0.0,1.0)*edgeFade*uVisibility;
+  float alpha=max(baseA,stormA);
   // Distance fog attenuation on the alpha so far clouds don't punch holes
   // in the haze.
   float dist=distance(vWorld,uCamera);float sd=dist*0.030;

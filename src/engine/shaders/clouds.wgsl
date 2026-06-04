@@ -159,6 +159,71 @@ fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf
   return 1.0 - occDetail * 0.70;
 }
 
+// ---- thunderstorms -------------------------------------------------------
+// Localized, randomly-timed lightning flashes embedded in the cloud field.
+// Storm sites are scattered feature points in a coarse 3D cell grid over the
+// cloud-local sphere; only a fraction of cells host a storm. Each storm pulses
+// on its own random period with a sharp multi-flicker envelope and per-cycle
+// amplitude variation, so the flashing reads as irregular weather rather than
+// a metronome. The glow is gated by local cloud density so the flash lights
+// real puffs.
+fn cHash3v(p : vec3<f32>) -> vec3<f32> {
+  let q = vec3<f32>(
+    dot(p, vec3<f32>(127.1, 311.7, 74.7)),
+    dot(p, vec3<f32>(269.5, 183.3, 246.1)),
+    dot(p, vec3<f32>(113.5, 271.9, 124.6)),
+  );
+  return fract(sin(q) * 43758.5453);
+}
+
+// One storm cycle of brightness for x in [0,1): a bright leading stroke then
+// two quick flickers, all decaying fast so most of the cycle stays dark.
+fn stormFlicker(x : f32) -> f32 {
+  return exp(-x * 20.0)
+       + 0.55 * exp(-abs(x - 0.05) * 45.0)
+       + 0.30 * exp(-abs(x - 0.09) * 70.0);
+}
+
+fn cloudStorm(localDir : vec3<f32>, time : f32, seedf : f32, density : f32, reducedMotion : f32) -> f32 {
+  // Reduced motion disables the flashing entirely (no strobing for users who
+  // asked to limit motion).
+  if (reducedMotion > 0.5) { return 0.0; }
+  let freq = 5.0;
+  let sOff = vec3<f32>(seedf * 0.00061, seedf * 0.00043, seedf * 0.00077);
+  let p = localDir * freq + sOff;
+  let base = floor(p);
+  var energy = 0.0;
+  for (var z = -1; z <= 1; z = z + 1) {
+    for (var y = -1; y <= 1; y = y + 1) {
+      for (var x = -1; x <= 1; x = x + 1) {
+        let cell = base + vec3<f32>(f32(x), f32(y), f32(z));
+        let rnd = cHash3v(cell);
+        if (rnd.x < 0.86) { continue; } // ~14% of cells host a storm
+        let site = cell + cHash3v(cell + 19.0);
+        let d = length(p - site);
+        let glow = exp(-d * d * 8.0);
+        if (glow < 0.003) { continue; }
+        let period = 4.0 + 9.0 * rnd.y;
+        let tnorm = (time + rnd.z * period) / period;
+        let xph = fract(tnorm);
+        // Per-cycle amplitude: many cycles are weak/absent, a few are strong,
+        // so a given storm doesn't flash identically every period.
+        let cycAmp = smoothstep(0.25, 1.0, cHash3v(cell + floor(tnorm) * 1.37).x);
+        energy = energy + glow * stormFlicker(xph) * cycAmp;
+      }
+    }
+  }
+  return min(energy * (0.15 + 0.85 * density), 3.0);
+}
+
+// Emissive color ramp: purple-blue halo brightening to a white-blue core.
+fn stormColor(e : f32) -> vec3<f32> {
+  let halo = vec3<f32>(0.34, 0.30, 1.00);
+  let core = vec3<f32>(0.78, 0.88, 1.00);
+  let t = clamp(e, 0.0, 1.0);
+  return mix(halo, core, t * t) * e * 2.0;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let n = normalize(in.worldNormal);
@@ -211,7 +276,17 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let edgeFade = smoothstep(0.05, 0.30, dot(n, viewDir));
 
   let vis = obj.p1.w;
-  let alpha = density * dayMask * edgeFade * vis;
+  let baseA = density * dayMask * edgeFade * vis;
+
+  // Thunderstorm flashes: localized purple-blue lightning lighting cloud cells
+  // from within. Brightest on the night side, faint on the day side. stormA
+  // rises with the flash so the emissive color survives the alpha blend even
+  // where the night-side cloud alpha is otherwise near zero.
+  let storm = cloudStorm(localDir, time, seedf, density, reducedMotion);
+  let nightBoost = mix(0.55, 1.0, 1.0 - dayMask);
+  col = col + stormColor(storm) * nightBoost;
+  let stormA = clamp(storm, 0.0, 1.0) * edgeFade * vis;
+  let alpha = max(baseA, stormA);
 
   // Distance fog attenuation — clouds fade with depth same as everything
   // else. Applied to the alpha so far-away cloud shells don't punch holes
