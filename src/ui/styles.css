@@ -430,6 +430,58 @@ a:hover {
   cursor: pointer;
 }
 
+/* ---- Loading bar (renderer init: geometry + shader compilation) ---- */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+    120% 120% at 50% 35%,
+    #0b1430 0%,
+    #06070d 55%,
+    #04050a 100%
+  );
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+.loading-screen.is-done {
+  opacity: 0;
+  pointer-events: none;
+}
+.loading-card {
+  width: min(320px, 72vw);
+  text-align: center;
+}
+.loading-title {
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  margin-bottom: 14px;
+}
+.loading-track {
+  height: 4px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(150, 180, 230, 0.16);
+  overflow: hidden;
+}
+.loading-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  box-shadow: 0 0 16px 1px rgba(122, 214, 255, 0.45);
+  transition: width 0.3s ease;
+}
+.loading-label {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 1em;
+}
+
 /* ---- Static content pages ---- */
 .page {
   position: relative;
@@ -540,6 +592,10 @@ a:hover {
   .skip-btn {
     animation: none;
   }
+  .loading-fill,
+  .loading-screen {
+    transition: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -561,6 +617,7 @@ a:hover {
   .settings,
   .hud,
   .skip-btn,
+  .loading-screen,
   .compat-notice {
     display: none !important;
   }

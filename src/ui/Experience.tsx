@@ -56,6 +56,56 @@ function HashBridge({ companies }: { companies: Company[] }) {
   return null;
 }
 
+// Full-screen progress bar shown while the renderer builds geometry and
+// compiles shaders, then fades out just before the camera fly-in begins.
+function LoadingBar() {
+  const engine = useEngine();
+  const [state, setState] = useState(() => engine.getLoadState());
+  const [dismissed, setDismissed] = useState(() => engine.getLoadState().ready);
+  const [mounted, setMounted] = useState(true);
+
+  useEffect(() => {
+    // Reconcile with anything emitted before this effect subscribed.
+    const initial = engine.getLoadState();
+    setState(initial);
+    if (initial.ready) setDismissed(true);
+
+    const off = engine.events.on('loadProgress', (s) => {
+      setState(s);
+      if (s.ready) setDismissed(true);
+    });
+    const offReady = engine.events.on('ready', () => setDismissed(true));
+    return () => {
+      off();
+      offReady();
+    };
+  }, [engine]);
+
+  useEffect(() => {
+    if (!dismissed) return;
+    const t = window.setTimeout(() => setMounted(false), 600);
+    return () => window.clearTimeout(t);
+  }, [dismissed]);
+
+  if (!mounted) return null;
+  const pct = Math.round(state.frac * 100);
+  return (
+    <div
+      className={`loading-screen${dismissed ? ' is-done' : ''}`}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="loading-card">
+        <div className="loading-title">{UI.loading}</div>
+        <div className="loading-track">
+          <div className="loading-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="loading-label">{state.label}</div>
+      </div>
+    </div>
+  );
+}
+
 function SkipIntro() {
   const engine = useEngine();
   const [visible, setVisible] = useState(true);
@@ -113,6 +163,7 @@ export function Experience({ companies }: { companies: Company[] }) {
       )}
       {engine && (
         <EngineContext.Provider value={engine}>
+          {!startError && <LoadingBar />}
           <div className="overlay">
             <TopNav onToggleSettings={() => setSettingsOpen((o) => !o)} />
             <SideRuler companies={companies} />

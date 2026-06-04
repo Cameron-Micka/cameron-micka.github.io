@@ -89,9 +89,13 @@ export interface RenderStats {
   gpuMemoryMB: number;
 }
 
+// Reports renderer startup progress (0..1) with a short human-readable label,
+// so the UI can show a loading bar while geometry is built and shaders compile.
+export type LoadProgressFn = (frac: number, label: string) => void;
+
 export interface SceneRenderer {
   readonly backend: RendererBackend;
-  init(canvas: HTMLCanvasElement): Promise<void>;
+  init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn): Promise<void>;
   resize(width: number, height: number, dpr: number): void;
   render(frame: FrameState): void;
   getStats(): RenderStats;

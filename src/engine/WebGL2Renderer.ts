@@ -1,10 +1,11 @@
-import type { FrameState, PlanetInstance, RenderStats, SceneRenderer } from './types';
+import type { FrameState, LoadProgressFn, PlanetInstance, RenderStats, SceneRenderer } from './types';
 import { createSphere, interleave, trianglesToLineIndices } from './geometry';
 import { mat4 } from './math/mat4';
 import { quat, type Quat } from './math/quat';
 import { vec3 } from './math/vec3';
 import { mulberry32 } from './math/rng';
 import { poiMarkerDistance, poiFocusFade } from './Scene';
+import { paintYield } from './paintYield';
 
 // Lower-fidelity mirror of the WebGPU experience: procedural planets, a nebula
 // backdrop, additive star + POI points. No HDR/bloom post — rendered directly.
@@ -897,7 +898,14 @@ export class WebGL2Renderer implements SceneRenderer {
   // Scratch for uShadowSpheres[8] uploads (8 vec4 = 32 floats).
   private shadowScratch = new Float32Array(32);
 
-  async init(canvas: HTMLCanvasElement): Promise<void> {
+  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn): Promise<void> {
+    const report = async (frac: number, label: string): Promise<void> => {
+      if (!onProgress) return;
+      onProgress(frac, label);
+      await paintYield();
+    };
+
+    await report(0.1, 'Initializing WebGL…');
     const gl = canvas.getContext('webgl2', {
       antialias: true,
       alpha: false,
@@ -912,6 +920,7 @@ export class WebGL2Renderer implements SceneRenderer {
       this.deviceLostCb?.();
     });
 
+    await report(0.35, 'Compiling shaders…');
     this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
@@ -940,13 +949,16 @@ export class WebGL2Renderer implements SceneRenderer {
       'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe',
     ]);
 
+    await report(0.75, 'Building scene geometry…');
     this.buildSphere();
+    await report(0.9, 'Generating starfield…');
     this.buildStars(2000);
     this.buildPoiBuffers();
     this.buildSatBuffers();
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
+    await report(1, 'Entering the timeline…');
   }
 
   private compile(type: number, src: string): WebGLShader {

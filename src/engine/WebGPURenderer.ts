@@ -1,5 +1,6 @@
 import type {
   FrameState,
+  LoadProgressFn,
   PlanetInstance,
   RenderStats,
   SceneRenderer,
@@ -10,6 +11,7 @@ import { quat } from './math/quat';
 import { vec3 } from './math/vec3';
 import { mulberry32 } from './math/rng';
 import { poiMarkerDistance, poiFocusFade } from './Scene';
+import { paintYield } from './paintYield';
 
 import planetWGSL from './shaders/planet.wgsl?raw';
 import nebulaWGSL from './shaders/nebula.wgsl?raw';
@@ -145,12 +147,22 @@ export class WebGPURenderer implements SceneRenderer {
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
 
-  async init(canvas: HTMLCanvasElement): Promise<void> {
+  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn): Promise<void> {
+    const report = async (frac: number, label: string): Promise<void> => {
+      if (!onProgress) return;
+      onProgress(frac, label);
+      // Let the loading bar paint before the next synchronous, main-thread
+      // blocking stage (geometry build / shader compilation).
+      await paintYield();
+    };
+
+    await report(0.08, 'Initializing WebGPU…');
     if (!navigator.gpu) throw new Error('WebGPU not available');
     const adapter = await navigator.gpu.requestAdapter({
       powerPreference: 'high-performance',
     });
     if (!adapter) throw new Error('No WebGPU adapter');
+    await report(0.2, 'Requesting GPU device…');
     const device = await adapter.requestDevice();
     this.device = device;
     this.canvas = canvas;
@@ -165,10 +177,15 @@ export class WebGPURenderer implements SceneRenderer {
     this.format = navigator.gpu.getPreferredCanvasFormat();
     ctx.configure({ device, format: this.format, alphaMode: 'opaque' });
 
+    await report(0.35, 'Building scene geometry…');
     this.createGeometry();
+    await report(0.5, 'Allocating buffers…');
     this.createUniforms();
+    await report(0.6, 'Compiling shaders…');
     this.createPipelines(this.sampleCount);
+    await report(0.9, 'Generating starfield…');
     this.buildStars(8000);
+    await report(1, 'Entering the timeline…');
   }
 
   private createGeometry(): void {

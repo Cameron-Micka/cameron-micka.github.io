@@ -1,5 +1,6 @@
 import type {
   FrameState,
+  LoadProgressFn,
   RendererBackend,
   RenderStats,
   SceneRenderer,
@@ -68,6 +69,15 @@ export type EngineEvents = {
   qualityChanged: QualityTier;
   ready: null;
   flyInDone: null;
+  loadProgress: LoadState;
+};
+
+// Startup progress surfaced to the loading bar. `frac` is monotonic 0..1 and
+// `ready` flips true once the first frame has rendered (the bar can dismiss).
+export type LoadState = {
+  frac: number;
+  label: string;
+  ready: boolean;
 };
 
 const FLY_IN_SECONDS = 2.2;
@@ -141,6 +151,11 @@ export class Engine {
   private rafId = 0;
   private lastTs = 0;
   private ready = false;
+  private loadState: LoadState = {
+    frac: 0,
+    label: 'Initializing…',
+    ready: false,
+  };
   private failed: string | null = null;
   private coarsePointer = false;
 
@@ -198,7 +213,13 @@ export class Engine {
 
   async start(): Promise<void> {
     try {
-      this.renderer = await this.createRenderer();
+      this.renderer = await this.createRenderer((frac, label) => {
+        // Monotonic: a WebGPU→WebGL2 fallback restarts at a low frac, so never
+        // let the visible bar regress.
+        const next = Math.max(this.loadState.frac, frac);
+        this.loadState = { frac: next, label, ready: false };
+        this.events.emit('loadProgress', this.loadState);
+      });
     } catch (err) {
       this.failed = err instanceof Error ? err.message : 'Renderer init failed';
       this.commit();
@@ -254,19 +275,19 @@ export class Engine {
     this.renderer = null;
   }
 
-  private async createRenderer(): Promise<SceneRenderer> {
+  private async createRenderer(onProgress?: LoadProgressFn): Promise<SceneRenderer> {
     const force = this.settings.forceBackend;
     if (force !== 'webgl2' && typeof navigator !== 'undefined' && navigator.gpu) {
       try {
         const r = new WebGPURenderer();
-        await r.init(this.canvas);
+        await r.init(this.canvas, onProgress);
         return r;
       } catch (err) {
         console.warn('WebGPU unavailable, falling back to WebGL2:', err);
       }
     }
     const r2 = new WebGL2Renderer();
-    await r2.init(this.canvas);
+    await r2.init(this.canvas, onProgress);
     return r2;
   }
 
@@ -328,6 +349,8 @@ export class Engine {
 
     if (!this.ready) {
       this.ready = true;
+      this.loadState = { frac: 1, label: this.loadState.label, ready: true };
+      this.events.emit('loadProgress', this.loadState);
       this.events.emit('ready', null);
       this.commit();
     }
@@ -624,6 +647,10 @@ export class Engine {
   };
 
   getSnapshot = (): EngineSnapshot => this.snapshot;
+
+  // Latest startup progress for the loading bar. Read on mount so a late
+  // subscriber still reflects (or dismisses past) progress already emitted.
+  getLoadState = (): LoadState => this.loadState;
 
   get backend(): RendererBackend | null {
     return this.renderer?.backend ?? null;
