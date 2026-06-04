@@ -29,9 +29,6 @@ const OBJ_STRIDE = 256; // bytes; >= minUniformBufferOffsetAlignment
 const OBJ_FLOATS = OBJ_STRIDE / 4;
 const MAX_OBJECTS = 64;
 const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
-const MOON_ROCK_LOW: [number, number, number] = [0.22, 0.23, 0.24];
-const MOON_ROCK_MID: [number, number, number] = [0.44, 0.43, 0.41];
-const MOON_ROCK_HIGH: [number, number, number] = [0.64, 0.62, 0.58];
 // Must match CLOUD_SHELL_SCALE in clouds.wgsl and planet.wgsl: surface-point
 // projection in the planet shader assumes the cloud shell sits at this radius
 // (in unit-sphere local space) so the shadow lands exactly under the puff.
@@ -92,6 +89,7 @@ export class WebGPURenderer implements SceneRenderer {
   private sampleCount = 1;
 
   private sphere!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number; u32: boolean };
+  private moonSphere!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number; u32: boolean };
   private ring!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number };
   private sphereLines!: { ibuf: GPUBuffer; count: number; u32: boolean };
   private ringLines!: { ibuf: GPUBuffer; count: number };
@@ -209,6 +207,27 @@ export class WebGPURenderer implements SceneRenderer {
       u32: sphereGeo.indices instanceof Uint32Array,
     };
     this.sphereLines = this.createLineIndexBuffer(sphereGeo);
+
+    // Low-resolution sphere for moons. They render small on screen, so the
+    // full planet tessellation is wasteful; a coarse mesh reads identically.
+    const moonGeo = createSphere(16, 24);
+    const moonData = interleave(moonGeo);
+    const mvb = d.createBuffer({
+      size: moonData.byteLength,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    d.queue.writeBuffer(mvb, 0, moonData);
+    const mib = d.createBuffer({
+      size: moonGeo.indices.byteLength,
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    d.queue.writeBuffer(mib, 0, moonGeo.indices);
+    this.moonSphere = {
+      vbuf: mvb,
+      ibuf: mib,
+      count: moonGeo.indexCount,
+      u32: moonGeo.indices instanceof Uint32Array,
+    };
 
     const ringGeo = createRingGeometry();
     const ringData = interleave(ringGeo);
@@ -978,9 +997,9 @@ export class WebGPURenderer implements SceneRenderer {
           (p.seed + 7) % 100000,
           frame.time,
           0,
-          MOON_ROCK_LOW,
-          MOON_ROCK_MID,
-          MOON_ROCK_HIGH,
+          m.paletteLow as [number, number, number],
+          m.paletteMid as [number, number, number],
+          m.paletteHigh as [number, number, number],
           p.focus,
           0,
           0,
@@ -1082,14 +1101,14 @@ export class WebGPURenderer implements SceneRenderer {
         this.stats.drawCalls++;
       }
     } else {
-      // Opaque planets + moons.
+      // Opaque planets.
       scenePass.setVertexBuffer(0, this.sphere.vbuf);
       scenePass.setIndexBuffer(
         this.sphere.ibuf,
         this.sphere.u32 ? 'uint32' : 'uint16',
       );
       for (const o of objects) {
-        if (o.kind !== 0 && o.kind !== 3) continue;
+        if (o.kind !== 0) continue;
         scenePass.setPipeline(this.pipelines.planet);
         scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
@@ -1097,6 +1116,30 @@ export class WebGPURenderer implements SceneRenderer {
         this.stats.drawCalls++;
         this.stats.triangles += this.sphere.count / 3;
       }
+
+      // Opaque moons — same planet pipeline but a coarser sphere mesh.
+      scenePass.setVertexBuffer(0, this.moonSphere.vbuf);
+      scenePass.setIndexBuffer(
+        this.moonSphere.ibuf,
+        this.moonSphere.u32 ? 'uint32' : 'uint16',
+      );
+      for (const o of objects) {
+        if (o.kind !== 3) continue;
+        scenePass.setPipeline(this.pipelines.planet);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.moonSphere.count);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.moonSphere.count / 3;
+      }
+
+      // Rebind the full-res sphere for the cloud/atmosphere shell passes below,
+      // which expect planet-tessellation vertices + indices on slot 0.
+      scenePass.setVertexBuffer(0, this.sphere.vbuf);
+      scenePass.setIndexBuffer(
+        this.sphere.ibuf,
+        this.sphere.u32 ? 'uint32' : 'uint16',
+      );
 
       // Satellite point-sprites — pin-pricks orbiting each planet. Drawn after
       // the opaque planet+moon pass so depth test correctly hides satellites

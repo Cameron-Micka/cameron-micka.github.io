@@ -9,9 +9,6 @@ import { paintYield } from './paintYield';
 
 // Lower-fidelity mirror of the WebGPU experience: procedural planets, a nebula
 // backdrop, additive star + POI points. No HDR/bloom post — rendered directly.
-const MOON_ROCK_LOW: [number, number, number] = [0.22, 0.23, 0.24];
-const MOON_ROCK_MID: [number, number, number] = [0.44, 0.43, 0.41];
-const MOON_ROCK_HIGH: [number, number, number] = [0.64, 0.62, 0.58];
 // Must match CLOUD_SHELL_SCALE in clouds.wgsl / planet.wgsl / PLANET_FRAG /
 // CLOUDS_FRAG: cloud-shadow projection in the planet shader assumes the
 // shell sits exactly here in unit-sphere local space.
@@ -883,6 +880,9 @@ export class WebGL2Renderer implements SceneRenderer {
   private sphereVao!: WebGLVertexArrayObject;
   private sphereCount = 0;
   private sphereU32 = false;
+  private moonSphereVao!: WebGLVertexArrayObject;
+  private moonSphereCount = 0;
+  private moonSphereU32 = false;
   private sphereWireVao!: WebGLVertexArrayObject;
   private sphereLineCount = 0;
   private sphereLineU32 = false;
@@ -1044,6 +1044,27 @@ export class WebGL2Renderer implements SceneRenderer {
     this.sphereWireVao = wireVao;
     this.sphereLineCount = lineIdx.length;
     this.sphereLineU32 = lineIdx instanceof Uint32Array;
+
+    // Low-resolution sphere for moons — they draw small, so the full planet
+    // tessellation is wasted detail.
+    const moonGeo = createSphere(16, 24);
+    const moonData = interleave(moonGeo);
+    const moonVao = gl.createVertexArray()!;
+    gl.bindVertexArray(moonVao);
+    const moonVbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, moonVbo);
+    gl.bufferData(gl.ARRAY_BUFFER, moonData, gl.STATIC_DRAW);
+    const moonIbo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, moonIbo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, moonGeo.indices, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
+    gl.bindVertexArray(null);
+    this.moonSphereVao = moonVao;
+    this.moonSphereCount = moonGeo.indexCount;
+    this.moonSphereU32 = moonGeo.indices instanceof Uint32Array;
   }
 
   private buildStars(count: number): void {
@@ -1314,13 +1335,15 @@ export class WebGL2Renderer implements SceneRenderer {
           [p.center[0] + wo[0], p.center[1] + wo[1], p.center[2] + wo[2]],
           m.size * vis,
           moonRot,
-          MOON_ROCK_LOW,
-          MOON_ROCK_MID,
-          MOON_ROCK_HIGH,
+          m.paletteLow as [number, number, number],
+          m.paletteMid as [number, number, number],
+          m.paletteHigh as [number, number, number],
           false,
           0, // moons don't get cloud shadows
           model,
           idxType,
+          false,
+          true, // use the coarse moon mesh
         );
       }
     }
@@ -1563,6 +1586,7 @@ export class WebGL2Renderer implements SceneRenderer {
     model: Float32Array,
     idxType: number,
     cityLights: boolean = false,
+    moonMesh: boolean = false,
   ): void {
     const gl = this.gl;
     mat4.fromRotationTranslationScale(model, rotation, center, radius);
@@ -1575,6 +1599,20 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.planet.uniforms.uOceans!, oceans ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCityLights!, cityLights ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCloudShadow!, cloudShadow);
+    if (moonMesh) {
+      gl.bindVertexArray(this.moonSphereVao);
+      gl.drawElements(
+        gl.TRIANGLES,
+        this.moonSphereCount,
+        this.moonSphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+        0,
+      );
+      // Restore the full-res sphere VAO for the next planet in the loop.
+      gl.bindVertexArray(this.sphereVao);
+      this.stats.drawCalls++;
+      this.stats.triangles += this.moonSphereCount / 3;
+      return;
+    }
     gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
     this.stats.drawCalls++;
     this.stats.triangles += this.sphereCount / 3;

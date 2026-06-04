@@ -17,7 +17,15 @@ export interface PlanetModel {
   paletteMid: Vec3;
   paletteHigh: Vec3;
   poiDirs: { slug: string; dir: Vec3; surfaceDir: Vec3; accent: Vec3 }[];
-  moonSpecs: { orbitRadius: number; size: number; phase: number; speed: number }[];
+  moonSpecs: {
+    orbitRadius: number;
+    size: number;
+    phase: number;
+    speed: number;
+    paletteLow: Vec3;
+    paletteMid: Vec3;
+    paletteHigh: Vec3;
+  }[];
   // Each satellite has a deterministic tilted circular orbit. Stored as an
   // orthonormal basis (u, v) spanning the orbital plane plus radius/phase/speed,
   // so per-frame the world offset is just (cos a)*u*r + (sin a)*v*r.
@@ -28,6 +36,47 @@ export interface PlanetModel {
     u: Vec3;
     v: Vec3;
   }[];
+}
+
+// HSV -> RGB (all components 0..1). Used to tint moons across a range of hues.
+function hsvToRgb(h: number, s: number, v: number): Vec3 {
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0:
+      return [v, t, p];
+    case 1:
+      return [q, v, p];
+    case 2:
+      return [p, v, t];
+    case 3:
+      return [p, q, v];
+    case 4:
+      return [t, p, v];
+    default:
+      return [v, p, q];
+  }
+}
+
+// A muted, rocky three-stop palette (low/mid/high luminance) tinted toward a
+// random hue. Saturation is biased low so most moons stay grey-rock while an
+// occasional one reads clearly icy, rusty, or tan — giving the family obvious
+// color variance without looking like candy.
+function moonPalette(rand: () => number): {
+  low: Vec3;
+  mid: Vec3;
+  high: Vec3;
+} {
+  const hue = rand();
+  const sat = rand() * rand() * 0.6;
+  return {
+    low: hsvToRgb(hue, sat, 0.23),
+    mid: hsvToRgb(hue, sat * 0.9, 0.43),
+    high: hsvToRgb(hue, sat * 0.7, 0.64),
+  };
 }
 
 // Nudge a unit direction by up to `maxDeg` degrees in a random azimuth, using
@@ -70,11 +119,15 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       // Cubed distribution biases small but lets an occasional moon grow up to
       // ~36% of the planet's radius, giving the family obvious size variance.
       const t = rand() * rand() * rand();
+      const pal = moonPalette(rand);
       return {
         orbitRadius: radius * (1.7 + i * 0.5),
         size: radius * (0.04 + t * 0.55),
         phase: rand() * Math.PI * 2,
         speed: 0.25 + rand() * 0.4,
+        paletteLow: pal.low,
+        paletteMid: pal.mid,
+        paletteHigh: pal.high,
       };
     });
 
@@ -365,6 +418,9 @@ export function instanceFromModel(
       orbitRadius: m.orbitRadius,
       angle: m.phase + moonTime * m.speed,
       size: m.size,
+      paletteLow: m.paletteLow,
+      paletteMid: m.paletteMid,
+      paletteHigh: m.paletteHigh,
     })),
     satellites: model.satelliteSpecs.map((s) => {
       const a = s.phase + moonTime * s.speed;

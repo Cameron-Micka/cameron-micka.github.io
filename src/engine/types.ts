@@ -39,7 +39,14 @@ export interface PlanetInstance {
   // user just orbited it) so clouds visibly slow with the surface instead of
   // continuing to drift independently.
   cloudTime: number;
-  moons: { orbitRadius: number; angle: number; size: number }[];
+  moons: {
+    orbitRadius: number;
+    angle: number;
+    size: number;
+    paletteLow: Vec3;
+    paletteMid: Vec3;
+    paletteHigh: Vec3;
+  }[];
   // Tiny "satellite" point-sprites orbiting the planet. World-locked orbits
   // (don't inherit planet spin) — meant to read as the same pin-prick white
   // pixel as a distant star, but in motion around the planet.
