@@ -24,6 +24,10 @@ export const companySchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Company slug must be url-safe (a-z, 0-9, -)'),
   name: z.string(),
   role: z.string(),
+  // Optional path to the company's logo (rendered left of the name in the
+  // bottom ribbon). Stored under /public/logos/ so it resolves from BASE_URL
+  // at runtime — pass e.g. "/logos/microsoft.svg".
+  logo: z.string().optional(),
   // YYYY or YYYY-MM. `end` null means present.
   start: z.string(),
   end: z.string().nullable(),

@@ -14,9 +14,24 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
   if (!company) return null;
   const touch =
     typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+  const logoSrc = company.logo
+    ? `${import.meta.env.BASE_URL}${company.logo.replace(/^\/+/, '')}`
+    : null;
   return (
     <div className="ribbon" aria-live="polite">
-      <div className="company">{company.name}</div>
+      <div className="company">
+        {logoSrc && (
+          <img
+            className="company-logo"
+            src={logoSrc}
+            alt=""
+            aria-hidden="true"
+            width={32}
+            height={32}
+          />
+        )}
+        <span className="company-name">{company.name}</span>
+      </div>
       <div className="role">{company.role}</div>
       <div className="dates">
         {formatDates(company)}

@@ -209,6 +209,20 @@ a:hover {
 .ribbon .company {
   font-size: clamp(20px, 4vw, 30px);
   font-weight: 650;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42em;
+}
+.ribbon .company-logo {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+  display: inline-block;
+  vertical-align: middle;
+  /* Pull the logo down a hair so it sits on the type baseline rather than
+     the cap-height — visually centers next to weight-800 text. */
+  transform: translateY(0.05em);
 }
 .ribbon .role {
   color: var(--accent);
