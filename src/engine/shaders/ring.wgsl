@@ -89,6 +89,19 @@ fn shadowFactor(p : vec3<f32>, L : vec3<f32>) -> f32 {
   return s;
 }
 
+// Local anti-aliasing for a thresholded signal. Widens the smoothstep
+// transition by the signal's screen-space derivative `w` (= fwidth(x)) so the
+// edge is always ~1px wide — this band-limits the ring's high-frequency bands,
+// gaps and silhouette at distance/grazing angles. Reduces to the plain
+// smoothstep up close where the footprint vanishes. Handles ascending
+// (e0 < e1) and descending (e0 > e1) edges, widening outward in both.
+fn aaStep(e0 : f32, e1 : f32, x : f32, w : f32) -> f32 {
+  if (e0 <= e1) {
+    return smoothstep(e0 - w, e1 + w, x);
+  }
+  return smoothstep(e0 + w, e1 - w, x);
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let radial = in.radial;
@@ -122,8 +135,12 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Broad rings keep the original wide soft fade to the geometry edge; thin
   // rings use a tight 0.06-wide outer fade so the band actually reads narrow.
   let outerFadeStart = mix(1.0, outerEnd + 0.06, isThin);
-  let edge = smoothstep(innerStart, innerStart + 0.06, radial) *
-             smoothstep(outerFadeStart, outerEnd, radial);
+  // Screen-space footprint of the radial coordinate; drives local AA on every
+  // radial threshold below so thin bands/edges don't shimmer when the ring is
+  // far away or seen near edge-on.
+  let rw = fwidth(radial);
+  let edge = aaStep(innerStart, innerStart + 0.06, radial, rw) *
+             aaStep(outerFadeStart, outerEnd, radial, rw);
 
   // Curved bands: cosine in radial with a very small angular sine offset so
   // the rings stay essentially concentric, just enough imperfection to avoid
@@ -136,12 +153,17 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let n = fbm2(np) * 0.65 + fbm2(np * 2.7 + vec2<f32>(11.0, 5.0)) * 0.35;
 
   // Combine curved bands with noise, but weight the bands heavily so the
-  // fine ring stripes stay crisp instead of being smeared by fbm.
-  let density = smoothstep(0.20, 0.85, bands * 0.85 + n * 0.35);
+  // fine ring stripes stay crisp instead of being smeared by fbm. The density
+  // threshold is the dominant aliasing source (band freq up to ~140), so widen
+  // it by the per-pixel change of its own argument (fwidth(dv)).
+  let dv = bands * 0.85 + n * 0.35;
+  let density = aaStep(0.20, 0.85, dv, fwidth(dv));
 
   // Cassini-style gaps cut a couple of transparent slots into the disk.
-  let g1 = smoothstep(0.88, 0.95, 0.5 + 0.5 * sin(radial * gap1Freq + h2 * 6.28));
-  let g2 = smoothstep(0.92, 0.97, 0.5 + 0.5 * sin(radial * gap2Freq + gap2Phase));
+  let s1 = 0.5 + 0.5 * sin(radial * gap1Freq + h2 * 6.28);
+  let s2 = 0.5 + 0.5 * sin(radial * gap2Freq + gap2Phase);
+  let g1 = aaStep(0.88, 0.95, s1, fwidth(s1));
+  let g2 = aaStep(0.92, 0.97, s2, fwidth(s2));
   let gap = clamp(g1 + g2 * 0.7, 0.0, 1.0);
   let opaq = max(0.0, density - gap * 0.85);
 

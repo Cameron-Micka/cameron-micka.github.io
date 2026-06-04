@@ -14,7 +14,6 @@ export interface QualitySettings {
   chromaticAberration: boolean;
   bloomMips: number;
   msaa: number; // MSAA sample count: 1 = off, 2, or 4
-  fxaa: boolean; // FXAA post-process edge smoothing (WebGPU only)
   shadows: boolean; // planet-cast shadows on other planets/rings/moons
 }
 

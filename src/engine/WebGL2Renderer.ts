@@ -585,18 +585,18 @@ void main(){
 const FLIGHT_VERT = `#version 300 es
 layout(location=0) in vec3 aPrev;
 layout(location=1) in vec3 aNext;
+layout(location=2) in float aKind; // 0 = ribbon segment, 1 = arrowhead
 uniform mat4 uViewProj;
 uniform float uAspect;
 uniform float uThick; // half-thickness in aspect-corrected NDC
 out float vEdge;
 out vec3 vWorld;
 out float vAxial;
+out float vShape; // 0 = ribbon, 1 = arrowhead
+const float ARROW_LEN = 0.024;
+const float ARROW_HALF = 0.013;
 void main(){
-  const float ends[6]  = float[6](0.0, 1.0, 1.0, 0.0, 1.0, 0.0);
-  const float sides[6] = float[6](-1.0, -1.0, 1.0, -1.0, 1.0, 1.0);
   int vid = gl_VertexID;
-  bool isEnd = ends[vid] > 0.5;
-  float side = sides[vid];
   vec2 ac = vec2(uAspect, 1.0);
   vec4 cp = uViewProj * vec4(aPrev, 1.0);
   vec4 cn = uViewProj * vec4(aNext, 1.0);
@@ -606,6 +606,24 @@ void main(){
   float len = length(dir);
   dir = len > 1e-6 ? dir / len : vec2(0.0, 1.0);
   vec2 perp = vec2(-dir.y, dir.x);
+  if(aKind > 0.5){
+    // Camera-facing triangle at the path start, pointing opposite travel direction.
+    vec2 aoff[6] = vec2[6](
+      -dir * ARROW_LEN, -perp * ARROW_HALF, perp * ARROW_HALF,
+      -dir * ARROW_LEN, -dir * ARROW_LEN, -dir * ARROW_LEN);
+    vec2 pa = ap + aoff[vid];
+    vec2 ndcA = vec2(pa.x / uAspect, pa.y);
+    gl_Position = vec4(ndcA * cp.w, cp.z, cp.w);
+    vEdge = 0.0;
+    vWorld = aPrev;
+    vAxial = 1.0;
+    vShape = 1.0;
+    return;
+  }
+  const float ends[6]  = float[6](0.0, 1.0, 1.0, 0.0, 1.0, 0.0);
+  const float sides[6] = float[6](-1.0, -1.0, 1.0, -1.0, 1.0, 1.0);
+  bool isEnd = ends[vid] > 0.5;
+  float side = sides[vid];
   vec2 chosen = isEnd ? an : ap;
   float z = isEnd ? cn.z : cp.z;
   float w = isEnd ? cn.w : cp.w;
@@ -615,6 +633,7 @@ void main(){
   vEdge = side;
   vWorld = isEnd ? aNext : aPrev;
   vAxial = ends[vid];
+  vShape = 0.0;
 }`;
 
 const FLIGHT_FRAG = `#version 300 es
@@ -622,6 +641,7 @@ precision highp float;
 in float vEdge;
 in vec3 vWorld;
 in float vAxial;
+in float vShape;
 uniform vec3 uCamera;
 uniform float uWireframe;
 out vec4 frag;
@@ -638,7 +658,8 @@ void main(){
     float covE=1.0-smoothstep(0.0,1.5*aaE,edgeD);
     float covA=1.0-smoothstep(0.0,1.5*aaA,axialD);
     float covD=1.0-smoothstep(0.0,1.5*aaD,diagD);
-    float a=max(covE,max(covA,covD));
+    float ribbonCov=max(covE,max(covA,covD));
+    float a = vShape>0.5 ? 1.0 : ribbonCov;
     frag=vec4(vec3(0.25,1.0,0.85)*a,a);
     return;
   }
@@ -647,7 +668,8 @@ void main(){
   float d=distance(vWorld,uCamera);
   float s=d*FOG_DENSITY;
   float fogA=exp(-s*s);
-  float a=0.85*cov*fogA;
+  // Ribbon fades with edge AA; the arrowhead fills solid.
+  float a = vShape>0.5 ? 0.95*fogA : 0.85*cov*fogA;
   frag=vec4(vec3(1.0)*a,a);
 }`;
 
@@ -1456,10 +1478,10 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform3fv(this.flight.uniforms.uCamera!, frame.cameraPos);
       gl.uniform1f(this.flight.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.flightVao);
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.flightSegments);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.flightSegments + 1);
       gl.depthMask(true);
       this.stats.drawCalls++;
-      this.stats.triangles += this.flightSegments * 2;
+      this.stats.triangles += this.flightSegments * 2 + 1;
     }
 
     gl.bindVertexArray(null);
@@ -1483,16 +1505,27 @@ export class WebGL2Renderer implements SceneRenderer {
       return;
     }
     const segments = points - 1;
-    const data = new Float32Array(segments * 6);
+    // One extra instance for the arrowhead at the end of the path.
+    const data = new Float32Array((segments + 1) * 7);
     for (let i = 0; i < segments; i++) {
-      const o = i * 6;
+      const o = i * 7;
       data[o + 0] = path[i * 3 + 0]!;
       data[o + 1] = path[i * 3 + 1]!;
       data[o + 2] = path[i * 3 + 2]!;
       data[o + 3] = path[(i + 1) * 3 + 0]!;
       data[o + 4] = path[(i + 1) * 3 + 1]!;
       data[o + 5] = path[(i + 1) * 3 + 2]!;
+      data[o + 6] = 0;
     }
+    // Arrowhead: prev = first point (start), next = second point.
+    const a = segments * 7;
+    data[a + 0] = path[0]!;
+    data[a + 1] = path[1]!;
+    data[a + 2] = path[2]!;
+    data[a + 3] = path[3]!;
+    data[a + 4] = path[4]!;
+    data[a + 5] = path[5]!;
+    data[a + 6] = 1;
     if (this.flightBuf) gl.deleteBuffer(this.flightBuf);
     if (this.flightVao) gl.deleteVertexArray(this.flightVao);
     const vao = gl.createVertexArray()!;
@@ -1500,13 +1533,16 @@ export class WebGL2Renderer implements SceneRenderer {
     const buf = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-    const stride = 6 * 4;
+    const stride = 7 * 4;
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 3, gl.FLOAT, false, stride, 0);
     gl.vertexAttribDivisor(0, 1);
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 3, gl.FLOAT, false, stride, 12);
     gl.vertexAttribDivisor(1, 1);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 1, gl.FLOAT, false, stride, 24);
+    gl.vertexAttribDivisor(2, 1);
     gl.bindVertexArray(null);
     this.flightVao = vao;
     this.flightBuf = buf;

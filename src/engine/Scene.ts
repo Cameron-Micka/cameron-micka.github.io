@@ -134,9 +134,9 @@ export function poiMarkerDistance(effectiveRadius: number): number {
 // Float32Array of XYZ triples (length = N * 3 for N points).
 //
 // Route is reverse-chronological: starts at the most recent role's planet
-// (highest `index`) and ends at the earliest (index 0). Endpoint planets get
-// extra revolutions so the path reads as "departing" / "arriving" instead of
-// just brushing past them.
+// (highest `index`) and ends at the earliest (index 0). The two endpoint
+// planets each do a single half loop (one free end apiece) so the path reads
+// as cleanly "departing" / "arriving" instead of circling them fully.
 export function buildFlightPath(models: PlanetModel[]): Float32Array {
   if (models.length < 2) return new Float32Array(0);
   const route = [...models].sort((a, b) => b.index - a.index);
@@ -210,20 +210,47 @@ export function buildFlightPath(models: PlanetModel[]): Float32Array {
     const isEnd = i === route.length - 1;
     const o = orbits[i]!;
 
-    const entryAngle = isStart
-      ? 0
-      : angleFacing(i, vec3.normalize(vec3.sub(orbits[i - 1]!.center, o.center)));
-    const targetExit = isEnd
-      ? entryAngle
-      : angleFacing(i, vec3.normalize(vec3.sub(orbits[i + 1]!.center, o.center)));
-
-    // Half an orbital revolution per planet before the path moves on.
+    // Each planet sweeps at least a half orbital revolution before the path
+    // moves on. Interior planets enter facing the previous planet and exit
+    // facing the next, so their arc can run longer than half a loop depending
+    // on geometry. The two endpoint planets each have one free end (no neighbor
+    // on that side), so they do exactly a half loop: the start enters so its
+    // half loop finishes pointing at the next planet, and the end enters facing
+    // the previous planet and stops after half a turn — reads as a clean
+    // departure / arrival instead of a full extra circle.
     const turns = 0.5;
-    let delta = targetExit - entryAngle;
-    while (delta <= 0) delta += Math.PI * 2;
-    const minDelta = Math.PI * 2 * turns;
-    while (delta < minDelta) delta += Math.PI * 2;
-    const exitAngle = entryAngle + delta;
+    const halfLoop = Math.PI * 2 * turns;
+
+    let entryAngle: number;
+    let exitAngle: number;
+    if (isStart) {
+      const targetExit = angleFacing(
+        i,
+        vec3.normalize(vec3.sub(orbits[i + 1]!.center, o.center)),
+      );
+      entryAngle = targetExit - halfLoop;
+      exitAngle = targetExit;
+    } else if (isEnd) {
+      entryAngle = angleFacing(
+        i,
+        vec3.normalize(vec3.sub(orbits[i - 1]!.center, o.center)),
+      );
+      exitAngle = entryAngle + halfLoop;
+    } else {
+      entryAngle = angleFacing(
+        i,
+        vec3.normalize(vec3.sub(orbits[i - 1]!.center, o.center)),
+      );
+      const targetExit = angleFacing(
+        i,
+        vec3.normalize(vec3.sub(orbits[i + 1]!.center, o.center)),
+      );
+      let d = targetExit - entryAngle;
+      while (d <= 0) d += Math.PI * 2;
+      while (d < halfLoop) d += Math.PI * 2;
+      exitAngle = entryAngle + d;
+    }
+    const delta = exitAngle - entryAngle;
 
     // Corkscrew wiggle along the orbit's perpendicular axis. Envelope is
     // sin²(π·t) so the displacement AND its derivative are zero at both

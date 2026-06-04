@@ -21,7 +21,6 @@ import poiLineWGSL from './shaders/poi_line.wgsl?raw';
 import flightPathWGSL from './shaders/flight_path.wgsl?raw';
 import ringWGSL from './shaders/ring.wgsl?raw';
 import compositeWGSL from './shaders/composite.wgsl?raw';
-import fxaaWGSL from './shaders/fxaa.wgsl?raw';
 import wireframeWGSL from './shaders/wireframe.wgsl?raw';
 import atmosphereWGSL from './shaders/atmosphere.wgsl?raw';
 import cloudsWGSL from './shaders/clouds.wgsl?raw';
@@ -117,14 +116,7 @@ export class WebGPURenderer implements SceneRenderer {
   private frameBG!: GPUBindGroup;
   private objBG!: GPUBindGroup;
   private compositeBG!: GPUBindGroup;
-  private fxaaBG!: GPUBindGroup;
   private sampler!: GPUSampler;
-
-  // Intermediate LDR target. When FXAA is active the composite pass renders
-  // here (instead of the swapchain) so the FXAA pass can sample the finished
-  // tonemapped image as a texture.
-  private ldrTex?: GPUTexture;
-  private ldrView?: GPUTextureView;
 
   private pipelines!: {
     nebula: GPURenderPipeline;
@@ -136,7 +128,6 @@ export class WebGPURenderer implements SceneRenderer {
     poiLine: GPURenderPipeline;
     flightPath: GPURenderPipeline;
     composite: GPURenderPipeline;
-    fxaa: GPURenderPipeline;
     wireframe: GPURenderPipeline;
     atmosphere: GPURenderPipeline;
     clouds: GPURenderPipeline;
@@ -144,7 +135,6 @@ export class WebGPURenderer implements SceneRenderer {
   private frameLayout!: GPUBindGroupLayout;
   private objLayout!: GPUBindGroupLayout;
   private compositeLayout!: GPUBindGroupLayout;
-  private fxaaLayout!: GPUBindGroupLayout;
 
   private objScratch = new Float32Array(OBJ_FLOATS * MAX_OBJECTS);
   // 64 base floats (viewProj 16 + cameraPos 4 + keyLightDir 4 + misc 4 +
@@ -325,12 +315,6 @@ export class WebGPURenderer implements SceneRenderer {
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {} },
       ],
     });
-    this.fxaaLayout = d.createBindGroupLayout({
-      entries: [
-        { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
-        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {} },
-      ],
-    });
 
     this.frameBG = d.createBindGroup({
       layout: this.frameLayout,
@@ -370,7 +354,6 @@ export class WebGPURenderer implements SceneRenderer {
     const poiLineMod = d.createShaderModule({ code: poiLineWGSL });
     const flightPathMod = d.createShaderModule({ code: flightPathWGSL });
     const compositeMod = d.createShaderModule({ code: compositeWGSL });
-    const fxaaMod = d.createShaderModule({ code: fxaaWGSL });
     const wireframeMod = d.createShaderModule({ code: wireframeWGSL });
     const atmosphereMod = d.createShaderModule({ code: atmosphereWGSL });
     const cloudsMod = d.createShaderModule({ code: cloudsWGSL });
@@ -565,11 +548,12 @@ export class WebGPURenderer implements SceneRenderer {
     // instance. Alpha-blended (not additive) so the white line stays calm and
     // doesn't blow out the bloom pass.
     const flightPathInstanceLayout: GPUVertexBufferLayout = {
-      arrayStride: 6 * 4,
+      arrayStride: 7 * 4,
       stepMode: 'instance',
       attributes: [
         { shaderLocation: 0, offset: 0, format: 'float32x3' }, // prev
         { shaderLocation: 1, offset: 12, format: 'float32x3' }, // next
+        { shaderLocation: 2, offset: 24, format: 'float32' }, // kind (0=ribbon,1=arrow)
       ],
     };
     const flightPath = d.createRenderPipeline({
@@ -601,20 +585,6 @@ export class WebGPURenderer implements SceneRenderer {
       vertex: { module: compositeMod, entryPoint: 'vs' },
       fragment: {
         module: compositeMod,
-        entryPoint: 'fs',
-        targets: [{ format: this.format }],
-      },
-      primitive: { topology: 'triangle-list' },
-    });
-
-    const fxaaPL = d.createPipelineLayout({
-      bindGroupLayouts: [this.fxaaLayout],
-    });
-    const fxaa = d.createRenderPipeline({
-      layout: fxaaPL,
-      vertex: { module: fxaaMod, entryPoint: 'vs' },
-      fragment: {
-        module: fxaaMod,
         entryPoint: 'fs',
         targets: [{ format: this.format }],
       },
@@ -672,7 +642,7 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    this.pipelines = { nebula, planet, ring, star, satellite, poi, poiLine, flightPath, composite, fxaa, wireframe, atmosphere, clouds };
+    this.pipelines = { nebula, planet, ring, star, satellite, poi, poiLine, flightPath, composite, wireframe, atmosphere, clouds };
   }
 
   private buildStars(count: number): void {
@@ -721,7 +691,6 @@ export class WebGPURenderer implements SceneRenderer {
     this.msaaTex?.destroy();
     this.msaaTex = undefined;
     this.msaaView = undefined;
-    this.ldrTex?.destroy();
     // hdrTex is always single-sampled: it is both the composite source and the
     // resolve target when MSAA is enabled.
     this.hdrTex = this.device.createTexture({
@@ -754,24 +723,6 @@ export class WebGPURenderer implements SceneRenderer {
         { binding: 0, resource: { buffer: this.postUBO } },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: this.hdrView },
-      ],
-    });
-
-    // LDR intermediate the composite pass renders into when FXAA is active;
-    // the FXAA pass then samples it. Same format as the swapchain so the
-    // composite pipeline can target either interchangeably.
-    this.ldrTex = this.device.createTexture({
-      size: [width, height],
-      format: this.format,
-      usage:
-        GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    });
-    this.ldrView = this.ldrTex.createView();
-    this.fxaaBG = this.device.createBindGroup({
-      layout: this.fxaaLayout,
-      entries: [
-        { binding: 0, resource: this.sampler },
-        { binding: 1, resource: this.ldrView },
       ],
     });
   }
@@ -1236,22 +1187,21 @@ export class WebGPURenderer implements SceneRenderer {
       scenePass.setPipeline(this.pipelines.flightPath);
       scenePass.setBindGroup(0, this.frameBG);
       scenePass.setVertexBuffer(0, this.flightPathBuf);
-      scenePass.draw(6, this.flightPathSegmentCount);
+      // Ribbon segments plus one trailing arrowhead instance.
+      const instances = this.flightPathSegmentCount + 1;
+      scenePass.draw(6, instances);
       this.stats.drawCalls++;
-      this.stats.triangles += this.flightPathSegmentCount * 2;
+      this.stats.triangles += this.flightPathSegmentCount * 2 + 1;
     }
 
     scenePass.end();
 
-    // Composite pass. With FXAA enabled it renders into the LDR intermediate
-    // so the FXAA pass can read it back; otherwise it writes the swapchain
-    // directly. 'low' tier never runs FXAA (post is bypassed there).
-    const useFxaa = frame.quality.fxaa && !!this.ldrView;
-    const swapView = this.context.getCurrentTexture().createView();
+    // Composite pass to swapchain.
+    const view = this.context.getCurrentTexture().createView();
     const compositePass = encoder.beginRenderPass({
       colorAttachments: [
         {
-          view: useFxaa ? this.ldrView! : swapView,
+          view,
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: 'clear',
           storeOp: 'store',
@@ -1263,24 +1213,6 @@ export class WebGPURenderer implements SceneRenderer {
     compositePass.draw(3);
     this.stats.drawCalls++;
     compositePass.end();
-
-    if (useFxaa) {
-      const fxaaPass = encoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: swapView,
-            clearValue: { r: 0, g: 0, b: 0, a: 1 },
-            loadOp: 'clear',
-            storeOp: 'store',
-          },
-        ],
-      });
-      fxaaPass.setPipeline(this.pipelines.fxaa);
-      fxaaPass.setBindGroup(0, this.fxaaBG);
-      fxaaPass.draw(3);
-      this.stats.drawCalls++;
-      fxaaPass.end();
-    }
 
     d.queue.submit([encoder.finish()]);
 
@@ -1341,8 +1273,9 @@ export class WebGPURenderer implements SceneRenderer {
     this.device.queue.writeBuffer(this.poiBuf, 0, arr);
   }
 
-  // Build a per-segment instance buffer (prev.xyz, next.xyz) from the flight
-  // path polyline. Only re-uploads when the polyline length changes, which in
+  // Build a per-segment instance buffer (prev.xyz, next.xyz, kind) from the
+  // flight path polyline, plus one trailing arrowhead instance (kind=1) at the
+  // end point. Only re-uploads when the polyline length changes, which in
   // practice means once on first frame.
   private uploadFlightPath(path: Float32Array): void {
     const pointCount = path.length / 3;
@@ -1358,16 +1291,29 @@ export class WebGPURenderer implements SceneRenderer {
       return;
     }
     const segments = pointCount - 1;
-    const instance = new Float32Array(segments * 6);
+    // One extra instance for the arrowhead at the end of the path.
+    const instance = new Float32Array((segments + 1) * 7);
     for (let i = 0; i < segments; i++) {
-      const o = i * 6;
+      const o = i * 7;
       instance[o + 0] = path[i * 3 + 0]!;
       instance[o + 1] = path[i * 3 + 1]!;
       instance[o + 2] = path[i * 3 + 2]!;
       instance[o + 3] = path[(i + 1) * 3 + 0]!;
       instance[o + 4] = path[(i + 1) * 3 + 1]!;
       instance[o + 5] = path[(i + 1) * 3 + 2]!;
+      instance[o + 6] = 0;
     }
+    // Arrowhead: prev = first point (start), next = second point. The shader
+    // anchors the tip at the start and orients it along this segment's
+    // travel direction.
+    const a = segments * 7;
+    instance[a + 0] = path[0]!;
+    instance[a + 1] = path[1]!;
+    instance[a + 2] = path[2]!;
+    instance[a + 3] = path[3]!;
+    instance[a + 4] = path[4]!;
+    instance[a + 5] = path[5]!;
+    instance[a + 6] = 1;
     this.flightPathBuf?.destroy();
     this.flightPathBuf = this.device.createBuffer({
       size: instance.byteLength,
@@ -1422,9 +1368,8 @@ export class WebGPURenderer implements SceneRenderer {
     const hdr = this.width * this.height * 8;
     const depth = this.width * this.height * 4 * this.sampleCount;
     const msaa = this.sampleCount > 1 ? hdr * this.sampleCount : 0;
-    const ldr = this.width * this.height * 4; // LDR intermediate for FXAA
     const stars = this.starCount * 7 * 4;
-    return (hdr * 2 + msaa + depth + ldr + stars) / (1024 * 1024);
+    return (hdr * 2 + msaa + depth + stars) / (1024 * 1024);
   }
 
   getStats(): RenderStats {
@@ -1439,7 +1384,6 @@ export class WebGPURenderer implements SceneRenderer {
     this.hdrTex?.destroy();
     this.msaaTex?.destroy();
     this.depthTex?.destroy();
-    this.ldrTex?.destroy();
     this.starBuf?.destroy();
     this.satelliteBuf?.destroy();
     this.poiBuf?.destroy();
