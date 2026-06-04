@@ -9,7 +9,7 @@ import { BottomRibbon } from './BottomRibbon';
 import { PoiModal } from './PoiModal';
 import { SettingsPanel } from './SettingsPanel';
 import { DebugHud } from './DebugHud';
-import { HINTS, UI } from './strings';
+import { UI } from './strings';
 
 function SoundBridge() {
   const engine = useEngine();
@@ -106,32 +106,6 @@ function LoadingBar() {
   );
 }
 
-function SkipIntro() {
-  const engine = useEngine();
-  const [visible, setVisible] = useState(true);
-  useEffect(() => {
-    const off = engine.events.on('flyInDone', () => setVisible(false));
-    const t = window.setTimeout(() => setVisible(false), 3000);
-    return () => {
-      off();
-      window.clearTimeout(t);
-    };
-  }, [engine]);
-  if (!visible) return null;
-  return (
-    <button
-      type="button"
-      className="skip-btn"
-      onClick={() => {
-        engine.skipIntro();
-        setVisible(false);
-      }}
-    >
-      {HINTS.skip}
-    </button>
-  );
-}
-
 export function Experience({ companies }: { companies: Company[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [engine, setEngine] = useState<Engine | null>(null);
@@ -173,7 +147,6 @@ export function Experience({ companies }: { companies: Company[] }) {
               <SettingsPanel onClose={() => setSettingsOpen(false)} />
             )}
             <DebugHud />
-            <SkipIntro />
           </div>
           <Backend />
           <SoundBridge />

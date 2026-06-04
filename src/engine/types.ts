@@ -66,6 +66,10 @@ export interface PlanetInstance {
 
 export interface FrameState {
   time: number; // seconds
+  // Moon-orbit/spin clock. Independent of `time` so reduced motion can freeze
+  // moon orbit and self-rotation in place without affecting other time-driven
+  // shader effects (clouds, twinkle, etc., which apply their own slowdowns).
+  moonTime: number;
   view: Mat4;
   proj: Mat4;
   viewProj: Mat4;

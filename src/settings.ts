@@ -30,6 +30,10 @@ function isValidQuality(q: unknown): q is QualityPreference {
   return q === 'auto' || (typeof q === 'string' && q in QUALITY_PRESETS);
 }
 
+// Settings that are intentionally session-only: they reset to their defaults on
+// every load and are never written to localStorage.
+const EPHEMERAL_KEYS = ['wireframe', 'freeCamera', 'flightPath'] as const;
+
 export function loadSettings(): PersistedSettings {
   if (typeof localStorage === 'undefined') return { ...DEFAULTS };
   try {
@@ -38,6 +42,9 @@ export function loadSettings(): PersistedSettings {
     const merged = { ...DEFAULTS, ...(JSON.parse(raw) as Partial<PersistedSettings>) };
     // Drop quality preferences from removed tiers (e.g. a stale 'ultra').
     if (!isValidQuality(merged.quality)) merged.quality = DEFAULTS.quality;
+    // Ephemeral settings always start from their defaults, ignoring any value
+    // that may have been persisted by an older build.
+    for (const k of EPHEMERAL_KEYS) merged[k] = DEFAULTS[k];
     return merged;
   } catch {
     return { ...DEFAULTS };
@@ -47,7 +54,10 @@ export function loadSettings(): PersistedSettings {
 export function saveSettings(s: PersistedSettings): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    localStorage.setItem(KEY, JSON.stringify(s));
+    // Strip ephemeral settings so they aren't remembered across reloads.
+    const persisted = { ...s };
+    for (const k of EPHEMERAL_KEYS) delete (persisted as Partial<PersistedSettings>)[k];
+    localStorage.setItem(KEY, JSON.stringify(persisted));
   } catch {
     /* ignore quota / privacy-mode errors */
   }

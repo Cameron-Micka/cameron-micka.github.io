@@ -28,7 +28,7 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     ssao: false,
     chromaticAberration: false,
     bloomMips: 0,
-    msaa: 4,
+    msaa: 1,
     shadows: false,
   },
   webgl2: {

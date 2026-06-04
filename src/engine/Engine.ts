@@ -131,8 +131,8 @@ export class Engine {
   private zoomCurrent = 1;
   private blurCurrent = 0;
   private time = 0;
-  // Separate clock used to drive moon orbits so we can slow them way down
-  // under reduced motion without affecting the global time used by shaders
+  // Separate clock used to drive moon orbits so we can halt them under
+  // reduced motion without affecting the global time used by shaders
   // (cloud rotation, etc. already apply their own reduced-motion multipliers).
   private moonTime = 0;
   private focusedIndex = 0;
@@ -337,7 +337,7 @@ export class Engine {
 
       if (!modalOpen) {
         this.time += dt;
-        this.moonTime += dt * (this.reducedMotion() ? 0.1 : 1.0);
+        this.moonTime += dt * (this.reducedMotion() ? 0.0 : 1.0);
         this.scrubCurrent = damp(this.scrubCurrent, this.scrubTarget, 8, dt);
         this.zoomCurrent = damp(this.zoomCurrent, this.zoomTarget, 9, dt);
         this.updateRotations(dt, ts);
@@ -365,7 +365,7 @@ export class Engine {
   private updateFreeCamera(dt: number, ts: number, modalOpen: boolean): void {
     if (!modalOpen) {
       this.time += dt;
-      this.moonTime += dt * (this.reducedMotion() ? 0.1 : 1.0);
+      this.moonTime += dt * (this.reducedMotion() ? 0.0 : 1.0);
       this.updateRotations(dt, ts);
     }
 
@@ -440,14 +440,16 @@ export class Engine {
     const reduced = this.reducedMotion();
     const recentlyOrbited = ts / 1000 - this.lastInteract < 2.5;
 
-    // Per-planet cloud pacing: ease the drift toward 0 when the planet's
-    // spin is paused so clouds visibly decelerate with the surface. Under
-    // reduced motion the cloud shader already applies its own slowdown
+    // Per-planet cloud pacing: ease the drift toward a slow crawl when the
+    // planet's spin is paused so clouds visibly decelerate with the surface
+    // but never fully stop (a frozen cloud layer reads as a broken render).
+    // Under reduced motion the cloud shader already applies its own slowdown
     // multiplier, so keep pace at 1 there and let the shader handle it.
+    const PAUSED_CLOUD_PACE = 0.3;
     const k = 1 - Math.exp(-dt * 3);
     for (let i = 0; i < this.cloudPace.length; i++) {
       const paused = !reduced && recentlyOrbited && i === this.lastOrbitIndex;
-      const target = paused ? 0 : 1;
+      const target = paused ? PAUSED_CLOUD_PACE : 1;
       this.cloudPace[i] = this.cloudPace[i]! + (target - this.cloudPace[i]!) * k;
       this.cloudTimes[i] = this.cloudTimes[i]! + dt * this.cloudPace[i]!;
     }
@@ -489,6 +491,7 @@ export class Engine {
     });
     const frame: FrameState = {
       time: this.time,
+      moonTime: this.moonTime,
       view: this.camera.view,
       proj: this.camera.proj,
       viewProj: this.camera.viewProj,
@@ -609,8 +612,17 @@ export class Engine {
       const model = this.models[focused]!;
       const center: Vec3 = [0, 0, model.z];
       const rot = this.orientations[focused] ?? quat.identity();
-      const pickR = model.radius * 0.16 * (this.coarsePointer ? 1.8 : 1);
       const markerDist = poiMarkerDistance(model.radius);
+      // POI markers are rendered as fixed-screen-size billboards, so their
+      // pick collider must also be screen-size: a world-space radius equal to
+      // what the marker's on-screen circle subtends at the marker's distance
+      // from the camera. markerNdc is the marker circle's NDC half-extent at
+      // full focus (size factor 0.027 + 0.021 * focus, rim at uv 0.85); the
+      // world radius at camera distance d is markerNdc * d / projY.
+      const markerNdc = (0.027 + 0.021) * 0.85;
+      const projY = this.camera.proj[5]!;
+      const camPos = this.camera.position;
+      const pickScale = (this.coarsePointer ? 1.8 : 1) / projY;
       // Distance to the planet body along this ray, used to reject only POIs
       // that are genuinely hidden behind the planet (true backside). Markers on
       // the horizon are pulled outside the silhouette and stay clickable.
@@ -619,6 +631,8 @@ export class Engine {
         const poi = model.poiDirs[i]!;
         const dir = quat.rotateVec3(rot, poi.dir);
         const world = vec3.add(center, vec3.scale(dir, markerDist));
+        const camDist = vec3.length(vec3.sub(world, camPos));
+        const pickR = markerNdc * camDist * pickScale;
         const t = raySphere(ray, world, pickR);
         if (t < 0) continue;
         if (planetT >= 0 && planetT < t) continue; // occluded by the planet body
@@ -744,10 +758,6 @@ export class Engine {
     this.settings.flightPath = on;
     saveSettings(this.settings);
     this.commit();
-  }
-
-  skipIntro(): void {
-    this.onUserInteract();
   }
 
   // ---- helpers ----

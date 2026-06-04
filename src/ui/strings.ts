@@ -22,7 +22,6 @@ export const SOCIAL = {
 export const HINTS = {
   scrubDesktop: 'Scroll to travel through time · drag a planet to spin it · click a glowing point',
   scrubTouch: 'Two fingers to travel · drag to spin · tap a glowing point',
-  skip: 'Skip intro',
 };
 
 export const UI = {

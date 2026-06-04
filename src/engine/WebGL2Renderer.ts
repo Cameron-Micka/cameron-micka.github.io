@@ -371,6 +371,7 @@ layout(location=2) in vec3 aColor;
 uniform mat4 uViewProj;
 uniform float uTime;
 uniform float uMode; // 0 star, 1 poi
+uniform float uHeight; // viewport height in pixels (POI fixed-screen sizing)
 out vec4 vAttr;
 out vec3 vColor;
 out float vDigit;
@@ -378,7 +379,12 @@ void main(){
   vec4 clip=uViewProj*vec4(aPos,1.0);
   gl_Position=clip;
   float twinkle=(uMode<0.5)?(0.6+0.4*sin(uTime*2.0+aAttr.y*6.28)):1.0;
-  gl_PointSize=clamp(aAttr.x/max(clip.w,0.001),1.0,64.0);
+  // Stars shrink with distance (aAttr.x is a pixel*depth factor); POI markers
+  // are a fixed fraction of the viewport height like the WebGPU billboards
+  // (aAttr.x is the NDC half-extent, so diameter = aAttr.x * viewport height),
+  // independent of camera distance.
+  float ps=(uMode<0.5)?(aAttr.x/max(clip.w,0.001)):(aAttr.x*uHeight);
+  gl_PointSize=clamp(ps,1.0,256.0);
   vAttr=vec4(twinkle,aAttr.y,uMode,aAttr.x);
   vColor=aColor;
   vDigit=aAttr.z;
@@ -531,8 +537,10 @@ void main(){
   float len=length(dir);
   dir=len>1e-6?dir/len:vec2(0.0,1.0);
   vec2 perp=vec2(-dir.y,dir.x);
-  // Marker point size matches the POINT shader's clamp; rim sits at uv 0.85.
-  float pointPx=clamp(aParam.z/max(co.w,0.001),1.0,64.0);
+  // Marker point size matches the POINT shader's fixed-screen sizing (aParam.z
+  // is the NDC half-extent); the rim sits at uv 0.85 so pull the connector end
+  // back to it.
+  float pointPx=clamp(aParam.z*uHeight,1.0,256.0);
   float circleR=0.85*pointPx/uHeight;
   ao=ao-dir*circleR;
   bool isOuter=aParam.y>0.5;
@@ -1129,7 +1137,7 @@ export class WebGL2Renderer implements SceneRenderer {
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
-      'uViewProj', 'uTime', 'uMode', 'uWireframe',
+      'uViewProj', 'uTime', 'uMode', 'uWireframe', 'uHeight',
     ]);
     this.line = this.makeProgram(LINE_VERT, LINE_FRAG, [
       'uViewProj', 'uAspect', 'uThick', 'uHeight', 'uWireframe',
@@ -1549,7 +1557,7 @@ export class WebGL2Renderer implements SceneRenderer {
           const wo = quat.rotateVec3(p.orientation, localOffset);
           const moonRot = quat.multiply(
             p.orientation,
-            quat.fromAxisAngle([0, 1, 0], frame.time * 0.3),
+            quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
           );
           this.drawWire(
             [p.center[0] + wo[0], p.center[1] + wo[1], p.center[2] + wo[2]],
@@ -1592,7 +1600,7 @@ export class WebGL2Renderer implements SceneRenderer {
         const wo = quat.rotateVec3(p.orientation, localOffset);
         const moonRot = quat.multiply(
           p.orientation,
-          quat.fromAxisAngle([0, 1, 0], frame.time * 0.3),
+          quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
         );
         this.drawSphere(
           p,
@@ -1790,6 +1798,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 1);
+      gl.uniform1f(this.point.uniforms.uHeight!, this.height);
       gl.uniform1f(this.point.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.poiVao);
       gl.drawArrays(gl.POINTS, 0, this.poiCount);
@@ -2021,7 +2030,9 @@ export class WebGL2Renderer implements SceneRenderer {
         const inner = vec3.add(p.center, vec3.scale(surfDir, er));
         const outer = vec3.add(p.center, vec3.scale(dir, markerDist));
         const dim = fade;
-        const sizePx = 90 * (0.7 + p.focus) * vis;
+        // NDC half-extent, matching the WebGPU POI billboard size so markers
+        // are a fixed fraction of the viewport height regardless of distance.
+        const sizePx = (0.027 + 0.021 * p.focus) * vis;
         pos.push(outer[0], outer[1], outer[2]);
         attr.push(sizePx, dim, i + 1, 0);
         color.push(poi.accent[0], poi.accent[1], poi.accent[2]);

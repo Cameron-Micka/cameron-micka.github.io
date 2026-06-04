@@ -963,7 +963,7 @@ export class WebGPURenderer implements SceneRenderer {
         // the moon's surface frame inherits the planet's rotation too.
         const moonRot = quat.multiply(
           rot,
-          quat.fromAxisAngle([0, 1, 0], frame.time * 0.3),
+          quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
         );
         mat4.fromRotationTranslationScale(model, moonRot, moonCenter, moonR);
         this.writeObject(
@@ -1258,7 +1258,7 @@ export class WebGPURenderer implements SceneRenderer {
       const inner = vec3.add(p.center, vec3.scale(surfDir, effectiveRadius));
       const outer = vec3.add(p.center, vec3.scale(dir, markerDist));
       const dim = fade;
-      const size = (0.038 + 0.03 * p.focus) * vis;
+      const size = (0.027 + 0.021 * p.focus) * vis;
       out.push(
         inner[0],
         inner[1],
