@@ -393,12 +393,19 @@ export class Engine {
     const rightZ = sy;
 
     // Normalize axes so diagonal presses don't move faster than a cardinal.
+    // Only normalize when over-saturated (>1): keyboard cardinals (mag 1) and
+    // the analog mobile thumbstick (mag <1) keep their magnitude so partial
+    // stick deflection gives proportional speed; diagonals/combined inputs that
+    // exceed 1 are clamped to unit speed.
     const axesMag = Math.hypot(fAx, rAx);
     let nf = 0;
     let nr = 0;
-    if (axesMag > 0) {
+    if (axesMag > 1) {
       nf = fAx / axesMag;
       nr = rAx / axesMag;
+    } else {
+      nf = fAx;
+      nr = rAx;
     }
     const speed = FLY_SPEED * speedMul;
     const targetVx = (fwdX * nf + rightX * nr) * speed;

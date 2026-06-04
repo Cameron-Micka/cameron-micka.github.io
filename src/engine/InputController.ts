@@ -13,6 +13,8 @@ export interface InputHandlers {
 const DRAG_THRESHOLD = 6; // px before a press becomes an orbit drag
 const WHEEL_SCALE = 0.0016;
 const SCRUB_END_DELAY = 140;
+const TOUCH_MOVE_RANGE = 70; // px thumbstick displacement for full thrust
+const TOUCH_MOVE_DEADZONE = 0.12; // radial deadzone to ignore thumb jitter
 
 // Held-key codes (KeyboardEvent.code) used by the free-fly movement state.
 const MOVE_CODES = new Set([
@@ -47,6 +49,19 @@ export class InputController {
   private freeMode = false;
   private heldCodes = new Set<string>();
 
+  // Free-fly touch controls (mobile): a touch landing on the left half of the
+  // surface acts as a virtual movement thumbstick (displacement → analog
+  // forward/right); a touch on the right half is a look drag. Tracked by touch
+  // identifier so the two can run simultaneously.
+  private freeMoveId: number | null = null;
+  private freeMoveAnchorX = 0;
+  private freeMoveAnchorY = 0;
+  private touchForward = 0;
+  private touchRight = 0;
+  private freeLookId: number | null = null;
+  private freeLookX = 0;
+  private freeLookY = 0;
+
   constructor(handlers: InputHandlers) {
     this.h = handlers;
   }
@@ -60,6 +75,7 @@ export class InputController {
     el.addEventListener('touchstart', this.onTouchStart, { passive: false });
     el.addEventListener('touchmove', this.onTouchMove, { passive: false });
     el.addEventListener('touchend', this.onTouchEnd);
+    el.addEventListener('touchcancel', this.onTouchEnd);
     el.addEventListener('contextmenu', this.onContextMenu);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
@@ -79,6 +95,7 @@ export class InputController {
     el.removeEventListener('touchstart', this.onTouchStart);
     el.removeEventListener('touchmove', this.onTouchMove);
     el.removeEventListener('touchend', this.onTouchEnd);
+    el.removeEventListener('touchcancel', this.onTouchEnd);
     el.removeEventListener('contextmenu', this.onContextMenu);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
@@ -87,6 +104,7 @@ export class InputController {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
     this.heldCodes.clear();
+    this.clearFreeTouch();
     this.el = null;
   }
 
@@ -95,14 +113,25 @@ export class InputController {
     // Always drop any movement keys when switching modes so a key held during
     // the toggle doesn't ghost-move the camera.
     this.heldCodes.clear();
+    this.clearFreeTouch();
   }
 
-  // Returns -1/0/1 along each axis derived from currently-held movement keys.
+  // Drops any in-progress free-fly touch gestures so the camera can never be
+  // left drifting from a touch that was cancelled, lost, or mode-switched away.
+  private clearFreeTouch(): void {
+    this.freeMoveId = null;
+    this.freeLookId = null;
+    this.touchForward = 0;
+    this.touchRight = 0;
+  }
+
+  // Returns -1/0/1 along each axis derived from currently-held movement keys,
+  // plus any analog contribution from the mobile movement thumbstick.
   // Diagonal normalization is the engine's responsibility.
   getMovementAxes(): { forward: number; right: number } {
     const h = this.heldCodes;
-    const forward = (h.has('KeyW') ? 1 : 0) - (h.has('KeyS') ? 1 : 0);
-    const right = (h.has('KeyD') ? 1 : 0) - (h.has('KeyA') ? 1 : 0);
+    const forward = (h.has('KeyW') ? 1 : 0) - (h.has('KeyS') ? 1 : 0) + this.touchForward;
+    const right = (h.has('KeyD') ? 1 : 0) - (h.has('KeyA') ? 1 : 0) + this.touchRight;
     return { forward, right };
   }
 
@@ -187,7 +216,10 @@ export class InputController {
 
   // ---- Touch (multi-touch scrub + pinch) ----
   private onTouchStart = (e: TouchEvent): void => {
-    if (this.freeMode) return;
+    if (this.freeMode) {
+      this.onFreeTouchStart(e);
+      return;
+    }
     this.h.onUserInteract();
     if (e.touches.length === 1) {
       this.touchMode = 'orbit';
@@ -206,7 +238,10 @@ export class InputController {
   };
 
   private onTouchMove = (e: TouchEvent): void => {
-    if (this.freeMode) return;
+    if (this.freeMode) {
+      this.onFreeTouchMove(e);
+      return;
+    }
     e.preventDefault();
     if (this.touchMode === 'orbit' && e.touches.length === 1) {
       const t = e.touches[0]!;
@@ -236,7 +271,7 @@ export class InputController {
 
   private onTouchEnd = (e: TouchEvent): void => {
     if (this.freeMode) {
-      if (e.touches.length === 0) this.touchMode = 'none';
+      this.onFreeTouchEnd(e);
       return;
     }
     if (this.touchMode === 'orbit' && !this.dragging) {
@@ -252,6 +287,70 @@ export class InputController {
       this.dragging = false;
     }
   };
+
+  // ---- Free-fly touch controls (dual-zone): left half drives a virtual
+  // movement thumbstick, right half drives the look camera. ----
+  private onFreeTouchStart(e: TouchEvent): void {
+    if (!this.el) return;
+    e.preventDefault();
+    this.h.onUserInteract();
+    const r = this.el.getBoundingClientRect();
+    const mid = r.left + r.width / 2;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i]!;
+      if (t.clientX < mid) {
+        // Strict zone ownership: only the first left-half touch is the stick.
+        if (this.freeMoveId === null) {
+          this.freeMoveId = t.identifier;
+          this.freeMoveAnchorX = t.clientX;
+          this.freeMoveAnchorY = t.clientY;
+          this.touchForward = 0;
+          this.touchRight = 0;
+        }
+      } else if (this.freeLookId === null) {
+        this.freeLookId = t.identifier;
+        this.freeLookX = t.clientX;
+        this.freeLookY = t.clientY;
+      }
+    }
+  }
+
+  private onFreeTouchMove(e: TouchEvent): void {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i]!;
+      if (t.identifier === this.freeLookId) {
+        this.h.onLook(t.clientX - this.freeLookX, t.clientY - this.freeLookY);
+        this.freeLookX = t.clientX;
+        this.freeLookY = t.clientY;
+      } else if (t.identifier === this.freeMoveId) {
+        let rx = (t.clientX - this.freeMoveAnchorX) / TOUCH_MOVE_RANGE;
+        let fy = -(t.clientY - this.freeMoveAnchorY) / TOUCH_MOVE_RANGE;
+        rx = Math.max(-1, Math.min(1, rx));
+        fy = Math.max(-1, Math.min(1, fy));
+        // Radial deadzone so a planted thumb's micro-jitter doesn't drift.
+        if (Math.hypot(rx, fy) < TOUCH_MOVE_DEADZONE) {
+          rx = 0;
+          fy = 0;
+        }
+        this.touchRight = rx;
+        this.touchForward = fy;
+      }
+    }
+  }
+
+  private onFreeTouchEnd(e: TouchEvent): void {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const id = e.changedTouches[i]!.identifier;
+      if (id === this.freeMoveId) {
+        this.freeMoveId = null;
+        this.touchForward = 0;
+        this.touchRight = 0;
+      } else if (id === this.freeLookId) {
+        this.freeLookId = null;
+      }
+    }
+  }
 
   private onKeyDown = (e: KeyboardEvent): void => {
     if (this.freeMode) {
@@ -300,6 +399,7 @@ export class InputController {
 
   private onWindowBlur = (): void => {
     this.heldCodes.clear();
+    this.clearFreeTouch();
   };
 
   // Right-click pops a native context menu, which steals focus and swallows
@@ -316,6 +416,7 @@ export class InputController {
   private onVisibilityChange = (): void => {
     if (typeof document !== 'undefined' && document.hidden) {
       this.heldCodes.clear();
+      this.clearFreeTouch();
     }
   };
 }
