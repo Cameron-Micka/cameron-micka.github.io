@@ -35,5 +35,6 @@ export const UI = {
   expand: 'Expand',
   collapse: 'Collapse',
   settings: 'Settings',
+  freeCamera: 'Free camera',
   blogSoon: 'Writing is on the way. Check back soon.',
 };

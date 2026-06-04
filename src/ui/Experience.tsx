@@ -146,6 +146,7 @@ export function Experience({ companies }: { companies: Company[] }) {
             {settingsOpen && (
               <SettingsPanel onClose={() => setSettingsOpen(false)} />
             )}
+            <FreeCameraButton />
             <DebugHud />
           </div>
           <Backend />
@@ -161,4 +162,42 @@ function Backend() {
   const { backend } = useEngineSnapshot();
   if (backend !== 'webgl2') return null;
   return <div className="compat-notice">{UI.webglNotice}</div>;
+}
+
+// Round toggle (bottom-right, mirrors the settings button) for the free-fly
+// camera. Shows a controls hint while active.
+function FreeCameraButton() {
+  const engine = useEngine();
+  const { freeCamera } = useEngineSnapshot();
+  return (
+    <div className="freecam">
+      {freeCamera && (
+        <div className="freecam-hint">
+          WASD to fly · Shift to boost · Space to creep · drag to look
+        </div>
+      )}
+      <button
+        type="button"
+        className={`icon-btn freecam-btn${freeCamera ? ' active' : ''}`}
+        aria-label={UI.freeCamera}
+        aria-pressed={freeCamera}
+        title={UI.freeCamera}
+        onClick={() => engine.setFreeCamera(!freeCamera)}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M3 7.5A1.5 1.5 0 0 1 4.5 6h8A1.5 1.5 0 0 1 14 7.5v9A1.5 1.5 0 0 1 12.5 18h-8A1.5 1.5 0 0 1 3 16.5v-9Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M14 10.5l5-2.75v8.5L14 13.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
+  );
 }

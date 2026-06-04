@@ -91,7 +91,7 @@ const KEY_LIGHT: Vec3 = vec3.normalize([0.4, 0.85, -0.45]);
 // planet is lit from. Distance keeps the whole disc + corona inside the camera
 // far plane (200); radius makes it read as a grand, distant star.
 const SUN_DISTANCE = 72;
-const SUN_RADIUS = 14;
+const SUN_RADIUS = 20;
 
 // Free-fly camera tuning. FLY_SPEED is in world units/sec; PLANET_SPACING=9
 // puts a single hop between planets at roughly one second of held W.
