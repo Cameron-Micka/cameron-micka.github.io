@@ -82,6 +82,10 @@ export interface FrameState {
   invViewProj: Mat4;
   cameraPos: Vec3;
   keyLightDir: Vec3;
+  // The star lighting the scene. Positioned along keyLightDir so the visible
+  // sun and the directional key light agree. Rendered with its own dedicated
+  // shader (bright emissive surface + sunspots + corona), not the planet shader.
+  sun: { center: Vec3; radius: number };
   planets: PlanetInstance[];
   quality: QualitySettings;
   // Sphere occluders used for analytic shadow casting. Empty when shadows are

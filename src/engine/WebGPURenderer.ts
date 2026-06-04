@@ -21,6 +21,7 @@ import { paintYield } from './paintYield';
 
 import planetWGSL from './shaders/planet.wgsl?raw';
 import nebulaWGSL from './shaders/nebula.wgsl?raw';
+import sunWGSL from './shaders/sun.wgsl?raw';
 import starfieldWGSL from './shaders/starfield.wgsl?raw';
 import poiWGSL from './shaders/poi.wgsl?raw';
 import poiLineWGSL from './shaders/poi_line.wgsl?raw';
@@ -95,6 +96,8 @@ export class WebGPURenderer implements SceneRenderer {
   private pipelines!: {
     nebula: GPURenderPipeline;
     planet: GPURenderPipeline;
+    sun: GPURenderPipeline;
+    sunCorona: GPURenderPipeline;
     ring: GPURenderPipeline;
     star: GPURenderPipeline;
     satellite: GPURenderPipeline;
@@ -342,6 +345,7 @@ export class WebGPURenderer implements SceneRenderer {
     });
 
     const planetMod = d.createShaderModule({ code: planetWGSL });
+    const sunMod = d.createShaderModule({ code: sunWGSL });
     const ringMod = d.createShaderModule({ code: ringWGSL });
     const nebulaMod = d.createShaderModule({ code: nebulaWGSL });
     const starMod = d.createShaderModule({ code: starfieldWGSL });
@@ -447,6 +451,43 @@ export class WebGPURenderer implements SceneRenderer {
         format: 'depth24plus',
         depthWriteEnabled: false,
         depthCompare: 'always',
+      },
+      multisample,
+    });
+
+    // Sun body — opaque emissive sphere; same winding/cull as the planet.
+    const sun = d.createRenderPipeline({
+      layout: sceneObjPL,
+      vertex: { module: sunMod, entryPoint: 'vs', buffers: [meshLayout] },
+      fragment: {
+        module: sunMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT }],
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+      },
+      multisample,
+    });
+
+    // Sun corona — camera-facing additive billboard. Depth-tested (so planets
+    // in front occlude it, and the sun body masks the disc) but no depth write.
+    const sunCorona = d.createRenderPipeline({
+      layout: sceneObjPL,
+      vertex: { module: sunMod, entryPoint: 'vs_corona', buffers: [quadLayout] },
+      fragment: {
+        module: sunMod,
+        entryPoint: 'fs_corona',
+        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+      },
+      primitive: { topology: 'triangle-list' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: false,
+        depthCompare: 'less',
       },
       multisample,
     });
@@ -637,7 +678,7 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    this.pipelines = { nebula, planet, ring, star, satellite, poi, poiLine, flightPath, composite, wireframe, atmosphere, clouds };
+    this.pipelines = { nebula, planet, sun, sunCorona, ring, star, satellite, poi, poiLine, flightPath, composite, wireframe, atmosphere, clouds };
   }
 
   private buildStars(count: number): void {
@@ -837,6 +878,31 @@ export class WebGPURenderer implements SceneRenderer {
     const poiData: number[] = [];
     let objIndex = 0;
     const model = mat4.create();
+
+    // Reserve obj slot 0 for the sun so its uniform is never crowded out by the
+    // planet budget. The body and corona pipelines both read this same entry.
+    const sunObjIndex = objIndex;
+    mat4.fromRotationTranslationScale(
+      model,
+      [0, 0, 0, 1],
+      frame.sun.center,
+      frame.sun.radius,
+    );
+    this.writeObject(
+      sunObjIndex,
+      model,
+      frame.sun.radius, // p0.x = radius (corona reads this)
+      1234, // seed for surface noise variation
+      frame.time,
+      9, // kind: sun
+      [1, 1, 1],
+      [1, 1, 1],
+      [1, 1, 1],
+      0,
+      0,
+      0,
+    );
+    objIndex++;
 
     for (const p of frame.planets) {
       // Budget: planet + atmosphere + clouds = up to 3 shells + ring + moons.
@@ -1086,6 +1152,15 @@ export class WebGPURenderer implements SceneRenderer {
         this.sphere.ibuf,
         this.sphere.u32 ? 'uint32' : 'uint16',
       );
+
+      // Sun body (opaque, emissive). Sphere mesh already bound.
+      scenePass.setPipeline(this.pipelines.sun);
+      scenePass.setBindGroup(0, this.frameBG);
+      scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
+      scenePass.drawIndexed(this.sphere.count);
+      this.stats.drawCalls++;
+      this.stats.triangles += this.sphere.count / 3;
+
       for (const o of objects) {
         if (o.kind !== 0) continue;
         scenePass.setPipeline(this.pipelines.planet);
@@ -1162,6 +1237,17 @@ export class WebGPURenderer implements SceneRenderer {
         this.stats.drawCalls++;
         this.stats.triangles += this.sphere.count / 3;
       }
+
+      // Sun corona (additive billboard). Drawn after atmosphere shells but
+      // before alpha-blended rings so rings composite over the glow. Uses the
+      // unit-quad billboard buffer; the sun obj entry supplies center + radius.
+      scenePass.setPipeline(this.pipelines.sunCorona);
+      scenePass.setBindGroup(0, this.frameBG);
+      scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
+      scenePass.setVertexBuffer(0, this.quadBuf);
+      scenePass.draw(6);
+      this.stats.drawCalls++;
+      this.stats.triangles += 2;
 
       // Rings (alpha).
       let ringBound = false;

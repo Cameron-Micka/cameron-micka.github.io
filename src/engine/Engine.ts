@@ -86,6 +86,13 @@ const FLY_IN_SECONDS = 2.2;
 const FLY_IN_DISTANCE = 42;
 const KEY_LIGHT: Vec3 = vec3.normalize([0.4, 0.85, -0.45]);
 
+// The visible sun sits far along the key-light direction from the middle of the
+// planet line, so the body the viewer sees lines up with the direction every
+// planet is lit from. Distance keeps the whole disc + corona inside the camera
+// far plane (200); radius makes it read as a grand, distant star.
+const SUN_DISTANCE = 72;
+const SUN_RADIUS = 14;
+
 // Free-fly camera tuning. FLY_SPEED is in world units/sec; PLANET_SPACING=9
 // puts a single hop between planets at roughly one second of held W.
 const FLY_SPEED = 8;
@@ -107,6 +114,7 @@ export class Engine {
   private renderer: SceneRenderer | null = null;
   private camera = new Camera();
   private models: PlanetModel[];
+  private readonly sun: { center: Vec3; radius: number };
   private quality = new QualityManager();
   private input: InputController;
   private settings: PersistedSettings;
@@ -179,6 +187,17 @@ export class Engine {
     this.cloudTimes = this.models.map(() => 0);
     this.cloudPace = this.models.map(() => 1);
     this.flightPath = buildFlightPath(this.models);
+    // Static sun: far along the key light from the middle of the planet line.
+    const lineCenterZ =
+      this.models.length > 0 ? ((this.models.length - 1) * PLANET_SPACING) / 2 : 0;
+    this.sun = {
+      center: [
+        KEY_LIGHT[0] * SUN_DISTANCE,
+        KEY_LIGHT[1] * SUN_DISTANCE,
+        lineCenterZ + KEY_LIGHT[2] * SUN_DISTANCE,
+      ],
+      radius: SUN_RADIUS,
+    };
     // Open focused on the current role (the one still ongoing) rather than the
     // first planet in the sequence, so e.g. a reversed timeline still starts on
     // "Now". Falls back to the first planet if none is marked current.
@@ -505,6 +524,7 @@ export class Engine {
       invViewProj: this.camera.invViewProj,
       cameraPos: this.camera.position,
       keyLightDir: KEY_LIGHT,
+      sun: this.sun,
       planets,
       quality: this.activeQuality,
       shadowCasters: this.activeQuality.shadows

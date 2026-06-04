@@ -1124,11 +1124,118 @@ void main(){
   frag=vec4(col,alpha);
 }`;
 
+// The scene's star — mirror of sun.wgsl. Reuses PLANET_VERT (gives vNrm/vLocal/
+// vWorld). Emissive surface with granulation + dark sunspots + limb darkening;
+// no lighting and no distance fog (it is a light source). The WebGL2 scene
+// target is RGBA8, so the body is kept near/below 1.0 with clearly darker spots
+// rather than relying on HDR bloom.
+const SUN_FRAG = `#version 300 es
+precision highp float;
+in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
+out vec4 frag;
+uniform vec3 uCamera;uniform float uTime;uniform float uReducedMotion;uniform float uSeed;
+float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
+float vnoise(vec3 x){
+  vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
+  float n000=hash3(i),n100=hash3(i+vec3(1,0,0)),n010=hash3(i+vec3(0,1,0)),n110=hash3(i+vec3(1,1,0));
+  float n001=hash3(i+vec3(0,0,1)),n101=hash3(i+vec3(1,0,1)),n011=hash3(i+vec3(0,1,1)),n111=hash3(i+vec3(1,1,1));
+  return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
+}
+float fbm(vec3 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*vnoise(p);p*=2.04;a*=.5;}return v;}
+// Smooth unit tangent flow direction (mirror of planet flowDir).
+vec3 flowDir(vec3 local,vec3 n,float seed){
+  vec3 fp=local*1.5+vec3(seed*0.002,seed*0.0017,seed*0.0023);
+  vec3 v=vec3(vnoise(fp)-0.5,vnoise(fp+vec3(13.1,7.7,2.3))-0.5,vnoise(fp+vec3(5.5,19.2,8.8))-0.5);
+  v=v-n*dot(v,n);
+  float l=length(v);
+  if(l<1e-4){return vec3(0.0);}
+  return v/l;
+}
+// Surface plasma color at a (possibly flow-advected) sample position.
+vec3 sunShade(vec3 p){
+  float gran=fbm(p*7.0);
+  float mottle=fbm(p*2.3);
+  float spotField=fbm(p*1.7+vec3(11.0,0.0,-4.0));
+  float penumbra=1.0-smoothstep(0.26,0.36,spotField);
+  float umbra=1.0-smoothstep(0.16,0.26,spotField);
+  vec3 hot=vec3(1.0,0.98,0.92);
+  vec3 warm=vec3(1.0,0.85,0.55);
+  vec3 col=mix(warm,hot,gran*0.6+mottle*0.4);
+  col=mix(col,vec3(0.6,0.28,0.12),penumbra*0.75);
+  col=mix(col,vec3(0.32,0.13,0.05),umbra*0.88);
+  return col;
+}
+void main(){
+  vec3 n=normalize(vLocal);
+  vec3 nb=n+vec3(uSeed*0.013,0.0,uSeed*0.021);
+  // Flow-field advection: plasma detail streams along a tangent flow field,
+  // cross-fading two half-cycle-offset samples. Frozen under reduced motion.
+  float speed=mix(0.12,0.0,uReducedMotion);
+  float mag=0.22;
+  vec3 flow=flowDir(n,n,uSeed);
+  float t=uTime*speed;
+  float ph0=fract(t);
+  float ph1=fract(t+0.5);
+  vec3 c0=sunShade(nb-flow*ph0*mag);
+  vec3 c1=sunShade(nb-flow*ph1*mag);
+  float w=abs(0.5-ph0)*2.0;
+  vec3 col=mix(c0,c1,w);
+  vec3 V=normalize(uCamera-vWorld);
+  float ndv=max(dot(normalize(vNrm),V),0.0);
+  float limb=0.55+0.45*pow(ndv,0.55);
+  col*=limb;
+  frag=vec4(col*1.3,1.0);
+}`;
+
+// Camera-facing additive corona billboard — mirror of sun.wgsl corona.
+const CORONA_VERT = `#version 300 es
+layout(location=0) in vec2 aCorner;
+uniform mat4 uViewProj;uniform vec3 uCamera;uniform vec3 uCenter;uniform float uRadius;
+out vec2 vUv;
+void main(){
+  float coronaR=uRadius*1.6;
+  vec3 viewDir=normalize(uCenter-uCamera);
+  vec3 up0=vec3(0.0,1.0,0.0);
+  if(abs(viewDir.y)>0.98){up0=vec3(0.0,0.0,1.0);}
+  vec3 right=normalize(cross(up0,viewDir));
+  vec3 up=cross(viewDir,right);
+  vec3 wpos=uCenter+(right*aCorner.x+up*aCorner.y)*coronaR;
+  vUv=aCorner;
+  gl_Position=uViewProj*vec4(wpos,1.0);
+}`;
+const CORONA_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 frag;
+uniform float uTime;uniform float uReducedMotion;
+float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
+float vnoise(vec3 x){
+  vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
+  float n000=hash3(i),n100=hash3(i+vec3(1,0,0)),n010=hash3(i+vec3(0,1,0)),n110=hash3(i+vec3(1,1,0));
+  float n001=hash3(i+vec3(0,0,1)),n101=hash3(i+vec3(1,0,1)),n011=hash3(i+vec3(0,1,1)),n111=hash3(i+vec3(1,1,1));
+  return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
+}
+void main(){
+  float r=length(vUv);
+  if(r>1.0){discard;}
+  float t=uTime*mix(1.0,0.0,uReducedMotion);
+  float radial=smoothstep(1.0,0.625,r);
+  float ang=atan(vUv.y,vUv.x);
+  float a1=ang+t*0.14;
+  float a2=ang-t*0.24;
+  float ray1=vnoise(vec3(cos(a1)*3.0,sin(a1)*3.0,t*0.16+r*4.0));
+  float ray2=vnoise(vec3(cos(a2)*6.0,sin(a2)*6.0,t*0.3-r*6.0));
+  float rays=0.45+0.4*ray1+0.25*ray2;
+  float pulse=0.85+0.15*sin(t*0.6);
+  float glow=radial*radial*rays*pulse*1.5;
+  vec3 col=mix(vec3(1.0,0.85,0.5),vec3(1.0,0.5,0.18),r)*glow;
+  frag=vec4(col,glow);
+}`;
+
 interface Program {
   prog: WebGLProgram;
   uniforms: Record<string, WebGLUniformLocation | null>;
 }
-
 export class WebGL2Renderer implements SceneRenderer {
   readonly backend = 'webgl2' as const;
   private gl!: WebGL2RenderingContext;
@@ -1145,6 +1252,8 @@ export class WebGL2Renderer implements SceneRenderer {
   private clouds!: Program;
   private ring!: Program;
   private flight!: Program;
+  private sun!: Program;
+  private corona!: Program;
   private present!: Program;
 
   // Offscreen scene target: the scene is rendered (and per-shader tonemapped)
@@ -1160,6 +1269,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private sphereVao!: WebGLVertexArrayObject;
   private sphereCount = 0;
   private sphereU32 = false;
+  private coronaVao!: WebGLVertexArrayObject;
   private moonSphereVao!: WebGLVertexArrayObject;
   private moonSphereCount = 0;
   private moonSphereU32 = false;
@@ -1258,10 +1368,17 @@ export class WebGL2Renderer implements SceneRenderer {
     this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
       'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe',
     ]);
+    this.sun = this.makeProgram(PLANET_VERT, SUN_FRAG, [
+      'uViewProj', 'uModel', 'uCamera', 'uTime', 'uReducedMotion', 'uSeed',
+    ]);
+    this.corona = this.makeProgram(CORONA_VERT, CORONA_FRAG, [
+      'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime', 'uReducedMotion',
+    ]);
     this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene']);
 
     await report(0.75, 'Building scene geometry…');
     this.buildSphere();
+    this.buildCoronaQuad();
     await report(0.9, 'Generating starfield…');
     this.buildStars(2000);
     this.buildPoiBuffers();
@@ -1296,6 +1413,23 @@ export class WebGL2Renderer implements SceneRenderer {
     const u: Record<string, WebGLUniformLocation | null> = {};
     for (const name of uniforms) u[name] = gl.getUniformLocation(prog, name);
     return { prog, uniforms: u };
+  }
+
+  private buildCoronaQuad(): void {
+    const gl = this.gl;
+    // Unit quad (two triangles) of vec2 corners for the camera-facing corona.
+    const quad = new Float32Array([
+      -1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1,
+    ]);
+    const vao = gl.createVertexArray()!;
+    gl.bindVertexArray(vao);
+    const vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0);
+    gl.bindVertexArray(null);
+    this.coronaVao = vao;
   }
 
   private buildSphere(): void {
@@ -1665,6 +1799,27 @@ export class WebGL2Renderer implements SceneRenderer {
         }
       }
     } else {
+    // Sun body (opaque, emissive). No culling — the near surface wins on depth,
+    // matching how planets are drawn in this backend.
+    gl.depthMask(true);
+    gl.useProgram(this.sun.prog);
+    gl.uniformMatrix4fv(this.sun.uniforms.uViewProj!, false, frame.viewProj);
+    gl.uniform3fv(this.sun.uniforms.uCamera!, frame.cameraPos);
+    gl.uniform1f(this.sun.uniforms.uTime!, frame.time);
+    gl.uniform1f(this.sun.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
+    gl.uniform1f(this.sun.uniforms.uSeed!, 1234);
+    mat4.fromRotationTranslationScale(model, [0, 0, 0, 1], frame.sun.center, frame.sun.radius);
+    gl.uniformMatrix4fv(this.sun.uniforms.uModel!, false, model);
+    gl.bindVertexArray(this.sphereVao);
+    gl.drawElements(
+      gl.TRIANGLES,
+      this.sphereCount,
+      this.sphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+      0,
+    );
+    this.stats.drawCalls++;
+    this.stats.triangles += this.sphereCount / 3;
+
     gl.useProgram(this.planet.prog);
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
@@ -1823,6 +1978,25 @@ export class WebGL2Renderer implements SceneRenderer {
     }
     gl.disable(gl.CULL_FACE);
     gl.depthMask(true);
+
+    // Sun corona (additive billboard). Depth-tested so planets in front occlude
+    // it and the sun body masks the disc; drawn before alpha rings so rings
+    // composite over the glow. No depth write.
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.depthMask(false);
+    gl.useProgram(this.corona.prog);
+    gl.uniformMatrix4fv(this.corona.uniforms.uViewProj!, false, frame.viewProj);
+    gl.uniform3fv(this.corona.uniforms.uCamera!, frame.cameraPos);
+    gl.uniform3fv(this.corona.uniforms.uCenter!, frame.sun.center);
+    gl.uniform1f(this.corona.uniforms.uRadius!, frame.sun.radius);
+    gl.uniform1f(this.corona.uniforms.uTime!, frame.time);
+    gl.uniform1f(this.corona.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
+    gl.bindVertexArray(this.coronaVao);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    this.stats.drawCalls++;
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
 
     // Planetary rings (alpha-blended, double-sided, depth-test but no write).
     // Drawn after the atmosphere to match the WebGPU draw order. The ring tilt
