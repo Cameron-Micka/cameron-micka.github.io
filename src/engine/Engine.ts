@@ -619,9 +619,12 @@ export class Engine {
     let hitIndex = -1;
     let hitT = Infinity;
     for (let i = 0; i < this.models.length; i++) {
-      if (this.planetVisibility(i) <= 0.2) continue; // hidden planets aren't pickable
+      const vis = this.planetVisibility(i);
+      if (vis <= 0.2) continue; // hidden planets aren't pickable
       const m = this.models[i]!;
-      const t = raySphere(ray, [0, 0, m.z], m.radius);
+      // Match the visual: the body is drawn at radius * visibility, so the
+      // pick collider must shrink with the same factor as the planet fades.
+      const t = raySphere(ray, [0, 0, m.z], m.radius * vis);
       if (t >= 0 && t < hitT) {
         hitT = t;
         hitIndex = i;
@@ -653,7 +656,7 @@ export class Engine {
       // Distance to the planet body along this ray, used to reject only POIs
       // that are genuinely hidden behind the planet (true backside). Markers on
       // the horizon are pulled outside the silhouette and stay clickable.
-      const planetT = raySphere(ray, center, model.radius);
+      const planetT = raySphere(ray, center, model.radius * this.planetVisibility(focused));
       for (let i = 0; i < model.poiDirs.length; i++) {
         const poi = model.poiDirs[i]!;
         const dir = quat.rotateVec3(rot, poi.dir);
