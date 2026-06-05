@@ -62,6 +62,11 @@ export const companySchema = z.object({
     // flow field (Emil Dziewanowski's flow-map technique) so the marbled
     // surface detail streams like a fluid. Implemented in the planet shader.
     flowMap: z.boolean().default(false),
+    // When true, an additive emissive shell above the atmosphere paints
+    // animated auroral curtains over both poles. The curtains shimmer via
+    // IQ domain warping and read green low / red-magenta high, brightest on
+    // the night side and at the limb. Implemented in the aurora shader.
+    aurora: z.boolean().default(false),
     moons: z.number().int().min(0).max(6),
   }),
   pois: z.array(poiSchema),

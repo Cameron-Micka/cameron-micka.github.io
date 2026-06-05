@@ -1124,6 +1124,104 @@ void main(){
   frag=vec4(col,alpha);
 }`;
 
+// Auroral shell (additive). Mirrors aurora.wgsl. Reuses PLANET_VERT for vWorld;
+// ray-marches a thin auroral volume above the poles using nimitz triangle-wave
+// noise + per-height palette (shadertoy McSBDm). Green base -> violet top,
+// brightest on the night side and the limb.
+const AURORA_FRAG = `#version 300 es
+precision highp float;
+in vec3 vWorld;
+out vec4 frag;
+uniform vec3 uCamera;uniform vec3 uLight;uniform vec3 uCenter;
+uniform mat4 uModel;
+uniform float uInner;uniform float uOuter;uniform float uFocus;uniform float uIntensity;
+uniform float uTime;uniform float uReducedMotion;
+const mat2 aM2=mat2(0.95534,0.29552,-0.29552,0.95534);
+mat2 aMM2(float a){float c=cos(a),s=sin(a);return mat2(c,s,-s,c);}
+float aTri(float x){return clamp(abs(fract(x)-0.5),0.01,0.49);}
+vec2 aTri2(vec2 p){return vec2(aTri(p.x)+aTri(p.y),aTri(p.y+aTri(p.x)));}
+vec2 raySphere(vec3 ro,vec3 rd,vec3 ce,float ra){
+  vec3 oc=ro-ce;float b=dot(oc,rd);float c=dot(oc,oc)-ra*ra;float h=b*b-c;
+  if(h<0.0)return vec2(1.0,-1.0);
+  float s=sqrt(h);return vec2(-b-s,-b+s);
+}
+// nimitz domain-warped triangle noise (Aurora).
+float triNoise2d(vec2 p,float spd,float time){
+  float z=1.8,z2=2.5,rz=0.0;
+  p*=aMM2(p.x*0.06);
+  vec2 bp=p;
+  for(int i=0;i<5;i++){
+    vec2 dg=aTri2(bp*1.85)*0.75;
+    dg*=aMM2(time*spd);
+    p-=dg/z2;
+    bp*=1.3;z2*=0.45;z*=0.42;
+    p*=1.21+(rz-1.0)*0.02;
+    rz+=aTri(p.x+aTri(p.y))*z;
+    p*=-aM2;
+  }
+  return clamp(1.0/pow(rz*29.0,1.3),0.0,0.55);
+}
+void main(){
+  vec3 center=uCenter;
+  // Planet body-frame basis (model rotation columns) so the aurora is locked to
+  // the planet and rotates with it instead of sliding when dragged.
+  vec3 bx=normalize(uModel[0].xyz);
+  vec3 by=normalize(uModel[1].xyz);
+  vec3 bz=normalize(uModel[2].xyz);
+  float planetR=uInner;
+  float outerR=uOuter;
+  float innerA=planetR*1.005;
+  vec3 ro=uCamera;
+  vec3 rd=normalize(vWorld-ro);
+  vec3 sun=normalize(uLight);
+  vec2 outer=raySphere(ro,rd,center,outerR);
+  if(outer.y<=outer.x){frag=vec4(0.0);return;}
+  float tNear=max(outer.x,0.0);
+  float tFar=outer.y;
+  vec2 inner=raySphere(ro,rd,center,planetR);
+  if(inner.x>0.0&&inner.x<inner.y)tFar=min(tFar,inner.x);
+  if(tFar<=tNear){frag=vec4(0.0);return;}
+  float motion=uReducedMotion>0.5?0.0:1.0;
+  float at=uTime*motion;
+  float curtainTop=innerA+(outerR-innerA)*0.25;
+  float thickness=max(curtainTop-innerA,1e-4);
+  const int STEPS=24;
+  float dt=(tFar-tNear)/float(STEPS);
+  vec3 col=vec3(0.0);
+  vec3 avg=vec3(0.0);
+  for(int i=0;i<STEPS;i++){
+    float t=tNear+(float(i)+0.5)*dt;
+    vec3 pos=ro+rd*t;
+    vec3 rel=pos-center;
+    float r=length(rel);
+    if(r<innerA)continue;
+    if(r>curtainTop)continue;
+    vec3 dir=rel/r;
+    vec3 ld=vec3(dot(bx,dir),dot(by,dir),dot(bz,dir));
+    float lat=abs(ld.y);
+    float band=smoothstep(0.42,0.60,lat)*(1.0-smoothstep(0.86,0.98,lat));
+    float h=clamp((r-innerA)/thickness,0.0,1.0);
+    vec2 pc=vec2(ld.x,ld.z);
+    float coarse=triNoise2d(pc*1.4,0.025,at);
+    float group=smoothstep(0.08,0.50,coarse);
+    vec2 pcw=pc+vec2(coarse-0.275)*0.8;
+    float fil=triNoise2d(pcw*2.6,0.06,at);
+    float strings=pow(clamp(fil*1.7,0.0,1.0),0.8);
+    float rzt=strings*group*band;
+    vec3 hue=sin(1.0-vec3(2.15,-0.5,1.2)+h*2.5)*0.5+0.5;
+    vec3 samp=hue*rzt;
+    avg=mix(avg,samp,0.5);
+    float nightAmt=1.0-smoothstep(-0.2,0.3,dot(dir,sun));
+    float nightFloor=mix(0.08,1.0,nightAmt);
+    col+=avg*exp(-h*1.6)*nightFloor*(dt/thickness);
+  }
+  float intensity=uIntensity*(0.85+0.3*uFocus);
+  col*=intensity*3.0;
+  float dist=distance(vWorld,ro);float fs=dist*0.018;
+  col*=exp(-fs*fs);
+  frag=vec4(col,1.0);
+}`;
+
 // The scene's star — mirror of sun.wgsl. Reuses PLANET_VERT (gives vNrm/vLocal/
 // vWorld). Emissive surface with granulation + dark sunspots + limb darkening;
 // no lighting and no distance fog (it is a light source). The WebGL2 scene
@@ -1265,6 +1363,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private wire!: Program;
   private atmosphere!: Program;
   private clouds!: Program;
+  private aurora!: Program;
   private ring!: Program;
   private flight!: Program;
   private sun!: Program;
@@ -1374,6 +1473,10 @@ export class WebGL2Renderer implements SceneRenderer {
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uTint', 'uCenter',
       'uTime', 'uSeed', 'uVisibility', 'uReducedMotion',
       'uShadowCount', 'uShadowSpheres[0]',
+    ]);
+    this.aurora = this.makeProgram(PLANET_VERT, AURORA_FRAG, [
+      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uCenter',
+      'uInner', 'uOuter', 'uFocus', 'uIntensity', 'uTime', 'uReducedMotion',
     ]);
     this.ring = this.makeProgram(RING_VERT, RING_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
@@ -1993,6 +2096,47 @@ export class WebGL2Renderer implements SceneRenderer {
     }
     gl.disable(gl.CULL_FACE);
     gl.depthMask(true);
+
+    // Auroral shells (additive, camera-facing hemisphere only). Drawn after the
+    // atmosphere so the curtains glow above the haze. Like clouds, the near
+    // hemisphere must render (frontFace=CW + cull BACK) so the band sits on the
+    // visible side and the planet occludes the far half.
+    const anyAurora = frame.planets.some((p) => p.aurora && p.visibility > 0.02);
+    if (anyAurora) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      gl.depthMask(false);
+      gl.enable(gl.CULL_FACE);
+      gl.cullFace(gl.BACK);
+      gl.frontFace(gl.CW);
+      gl.useProgram(this.aurora.prog);
+      gl.uniformMatrix4fv(this.aurora.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform3fv(this.aurora.uniforms.uCamera!, frame.cameraPos);
+      gl.uniform3fv(this.aurora.uniforms.uLight!, frame.keyLightDir);
+      gl.uniform1f(this.aurora.uniforms.uTime!, frame.time);
+      gl.uniform1f(this.aurora.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
+      gl.bindVertexArray(this.sphereVao);
+      for (const p of frame.planets) {
+        if (!p.aurora) continue;
+        const vis = p.visibility;
+        if (vis <= 0.02) continue;
+        const er = p.radius * vis;
+        const auroraR = er * 1.22;
+        mat4.fromRotationTranslationScale(model, p.orientation, p.center, auroraR);
+        gl.uniformMatrix4fv(this.aurora.uniforms.uModel!, false, model);
+        gl.uniform3fv(this.aurora.uniforms.uCenter!, p.center);
+        gl.uniform1f(this.aurora.uniforms.uInner!, er);
+        gl.uniform1f(this.aurora.uniforms.uOuter!, auroraR);
+        gl.uniform1f(this.aurora.uniforms.uFocus!, p.focus);
+        gl.uniform1f(this.aurora.uniforms.uIntensity!, vis);
+        gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
+        this.stats.drawCalls++;
+      }
+      gl.disable(gl.CULL_FACE);
+      gl.frontFace(gl.CCW);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
 
     // Sun corona (additive billboard). Depth-tested so planets in front occlude
     // it and the sun body masks the disc; drawn before alpha rings so rings

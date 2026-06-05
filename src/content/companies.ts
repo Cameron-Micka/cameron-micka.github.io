@@ -137,7 +137,7 @@ const raw: CompanyInput[] = [
       'small games and rendering experiments while wearing every hat.',
     seed: 'micka-studios-founder',
     palette: { low: '#2a0a3a', mid: '#7c3ed2', high: '#d9b3ff' },
-    features: { rings: false, ringTilt: 0.4, oceans: true, moons: 1 },
+    features: { rings: false, ringTilt: 0.4, oceans: true, aurora: true, moons: 1 },
     pois: [
       {
         slug: 'indie-projects',

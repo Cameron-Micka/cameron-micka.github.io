@@ -37,6 +37,9 @@ export interface PlanetInstance {
   // When true, the planet surface detail is advected along a procedural flow
   // field (see planet shader) so it streams like a fluid.
   flowMap: boolean;
+  // When true, an additive emissive shell above the atmosphere paints animated
+  // auroral curtains over both poles (see aurora shader).
+  aurora: boolean;
   // Per-planet time used by cloud rotation (planet body cloud-shadow sampling
   // + cloud shell). Eases to a halt when the planet's spin is paused (e.g.
   // user just orbited it) so clouds visibly slow with the surface instead of

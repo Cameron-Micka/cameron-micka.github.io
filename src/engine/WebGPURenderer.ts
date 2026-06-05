@@ -31,6 +31,7 @@ import compositeWGSL from './shaders/composite.wgsl?raw';
 import wireframeWGSL from './shaders/wireframe.wgsl?raw';
 import atmosphereWGSL from './shaders/atmosphere.wgsl?raw';
 import cloudsWGSL from './shaders/clouds.wgsl?raw';
+import auroraWGSL from './shaders/aurora.wgsl?raw';
 
 const OBJ_STRIDE = 256; // bytes; >= minUniformBufferOffsetAlignment
 const OBJ_FLOATS = OBJ_STRIDE / 4;
@@ -108,6 +109,7 @@ export class WebGPURenderer implements SceneRenderer {
     wireframe: GPURenderPipeline;
     atmosphere: GPURenderPipeline;
     clouds: GPURenderPipeline;
+    aurora: GPURenderPipeline;
   };
   private frameLayout!: GPUBindGroupLayout;
   private objLayout!: GPUBindGroupLayout;
@@ -356,6 +358,7 @@ export class WebGPURenderer implements SceneRenderer {
     const wireframeMod = d.createShaderModule({ code: wireframeWGSL });
     const atmosphereMod = d.createShaderModule({ code: atmosphereWGSL });
     const cloudsMod = d.createShaderModule({ code: cloudsWGSL });
+    const auroraMod = d.createShaderModule({ code: auroraWGSL });
 
     const addBlend: GPUBlendState = {
       color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
@@ -678,7 +681,27 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    this.pipelines = { nebula, planet, sun, sunCorona, ring, star, satellite, poi, poiLine, flightPath, composite, wireframe, atmosphere, clouds };
+    // Auroral shell — additive, camera-facing hemisphere only (cull back),
+    // depth-tested against the planet so the back half is hidden. Sits above
+    // the atmosphere shell.
+    const aurora = d.createRenderPipeline({
+      layout: sceneObjPL,
+      vertex: { module: auroraMod, entryPoint: 'vs', buffers: [meshLayout] },
+      fragment: {
+        module: auroraMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
+      depthStencil: {
+        format: 'depth24plus',
+        depthWriteEnabled: false,
+        depthCompare: 'less',
+      },
+      multisample,
+    });
+
+    this.pipelines = { nebula, planet, sun, sunCorona, ring, star, satellite, poi, poiLine, flightPath, composite, wireframe, atmosphere, clouds, aurora };
   }
 
   private buildStars(count: number): void {
@@ -957,6 +980,29 @@ export class WebGPURenderer implements SceneRenderer {
         objIndex++;
       }
 
+      // Auroral shell — additive emissive curtains over the poles, above the
+      // atmosphere. Skipped in wireframe and when the planet lacks the feature.
+      if (p.aurora && !frame.wireframe && objIndex < MAX_OBJECTS) {
+        const auroraR = er * 1.22;
+        mat4.fromRotationTranslationScale(model, rot, p.center, auroraR);
+        this.writeObject(
+          objIndex,
+          model,
+          er,        // p0.x = planet world radius (inner)
+          auroraR,   // p0.y = shell radius (outer)
+          0,
+          6,         // kind: aurora
+          p.paletteHigh,
+          p.paletteHigh,
+          p.paletteHigh,
+          p.focus,   // p1.x = focus
+          1.0 * vis, // p1.y = intensity
+          0,
+        );
+        objects.push({ kind: 6, index: objIndex });
+        objIndex++;
+      }
+
       // Optional cloud shell, between the planet surface and atmosphere. Same
       // mesh, slightly larger radius; alpha-blended. Skip in wireframe and
       // when the setting is off. Per-planet variation (rotation speed/dir,
@@ -1231,6 +1277,18 @@ export class WebGPURenderer implements SceneRenderer {
       for (const o of objects) {
         if (o.kind !== 4) continue;
         scenePass.setPipeline(this.pipelines.atmosphere);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.sphere.count);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.sphere.count / 3;
+      }
+
+      // Auroral shells (additive). Drawn after the atmosphere so the curtains
+      // glow above the haze. Sphere mesh is still bound.
+      for (const o of objects) {
+        if (o.kind !== 6) continue;
+        scenePass.setPipeline(this.pipelines.aurora);
         scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphere.count);
