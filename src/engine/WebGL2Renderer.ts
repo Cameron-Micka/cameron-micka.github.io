@@ -2256,7 +2256,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.useProgram(this.flight.prog);
       gl.uniformMatrix4fv(this.flight.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.flight.uniforms.uAspect!, this.width / this.height);
-      gl.uniform1f(this.flight.uniforms.uThick!, 0.0032);
+      gl.uniform1f(this.flight.uniforms.uThick!, 0.006);
       gl.uniform3fv(this.flight.uniforms.uCamera!, frame.cameraPos);
       gl.uniform1f(this.flight.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.flightVao);
