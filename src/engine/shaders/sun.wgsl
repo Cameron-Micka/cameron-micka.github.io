@@ -62,6 +62,12 @@ fn fbm(p : vec3<f32>) -> f32 {
   return v;
 }
 
+// 2D fBM via a slowly-drifting slice of the 3D field (z = time), used by the
+// corona domain warp below.
+fn fbm2(p : vec2<f32>, t : f32) -> f32 {
+  return fbm(vec3<f32>(p, t));
+}
+
 // ---- Body ---------------------------------------------------------------
 
 struct VSOut {
@@ -162,7 +168,10 @@ struct CoronaOut {
 fn vs_corona(@location(0) corner : vec2<f32>) -> CoronaOut {
   var out : CoronaOut;
   let center = obj.model[3].xyz;
-  let coronaR = obj.p0.x * 1.6;
+  // World-space camera-facing billboard. The sun's radius (obj.p0.x) is scaled
+  // on the CPU by camera distance (see Engine.ts) so the whole sun — body and
+  // corona alike — holds a constant on-screen size as the camera dollies.
+  let coronaR = obj.p0.x * 1.5;
   var viewDir = normalize(center - frame.cameraPos.xyz);
   // Camera-facing basis; fall back to a Z-up reference when looking near-vertical
   // so the cross product never degenerates.
@@ -188,19 +197,49 @@ fn fs_corona(in : CoronaOut) -> @location(0) vec4<f32> {
     discard;
   }
   let t = frame.misc.x * select(1.0, 0.0, frame.misc.y > 0.5);
-  // Brightest just outside the disc, fading to nothing at the quad edge.
-  let radial = smoothstep(1.0, 0.625, r);
-  // Wispy streamers: two layers of angular noise counter-rotating around the
-  // disc over time, so the corona churns and flickers rather than sitting still.
   let ang = atan2(in.uv.y, in.uv.x);
-  let a1 = ang + t * 0.14;
-  let a2 = ang - t * 0.24;
-  let ray1 = vnoise(vec3<f32>(cos(a1) * 3.0, sin(a1) * 3.0, t * 0.16 + r * 4.0));
-  let ray2 = vnoise(vec3<f32>(cos(a2) * 6.0, sin(a2) * 6.0, t * 0.3 - r * 6.0));
-  let rays = 0.45 + 0.4 * ray1 + 0.25 * ray2;
-  // Gentle global breathing pulse.
+
+  // Polar-anchored sample coordinate so the warp field rotates with the disc
+  // and reads as energy streaming radially outward. Higher frequency = tighter
+  // wisps.
+  let sp = vec2<f32>(cos(ang), sin(ang)) * (r * 5.5);
+
+  // Domain warping (iquilezles.org/articles/warp): fbm(p + 4r), r = fbm(p + 4q),
+  // q = fbm(p). The intermediate vectors q and r are kept so the flare arms can
+  // be advected through the turbulent field, giving them their liquid, wispy
+  // curl instead of sitting as rigid spokes. Drifts slowly over time.
+  let drift = t * 0.06;
+  let q = vec2<f32>(
+    fbm2(sp + vec2<f32>(0.0, 0.0), drift),
+    fbm2(sp + vec2<f32>(5.2, 1.3), drift),
+  );
+  let rr = vec2<f32>(
+    fbm2(sp + 4.0 * q + vec2<f32>(1.7, 9.2), drift),
+    fbm2(sp + 4.0 * q + vec2<f32>(8.3, 2.8), drift),
+  );
+  let warp = fbm2(sp + 4.0 * rr, drift);
+
+  // Distinct flare arms: a sharpened angular comb whose angle is bent by the
+  // warp field so each arm curls and flows like liquid plasma. The low-frequency
+  // term breaks the periodicity so arms vary in width and length.
+  let armCount = 7.0;
+  let wang = ang + (warp - 0.5) * 2.4 + (rr.x - 0.5) * 1.3;
+  var arm = 0.5 + 0.5 * sin(armCount * wang);
+  arm = pow(arm, 3.5);
+  let armVary = 0.4 + 0.85 * fbm2(vec2<f32>(cos(ang), sin(ang)) * 1.6, drift * 0.7);
+
+  // Brightness streamers along the arms.
+  let streak = 0.35 + 0.85 * warp;
   let pulse = 0.85 + 0.15 * sin(t * 0.6);
-  let glow = radial * radial * rays * pulse * 1.5;
-  let col = mix(vec3<f32>(1.0, 0.85, 0.5), vec3<f32>(1.0, 0.5, 0.18), r) * glow;
+  // Ragged outer edge: a per-direction noise pushes the fade radius in and out so
+  // the corona dissolves into wisps of varying length instead of ending at a clean
+  // circle. The warp term feeds in so the boundary churns and breaks up over time.
+  let edgeN = fbm2(vec2<f32>(cos(ang), sin(ang)) * 3.5 + warp * 2.0, drift * 0.4);
+  let edge = 0.58 + 0.37 * edgeN;
+  let radial = smoothstep(edge, edge - 0.5, r);
+
+  let glow = radial * (0.16 + 1.4 * arm * armVary) * streak * pulse * 1.3;
+  // Hotter, whiter at the base of the arms; cooler, redder toward the tips.
+  let col = mix(vec3<f32>(1.0, 0.92, 0.6), vec3<f32>(1.0, 0.42, 0.14), r) * glow;
   return vec4<f32>(col, glow);
 }

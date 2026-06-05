@@ -165,7 +165,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Distance fog (matches planet + ring): additive shell, so just attenuate
   // the contribution rather than mixing toward a colour.
   let dist = distance(in.worldPos, ro);
-  let s = dist * 0.030;
+  let s = dist * 0.018;
   col = col * exp(-s * s);
 
   return vec4<f32>(col, 1.0);

@@ -91,7 +91,7 @@ fn vs(
 // Distance fog: matches planet/clouds/atmosphere exp-squared falloff so the
 // trajectory fades into the background haze instead of staying crisp white
 // in front of distant nebulae and stars.
-const FOG_DENSITY : f32 = 0.030;
+const FOG_DENSITY : f32 = 0.018;
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {

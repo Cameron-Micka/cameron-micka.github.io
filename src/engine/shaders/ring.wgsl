@@ -288,7 +288,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Distance fog: attenuate both colour and alpha so distant rings fade into
   // the nebula instead of stamping silhouettes over far-off planets.
   let d = distance(in.worldPos, frame.cameraPos.xyz);
-  let s = d * 0.030;
+  let s = d * 0.018;
   let fade = exp(-s * s);
   return vec4<f32>(col * aFinal * 1.4 * fade, aFinal * fade);
 }

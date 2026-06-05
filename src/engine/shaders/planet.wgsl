@@ -151,7 +151,7 @@ fn fSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
 // colour. Density tuned for PLANET_SPACING=9 / VIEW_DISTANCE=8.5 so the
 // focused planet stays crisp and planets two or three slots away noticeably
 // fade. Shared by planet/ring/atmosphere shaders.
-const FOG_DENSITY : f32 = 0.030;
+const FOG_DENSITY : f32 = 0.018;
 const FOG_COLOR : vec3<f32> = vec3<f32>(0.04, 0.06, 0.14);
 
 fn fogFactor(worldPos : vec3<f32>, cameraPos : vec3<f32>) -> f32 {

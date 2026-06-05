@@ -292,7 +292,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // else. Applied to the alpha so far-away cloud shells don't punch holes
   // in the haze.
   let dist = distance(in.worldPos, frame.cameraPos.xyz);
-  let sd = dist * 0.030;
+  let sd = dist * 0.018;
   let fogA = exp(-sd * sd);
 
   return vec4<f32>(col, alpha * fogA);

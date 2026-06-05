@@ -139,7 +139,7 @@ vec3 fSchlick(float c,vec3 F0){float f=pow(clamp(1.0-c,0.0,1.0),5.0);return F0+(
 // Distance fog (shared across planet, atmosphere): exp-squared falloff.
 // Density tuned for PLANET_SPACING=9 / VIEW_DISTANCE=8.5 so the focused
 // planet stays crisp and planets two or three slots away noticeably fade.
-const float FOG_DENSITY=0.030;
+const float FOG_DENSITY=0.018;
 const vec3 FOG_COLOR=vec3(0.04,0.06,0.14);
 float fogFactor(vec3 worldPos,vec3 camPos){
   float d=distance(worldPos,camPos);float s=d*FOG_DENSITY;return 1.0-exp(-s*s);
@@ -679,7 +679,7 @@ in float vShape;
 uniform vec3 uCamera;
 uniform float uWireframe;
 out vec4 frag;
-const float FOG_DENSITY=0.030;
+const float FOG_DENSITY=0.018;
 void main(){
   if(uWireframe>0.5){
     // Wireframe debug: 4 quad edges + diagonal of each segment.
@@ -1193,7 +1193,9 @@ layout(location=0) in vec2 aCorner;
 uniform mat4 uViewProj;uniform vec3 uCamera;uniform vec3 uCenter;uniform float uRadius;
 out vec2 vUv;
 void main(){
-  float coronaR=uRadius*1.6;
+  // World-space camera-facing billboard. uRadius is scaled on the CPU by camera
+  // distance (Engine.ts) so the whole sun keeps a constant on-screen size.
+  float coronaR=uRadius*1.5;
   vec3 viewDir=normalize(uCenter-uCamera);
   vec3 up0=vec3(0.0,1.0,0.0);
   if(abs(viewDir.y)>0.98){up0=vec3(0.0,0.0,1.0);}
@@ -1215,20 +1217,33 @@ float vnoise(vec3 x){
   float n001=hash3(i+vec3(0,0,1)),n101=hash3(i+vec3(1,0,1)),n011=hash3(i+vec3(0,1,1)),n111=hash3(i+vec3(1,1,1));
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
+float fbm(vec3 p){float v=0.0,a=0.5;vec3 q=p;for(int i=0;i<5;i++){v+=a*vnoise(q);q*=2.04;a*=0.5;}return v;}
+float fbm2(vec2 p,float t){return fbm(vec3(p,t));}
 void main(){
   float r=length(vUv);
   if(r>1.0){discard;}
   float t=uTime*mix(1.0,0.0,uReducedMotion);
-  float radial=smoothstep(1.0,0.625,r);
   float ang=atan(vUv.y,vUv.x);
-  float a1=ang+t*0.14;
-  float a2=ang-t*0.24;
-  float ray1=vnoise(vec3(cos(a1)*3.0,sin(a1)*3.0,t*0.16+r*4.0));
-  float ray2=vnoise(vec3(cos(a2)*6.0,sin(a2)*6.0,t*0.3-r*6.0));
-  float rays=0.45+0.4*ray1+0.25*ray2;
+  // Polar-anchored sample coord; higher freq = tighter wisps.
+  vec2 sp=vec2(cos(ang),sin(ang))*(r*5.5);
+  // Domain warping (iquilezles.org/articles/warp): fbm(p+4r), r=fbm(p+4q), q=fbm(p).
+  float drift=t*0.06;
+  vec2 q=vec2(fbm2(sp,drift),fbm2(sp+vec2(5.2,1.3),drift));
+  vec2 rr=vec2(fbm2(sp+4.0*q+vec2(1.7,9.2),drift),fbm2(sp+4.0*q+vec2(8.3,2.8),drift));
+  float warp=fbm2(sp+4.0*rr,drift);
+  // Distinct flare arms bent by the warp so they curl like liquid plasma.
+  float wang=ang+(warp-0.5)*2.4+(rr.x-0.5)*1.3;
+  float arm=pow(0.5+0.5*sin(7.0*wang),3.5);
+  float armVary=0.4+0.85*fbm2(vec2(cos(ang),sin(ang))*1.6,drift*0.7);
+  float streak=0.35+0.85*warp;
   float pulse=0.85+0.15*sin(t*0.6);
-  float glow=radial*radial*rays*pulse*1.5;
-  vec3 col=mix(vec3(1.0,0.85,0.5),vec3(1.0,0.5,0.18),r)*glow;
+  // Ragged outer edge: per-direction noise pushes the fade radius in and out so
+  // the corona dissolves into wisps of varying length instead of a clean circle.
+  float edgeN=fbm2(vec2(cos(ang),sin(ang))*3.5+warp*2.0,drift*0.4);
+  float edge=0.58+0.37*edgeN;
+  float radial=smoothstep(edge,edge-0.5,r);
+  float glow=radial*(0.16+1.4*arm*armVary)*streak*pulse*1.3;
+  vec3 col=mix(vec3(1.0,0.92,0.6),vec3(1.0,0.42,0.14),r)*glow;
   frag=vec4(col,glow);
 }`;
 
