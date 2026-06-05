@@ -270,9 +270,15 @@ export class Engine {
     }
 
     if (this.settings.quality === 'auto' && this.backend === 'webgpu') {
-      this.quality.startProbe(performance.now(), 4000, (tier) => {
-        this.applyTier(QUALITY_PRESETS[tier]);
-      });
+      if (this.coarsePointer) {
+        // Mobile (coarse pointer) devices always resolve to Low under Auto, so
+        // start there immediately rather than probing from High for 4 seconds.
+        this.applyTier(QUALITY_PRESETS.low);
+      } else {
+        this.quality.startProbe(performance.now(), 4000, (tier) => {
+          this.applyTier(QUALITY_PRESETS[tier]);
+        });
+      }
     }
 
     // Honor a persisted free-camera preference: seed the fly-cam state and
@@ -728,9 +734,13 @@ export class Engine {
     if (this.backend === 'webgl2') {
       this.applyTier(QUALITY_PRESETS.webgl2);
     } else if (pref === 'auto') {
-      this.quality.startProbe(performance.now(), 3000, (tier) =>
-        this.applyTier(QUALITY_PRESETS[tier]),
-      );
+      if (this.coarsePointer) {
+        this.applyTier(QUALITY_PRESETS.low);
+      } else {
+        this.quality.startProbe(performance.now(), 3000, (tier) =>
+          this.applyTier(QUALITY_PRESETS[tier]),
+        );
+      }
     } else {
       this.applyTier(QUALITY_PRESETS[pref]);
     }
