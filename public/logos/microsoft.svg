@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-label="Microsoft logo">
-  <rect x="1" y="1" width="10" height="10" fill="#F35325"/>
-  <rect x="13" y="1" width="10" height="10" fill="#81BC06"/>
-  <rect x="1" y="13" width="10" height="10" fill="#05A6F0"/>
-  <rect x="13" y="13" width="10" height="10" fill="#FFBA08"/>
+  <rect width="24" height="24" rx="5" fill="#ffffff"/>
+  <rect x="4" y="4" width="7.5" height="7.5" fill="#F35325"/>
+  <rect x="12.5" y="4" width="7.5" height="7.5" fill="#81BC06"/>
+  <rect x="4" y="12.5" width="7.5" height="7.5" fill="#05A6F0"/>
+  <rect x="12.5" y="12.5" width="7.5" height="7.5" fill="#FFBA08"/>
 </svg>

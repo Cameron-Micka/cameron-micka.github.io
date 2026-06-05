@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.0" width="200.000000pt" height="200.000000pt" viewBox="0 0 200.000000 200.000000" preserveAspectRatio="xMidYMid meet">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.0" width="24" height="24" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-label="DigiPen logo">
 
-<g transform="translate(0.000000,200.000000) scale(0.100000,-0.100000)" fill="#960000" stroke="none">
+<defs><clipPath id="digipenRound"><rect width="24" height="24" rx="5"/></clipPath></defs>
+<g clip-path="url(#digipenRound)">
+<g transform="scale(0.12) translate(0.000000,200.000000) scale(0.100000,-0.100000)" fill="#960000" stroke="none">
 <path d="M0 1000 l0 -1000 1000 0 1000 0 0 1000 0 1000 -1000 0 -1000 0 0 -1000z m1050 0 l0 -780 -50 0 -50 0 -1 373 c0 204 0 552 0 772 1 220 1 403 1 408 0 4 23 7 50 7 l50 0 0 -780z m511 744 c79 -38 154 -111 194 -191 27 -52 29 -68 30 -158 0 -92 -3 -106 -31 -166 -34 -71 -92 -135 -157 -174 -74 -43 -146 -55 -329 -55 l-168 0 -2 386 c-2 212 -1 388 2 391 3 2 93 3 200 1 194 -3 195 -3 261 -34z m-658 -1131 l-3 -388 -162 -3 c-238 -5 -317 18 -419 120 -79 80 -103 140 -103 263 -1 92 1 105 30 165 51 106 144 186 252 215 30 8 113 14 227 14 l180 1 -2 -387z" fill="#960000"/>
+</g>
 </g>
 </svg>

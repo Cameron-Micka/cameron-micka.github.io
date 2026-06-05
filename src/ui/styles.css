@@ -67,6 +67,8 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   padding: 14px clamp(14px, 3vw, 32px);
+  padding-left: max(clamp(14px, 3vw, 32px), env(safe-area-inset-left));
+  padding-right: max(clamp(14px, 3vw, 32px), env(safe-area-inset-right));
   gap: 16px;
   z-index: 20;
 }
@@ -151,6 +153,13 @@ a:hover {
   color: var(--muted);
   backdrop-filter: blur(10px);
   white-space: nowrap;
+}
+/* The hint references keyboard controls (WASD), so hide it in portrait
+   orientation where touch controls are used instead. */
+@media (orientation: portrait) {
+  .freecam-hint {
+    display: none;
+  }
 }
 
 /* ---- Side ruler ---- */
@@ -636,6 +645,28 @@ a:hover {
   }
   .topnav .brand .role {
     display: none;
+  }
+  .topnav {
+    gap: 8px;
+  }
+  .topnav nav {
+    gap: 2px;
+  }
+  .navlink {
+    padding: 7px 9px;
+    font-size: 13px;
+  }
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    flex: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .navlink {
+    padding: 6px 7px;
+    font-size: 12px;
   }
 }
 
