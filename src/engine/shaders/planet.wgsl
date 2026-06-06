@@ -416,6 +416,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Polar ice caps: keep them tighter to the poles, add breakup inside the
   // sheet, and tint some of the denser ice toward blue. A directional detail
   // mask darkens creases on the sun-facing side so the caps read less flat.
+  // Two offset fbm passes form a domain-warp vector that distorts the edge
+  // sampling position, producing wispy, tendril-like fronds at the boundary.
   // Mirror of PLANET_FRAG.
   let localPos = normalize(in.localPos);
   let r0 = normalize(obj.model[0].xyz);
@@ -423,9 +425,13 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let r2 = normalize(obj.model[2].xyz);
   let localLightDir = normalize(vec3<f32>(dot(r0, lightDir), dot(r1, lightDir), dot(r2, lightDir)));
   let lat = abs(localPos.y);
-  let iceNoise = fbm(localPos * 2.6 + vec3<f32>(seed * 0.0015, seed * 0.0021, seed * 0.0018));
-  let iceEdge = 0.81 + (iceNoise - 0.5) * 0.10;
-  let iceMask = oceans * smoothstep(iceEdge - 0.045, iceEdge + 0.035, lat);
+  let iceWarpPos = localPos * 3.8 + vec3<f32>(seed * 0.0019, seed * 0.0023, seed * 0.0017);
+  let iceWarpA = fbm(iceWarpPos) - 0.5;
+  let iceWarpB = fbm(iceWarpPos + vec3<f32>(3.7, 1.8, 5.2)) - 0.5;
+  let iceWarpedPos = localPos + vec3<f32>(iceWarpA, iceWarpA * iceWarpB, iceWarpB) * 0.22;
+  let iceNoise = fbm(iceWarpedPos * 2.6 + vec3<f32>(seed * 0.0015, seed * 0.0021, seed * 0.0018));
+  let iceEdge = 0.81 + (iceNoise - 0.5) * 0.14;
+  let iceMask = oceans * smoothstep(iceEdge - 0.055, iceEdge + 0.04, lat);
   let iceDetailPos = localPos * 8.0 + vec3<f32>(seed * 0.0031, seed * 0.0027, seed * 0.0037);
   let iceDetail = fbm(iceDetailPos);
   let iceRidgePhase = vec3<f32>(4.2, 1.7, 8.4);

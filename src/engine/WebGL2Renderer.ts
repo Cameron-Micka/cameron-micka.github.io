@@ -303,6 +303,8 @@ void main(){
   vec3 base=mix(land,water,waterMask);
   // Polar ice caps: tighter to the poles, with internal breakup, shallow blue
   // ice tones, and directional crease darkening so the caps read less flat.
+  // Two offset fbm passes form a domain-warp vector that distorts the edge
+  // sampling position, producing wispy, tendril-like fronds at the boundary.
   // Mirror of planet.wgsl.
   vec3 localPos=normalize(vLocal);
   vec3 r0=normalize(uModel[0].xyz);
@@ -310,9 +312,13 @@ void main(){
   vec3 r2=normalize(uModel[2].xyz);
   vec3 localLightDir=normalize(vec3(dot(r0,lightDir),dot(r1,lightDir),dot(r2,lightDir)));
   float lat=abs(localPos.y);
-  float iceNoise=fbm(localPos*2.6+vec3(uSeed*0.0015,uSeed*0.0021,uSeed*0.0018));
-  float iceEdge=0.81+(iceNoise-0.5)*0.10;
-  float iceMask=uOceans*smoothstep(iceEdge-0.045,iceEdge+0.035,lat);
+  vec3 iceWarpPos=localPos*3.8+vec3(uSeed*0.0019,uSeed*0.0023,uSeed*0.0017);
+  float iceWarpA=fbm(iceWarpPos)-0.5;
+  float iceWarpB=fbm(iceWarpPos+vec3(3.7,1.8,5.2))-0.5;
+  vec3 iceWarpedPos=localPos+vec3(iceWarpA,iceWarpA*iceWarpB,iceWarpB)*0.22;
+  float iceNoise=fbm(iceWarpedPos*2.6+vec3(uSeed*0.0015,uSeed*0.0021,uSeed*0.0018));
+  float iceEdge=0.81+(iceNoise-0.5)*0.14;
+  float iceMask=uOceans*smoothstep(iceEdge-0.055,iceEdge+0.04,lat);
   vec3 iceDetailPos=localPos*8.0+vec3(uSeed*0.0031,uSeed*0.0027,uSeed*0.0037);
   float iceDetail=fbm(iceDetailPos);
   vec3 iceRidgePhase=vec3(4.2,1.7,8.4);
