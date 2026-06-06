@@ -244,7 +244,7 @@ const raw: CompanyInput[] = [
       'and high school students.',
     seed: 'id-tech-camps-game-creation',
     palette: { low: '#3a0a0a', mid: '#c0392b', high: '#ff8a7a' },
-    features: { rings: false, ringTilt: 0.4, clouds: true, aurora: true, moons: 1 },
+    features: { rings: false, ringTilt: 0.4, oceans: true, clouds: true, aurora: true, moons: 1 },
     pois: [
       {
         slug: 'video-game-creation-extreme',
