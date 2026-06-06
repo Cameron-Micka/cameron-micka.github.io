@@ -301,22 +301,34 @@ void main(){
   float depth=smoothstep(waterLevel-0.10,waterLevel,oceanField);
   vec3 water=mix(deepOcean,shallowOcean,depth);
   vec3 base=mix(land,water,waterMask);
-  // Polar ice caps: planets with oceans freeze over near the poles. Mirror of
-  // planet.wgsl. Latitude from the unit-sphere y; low-freq noise breaks the
-  // cap edge; caps overlay both land and water. Gated by uOceans.
-  float lat=abs(normalize(vLocal).y);
-  float iceNoise=vnoise(vLocal*2.3+vec3(uSeed*0.0015));
-  float iceEdge=0.74+(iceNoise-0.5)*0.18;
-  float iceMask=uOceans*smoothstep(iceEdge-0.06,iceEdge+0.06,lat);
-  vec3 iceColor=vec3(0.90,0.94,0.98);
-  base=mix(base,iceColor,iceMask);
+  // Polar ice caps: tighter to the poles, with internal breakup, shallow blue
+  // ice tones, and directional crease darkening so the caps read less flat.
+  // Mirror of planet.wgsl.
+  vec3 localPos=normalize(vLocal);
+  vec3 r0=normalize(uModel[0].xyz);
+  vec3 r1=normalize(uModel[1].xyz);
+  vec3 r2=normalize(uModel[2].xyz);
+  vec3 localLightDir=normalize(vec3(dot(r0,lightDir),dot(r1,lightDir),dot(r2,lightDir)));
+  float lat=abs(localPos.y);
+  float iceNoise=fbm(localPos*2.6+vec3(uSeed*0.0015,uSeed*0.0021,uSeed*0.0018));
+  float iceEdge=0.81+(iceNoise-0.5)*0.10;
+  float iceMask=uOceans*smoothstep(iceEdge-0.045,iceEdge+0.035,lat);
+  vec3 iceDetailPos=localPos*8.0+vec3(uSeed*0.0031,uSeed*0.0027,uSeed*0.0037);
+  float iceDetail=fbm(iceDetailPos);
+  vec3 iceRidgePhase=vec3(4.2,1.7,8.4);
+  float iceRidges=ridgedFbm(iceDetailPos*0.8+iceRidgePhase);
+  float iceBlue=smoothstep(0.52,0.82,iceDetail)*smoothstep(0.15,0.85,iceMask);
+  float iceCrease=smoothstep(0.34,0.72,iceRidges);
+  float iceSelfShadow=1.0-iceCrease*smoothstep(0.0,0.75,dot(localPos,localLightDir))*0.28;
+  vec3 iceColor=mix(vec3(0.88,0.93,0.98),vec3(0.60,0.78,0.92),iceBlue*0.65);
+  base=mix(base,iceColor*iceSelfShadow,iceMask);
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
   // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere
   // triangle face, see planet.wgsl for the FWHM derivation); land = rough.
   vec3 albedo=base;
   float metallic=0.0;
-  float roughness=mix(mix(0.92,0.35,waterMask),0.6,iceMask);
-  vec3 F0base=mix(mix(vec3(0.04),vec3(0.02),waterMask),vec3(0.04),iceMask);
+  float roughness=mix(mix(0.92,0.35,waterMask),0.5,iceMask);
+  vec3 F0base=mix(mix(vec3(0.04),vec3(0.02),waterMask),vec3(0.05,0.055,0.06),iceMask);
   vec3 F0=mix(F0base,albedo,metallic);
   vec3 L=lightDir;vec3 V=viewDir;vec3 H=normalize(L+V);
   float NdL=clamp(dot(n,L),0.0,1.0);

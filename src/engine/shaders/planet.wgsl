@@ -413,18 +413,28 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let water = mix(deepOcean, shallowOcean, depth);
   let base = mix(land, water, waterMask);
 
-  // Polar ice caps: planets with oceans freeze over near the poles. Latitude
-  // comes from the y component of the unit-sphere local position; a low-
-  // frequency noise perturbs the cap edge so the boundary is irregular rather
-  // than a clean ring. The caps sit on top of both land and open water, so a
-  // frozen sea reads continuous with the icy shoreline. Gated by the oceans
-  // flag so dry/lava worlds stay cap-free. Mirror of PLANET_FRAG.
-  let lat = abs(normalize(in.localPos).y);
-  let iceNoise = vnoise(in.localPos * 2.3 + vec3<f32>(seed * 0.0015));
-  let iceEdge = 0.74 + (iceNoise - 0.5) * 0.18;
-  let iceMask = oceans * smoothstep(iceEdge - 0.06, iceEdge + 0.06, lat);
-  let iceColor = vec3<f32>(0.90, 0.94, 0.98);
-  let base2 = mix(base, iceColor, iceMask);
+  // Polar ice caps: keep them tighter to the poles, add breakup inside the
+  // sheet, and tint some of the denser ice toward blue. A directional detail
+  // mask darkens creases on the sun-facing side so the caps read less flat.
+  // Mirror of PLANET_FRAG.
+  let localPos = normalize(in.localPos);
+  let r0 = normalize(obj.model[0].xyz);
+  let r1 = normalize(obj.model[1].xyz);
+  let r2 = normalize(obj.model[2].xyz);
+  let localLightDir = normalize(vec3<f32>(dot(r0, lightDir), dot(r1, lightDir), dot(r2, lightDir)));
+  let lat = abs(localPos.y);
+  let iceNoise = fbm(localPos * 2.6 + vec3<f32>(seed * 0.0015, seed * 0.0021, seed * 0.0018));
+  let iceEdge = 0.81 + (iceNoise - 0.5) * 0.10;
+  let iceMask = oceans * smoothstep(iceEdge - 0.045, iceEdge + 0.035, lat);
+  let iceDetailPos = localPos * 8.0 + vec3<f32>(seed * 0.0031, seed * 0.0027, seed * 0.0037);
+  let iceDetail = fbm(iceDetailPos);
+  let iceRidgePhase = vec3<f32>(4.2, 1.7, 8.4);
+  let iceRidges = ridgedFbm(iceDetailPos * 0.8 + iceRidgePhase);
+  let iceBlue = smoothstep(0.52, 0.82, iceDetail) * smoothstep(0.15, 0.85, iceMask);
+  let iceCrease = smoothstep(0.34, 0.72, iceRidges);
+  let iceSelfShadow = 1.0 - iceCrease * smoothstep(0.0, 0.75, dot(localPos, localLightDir)) * 0.28;
+  let iceColor = mix(vec3<f32>(0.88, 0.93, 0.98), vec3<f32>(0.60, 0.78, 0.92), iceBlue * 0.65);
+  let base2 = mix(base, iceColor * iceSelfShadow, iceMask);
 
   // --- Cook-Torrance PBR direct lighting from the key sun ---
   // Per-pixel material: water is a smooth-ish dielectric (moderate roughness,
@@ -442,8 +452,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Ice is a brighter, smoother dielectric than rough land but still matte
   // next to open water, so it gets its own roughness/F0 lerp layered on top of
   // the land/water mix.
-  let roughness = mix(mix(0.92, 0.35, waterMask), 0.6, iceMask);
-  let F0base = mix(mix(vec3<f32>(0.04), vec3<f32>(0.02), waterMask), vec3<f32>(0.04), iceMask);
+  let roughness = mix(mix(0.92, 0.35, waterMask), 0.5, iceMask);
+  let F0base = mix(mix(vec3<f32>(0.04), vec3<f32>(0.02), waterMask), vec3<f32>(0.05, 0.055, 0.06), iceMask);
   let F0 = mix(F0base, albedo, metallic);
 
   let L = lightDir;
