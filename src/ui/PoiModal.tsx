@@ -18,7 +18,7 @@ function youtubeId(src: string): string | null {
     if (host === 'youtube.com' || host === 'm.youtube.com') {
       if (u.pathname === '/watch') return u.searchParams.get('v');
       const m = u.pathname.match(/^\/(embed|shorts|v)\/([\w-]{6,})/);
-      if (m) return m[2];
+      if (m) return m[2] ?? null;
     }
     return null;
   } catch {
