@@ -10,7 +10,7 @@ const raw: CompanyInput[] = [
   {
     slug: 'microsoft',
     name: 'Microsoft',
-    role: 'Principal Software Engineer',
+    role: 'Principal Software Engineering Manager',
     logo: 'logos/microsoft.svg',
     start: '2016',
     end: null,
@@ -57,7 +57,7 @@ const raw: CompanyInput[] = [
   {
     slug: 'fun-bits',
     name: 'Fun Bits Interactive',
-    role: 'Engine / Graphics Programmer',
+    role: 'Technical Director',
     logo: 'logos/fun-bits.svg',
     start: '2011',
     end: '2016',
