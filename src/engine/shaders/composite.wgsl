@@ -4,6 +4,7 @@
 struct Post {
   params : vec4<f32>,   // x=blur(0..1) y=vignette z=caAmount w=bloomStrength
   texel : vec4<f32>,    // xy = 1/resolution
+  flare : vec4<f32>,    // xy = sun screen uv, z = strength(0..1), w = aspect(w/h)
 };
 @group(0) @binding(0) var<uniform> post : Post;
 @group(0) @binding(1) var samp : sampler;
@@ -39,6 +40,58 @@ fn aces(x : vec3<f32>) -> vec3<f32> {
 
 fn sampleScene(uv : vec2<f32>) -> vec3<f32> {
   return textureSample(sceneTex, samp, clamp(uv, vec2<f32>(0.001), vec2<f32>(0.999))).rgb;
+}
+
+// Deep-space lens flare adapted from mu6k's classic Shadertoy (4sX3Rs): a
+// chain of chromatic ghost discs marching from the light through screen centre,
+// and faint reflection halos. The per-channel offset of the ghosts/halos
+// produces the rainbow prism fringing. uv and pos are centred, aspect-corrected
+// screen coords.
+fn lensflare(uv : vec2<f32>, pos : vec2<f32>) -> vec3<f32> {
+  let uvd = uv * length(uv);
+
+  let f2 = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.8 * pos), 2.0)), 0.0) * 0.25;
+  let f22 = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.85 * pos), 2.0)), 0.0) * 0.23;
+  let f23 = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.9 * pos), 2.0)), 0.0) * 0.21;
+
+  var uvx = mix(uv, uvd, -0.5);
+  let f4 = max(0.01 - pow(length(uvx + 0.4 * pos), 2.4), 0.0) * 6.0;
+  let f42 = max(0.01 - pow(length(uvx + 0.45 * pos), 2.4), 0.0) * 5.0;
+  let f43 = max(0.01 - pow(length(uvx + 0.5 * pos), 2.4), 0.0) * 3.0;
+
+  uvx = mix(uv, uvd, -0.4);
+  let f5 = max(0.01 - pow(length(uvx + 0.2 * pos), 5.5), 0.0) * 2.0;
+  let f52 = max(0.01 - pow(length(uvx + 0.4 * pos), 5.5), 0.0) * 2.0;
+  let f53 = max(0.01 - pow(length(uvx + 0.6 * pos), 5.5), 0.0) * 2.0;
+
+  uvx = mix(uv, uvd, -0.5);
+  let f6 = max(0.01 - pow(length(uvx - 0.3 * pos), 1.6), 0.0) * 6.0;
+  let f62 = max(0.01 - pow(length(uvx - 0.325 * pos), 1.6), 0.0) * 3.0;
+  let f63 = max(0.01 - pow(length(uvx - 0.35 * pos), 1.6), 0.0) * 5.0;
+
+  var c = vec3<f32>(
+    f2 + f4 + f5 + f6,
+    f22 + f42 + f52 + f62,
+    f23 + f43 + f53 + f63,
+  );
+  c = c * 1.3 - vec3<f32>(length(uvd) * 0.05);
+  return max(c, vec3<f32>(0.0));
+}
+
+// Tints, scales by sun visibility and composes the lens flare. The warm-blue
+// tint reads as a cinematic deep-space flare; kept gentle so it augments the
+// sun without washing the scene.
+fn sunFlare(uv : vec2<f32>) -> vec3<f32> {
+  let strength = post.flare.z;
+  if (strength <= 0.001) {
+    return vec3<f32>(0.0);
+  }
+  let aspect = post.flare.w;
+  let scale = 1.6;
+  let cuv = (uv - vec2<f32>(0.5)) * vec2<f32>(aspect, 1.0) * scale;
+  let cpos = (post.flare.xy - vec2<f32>(0.5)) * vec2<f32>(aspect, 1.0) * scale;
+  let lf = lensflare(cuv, cpos) * vec3<f32>(1.4, 1.2, 1.0);
+  return lf * strength * 0.5;
 }
 
 // Cheap bloom: threshold bright areas across a small Gaussian-weighted disk
@@ -116,6 +169,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   if (post.params.w > 0.001) {
     col = col + bloom(uv) * post.params.w;
   }
+  col = col + sunFlare(uv);
   var mapped = aces(col);
 
   if (post.params.y > 0.001) {

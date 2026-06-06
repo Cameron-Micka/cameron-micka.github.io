@@ -13,7 +13,7 @@ struct Frame {
 @group(0) @binding(0) var<uniform> frame : Frame;
 
 // Half-thickness of the trajectory line in aspect-corrected NDC.
-const HALF_THICK : f32 = 0.006;
+const HALF_THICK : f32 = 0.0045;
 // Arrowhead size (aspect-corrected NDC) drawn at the end of the path.
 const ARROW_LEN : f32 = 0.024;  // how far the tip extends past the end point
 const ARROW_HALF : f32 = 0.013; // half-width of the arrowhead base

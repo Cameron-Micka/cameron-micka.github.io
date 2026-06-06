@@ -17,6 +17,7 @@ import { quat } from './math/quat';
 import { vec3 } from './math/vec3';
 import { mulberry32 } from './math/rng';
 import { poiMarkerDistance, poiFocusFade } from './Scene';
+import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
 
 import planetWGSL from './shaders/planet.wgsl?raw';
@@ -121,7 +122,7 @@ export class WebGPURenderer implements SceneRenderer {
   // the nebula backdrop's world-direction unprojection. Shaders that don't
   // need invViewProj simply declare a shorter Frame struct.
   private frameScratch = new Float32Array(80);
-  private postScratch = new Float32Array(8);
+  private postScratch = new Float32Array(12);
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
@@ -1119,6 +1120,11 @@ export class WebGPURenderer implements SceneRenderer {
     post[3] = lowNoPost ? 0 : (frame.quality.bloomMips > 0 ? 0.8 : 0);
     post[4] = 1 / this.width;
     post[5] = 1 / this.height;
+    const flare = computeSunFlare(frame);
+    post[8] = flare.u;
+    post[9] = flare.v;
+    post[10] = lowNoPost ? 0 : flare.strength;
+    post[11] = this.width / this.height;
     d.queue.writeBuffer(this.postUBO, 0, post);
 
     const encoder = d.createCommandEncoder();

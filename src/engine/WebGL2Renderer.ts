@@ -5,6 +5,7 @@ import { quat, type Quat } from './math/quat';
 import { vec3 } from './math/vec3';
 import { mulberry32 } from './math/rng';
 import { poiMarkerDistance, poiFocusFade } from './Scene';
+import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
 
 // Lower-fidelity mirror of the WebGPU experience: procedural planets, a nebula
@@ -886,9 +887,45 @@ const PRESENT_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
 uniform sampler2D uScene;
+uniform vec3 uFlare;   // xy = sun screen uv, z = strength
+uniform float uAspect; // width / height
 out vec4 frag;
+// Deep-space lens flare (mu6k 4sX3Rs): chromatic ghost discs through screen
+// centre and reflection halos. uv/pos centred + aspect.
+vec3 lensflare(vec2 uv, vec2 pos){
+  vec2 uvd=uv*length(uv);
+  float f2=max(1.0/(1.0+32.0*pow(length(uvd+0.8*pos),2.0)),0.0)*0.25;
+  float f22=max(1.0/(1.0+32.0*pow(length(uvd+0.85*pos),2.0)),0.0)*0.23;
+  float f23=max(1.0/(1.0+32.0*pow(length(uvd+0.9*pos),2.0)),0.0)*0.21;
+  vec2 uvx=mix(uv,uvd,-0.5);
+  float f4=max(0.01-pow(length(uvx+0.4*pos),2.4),0.0)*6.0;
+  float f42=max(0.01-pow(length(uvx+0.45*pos),2.4),0.0)*5.0;
+  float f43=max(0.01-pow(length(uvx+0.5*pos),2.4),0.0)*3.0;
+  uvx=mix(uv,uvd,-0.4);
+  float f5=max(0.01-pow(length(uvx+0.2*pos),5.5),0.0)*2.0;
+  float f52=max(0.01-pow(length(uvx+0.4*pos),5.5),0.0)*2.0;
+  float f53=max(0.01-pow(length(uvx+0.6*pos),5.5),0.0)*2.0;
+  uvx=mix(uv,uvd,-0.5);
+  float f6=max(0.01-pow(length(uvx-0.3*pos),1.6),0.0)*6.0;
+  float f62=max(0.01-pow(length(uvx-0.325*pos),1.6),0.0)*3.0;
+  float f63=max(0.01-pow(length(uvx-0.35*pos),1.6),0.0)*5.0;
+  vec3 c=vec3(0.0);
+  c.r+=f2+f4+f5+f6;
+  c.g+=f22+f42+f52+f62;
+  c.b+=f23+f43+f53+f63;
+  c=c*1.3-vec3(length(uvd)*0.05);
+  return max(c,vec3(0.0));
+}
+vec3 sunFlare(vec2 uv){
+  if(uFlare.z<=0.001) return vec3(0.0);
+  vec2 cuv=(uv-0.5)*vec2(uAspect,1.0)*1.6;
+  vec2 cpos=(uFlare.xy-0.5)*vec2(uAspect,1.0)*1.6;
+  vec3 lf=lensflare(cuv,cpos)*vec3(1.4,1.2,1.0);
+  return lf*uFlare.z*0.5;
+}
 void main(){
   vec3 c = texture(uScene, vUv).rgb;
+  c += sunFlare(vUv);
   frag = vec4(pow(c, vec3(1.0/2.2)), 1.0);
 }`;
 
@@ -1492,7 +1529,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.corona = this.makeProgram(CORONA_VERT, CORONA_FRAG, [
       'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime', 'uReducedMotion',
     ]);
-    this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene']);
+    this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene', 'uFlare', 'uAspect']);
 
     await report(0.75, 'Building scene geometry…');
     this.buildSphere();
@@ -2256,7 +2293,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.useProgram(this.flight.prog);
       gl.uniformMatrix4fv(this.flight.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.flight.uniforms.uAspect!, this.width / this.height);
-      gl.uniform1f(this.flight.uniforms.uThick!, 0.006);
+      gl.uniform1f(this.flight.uniforms.uThick!, 0.0045);
       gl.uniform3fv(this.flight.uniforms.uCamera!, frame.cameraPos);
       gl.uniform1f(this.flight.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.flightVao);
@@ -2287,6 +2324,9 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
     gl.uniform1i(this.present.uniforms.uScene!, 0);
+    const flare = computeSunFlare(frame);
+    gl.uniform3f(this.present.uniforms.uFlare!, flare.u, flare.v, flare.strength);
+    gl.uniform1f(this.present.uniforms.uAspect!, this.width / this.height);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.stats.drawCalls++;
   }
