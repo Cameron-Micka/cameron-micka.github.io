@@ -94,6 +94,36 @@ fn sunFlare(uv : vec2<f32>) -> vec3<f32> {
   return lf * strength * 0.5;
 }
 
+// Crepuscular rays (god rays) via GPU Gems 3 ch.13 volumetric light-scattering
+// post-process: march from each pixel toward the sun's screen position,
+// accumulating the bright (sun) part of the HDR scene with exponential decay.
+// Planets in front of the sun read dark here, carving the shadow gaps between
+// rays. Gated by the same occlusion-aware sun strength as the lens flare.
+fn godRays(uv : vec2<f32>) -> vec3<f32> {
+  let strength = post.flare.z;
+  if (strength <= 0.001) {
+    return vec3<f32>(0.0);
+  }
+  let NUM = 64;
+  let density = 0.6;
+  let decay = 0.96;
+  let exposure = 0.016;
+  let delta = (uv - post.flare.xy) * (density / f32(NUM));
+  var coord = uv;
+  var illum = 1.0;
+  var acc = 0.0;
+  for (var i = 0; i < NUM; i = i + 1) {
+    coord = coord - delta;
+    // Bounded "is this the sun" mask rather than raw HDR brightness, so a very
+    // bright sun can't blow the rays out to a full-screen white wash.
+    let lum = dot(sampleScene(coord), vec3<f32>(0.2126, 0.7152, 0.0722));
+    let m = clamp((lum - 0.85) * 3.0, 0.0, 1.0);
+    acc = acc + m * illum;
+    illum = illum * decay;
+  }
+  return vec3<f32>(acc) * (exposure * strength) * vec3<f32>(1.0, 0.92, 0.78);
+}
+
 // Cheap bloom: threshold bright areas across a small Gaussian-weighted disk
 // of taps. A 5x5 grid (25 taps) with Gaussian weights produces a smooth
 // filled blur instead of the hollow ring artifact a single-ring kernel
@@ -170,6 +200,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     col = col + bloom(uv) * post.params.w;
   }
   col = col + sunFlare(uv);
+  col = col + godRays(uv);
   var mapped = aces(col);
 
   if (post.params.y > 0.001) {

@@ -923,9 +923,31 @@ vec3 sunFlare(vec2 uv){
   vec3 lf=lensflare(cuv,cpos)*vec3(1.4,1.2,1.0);
   return lf*uFlare.z*0.5;
 }
+// Crepuscular rays (GPU Gems 3 ch.13): radial march toward the sun, summing the
+// bright part of the scene with exponential decay so planets carve ray gaps.
+vec3 godRays(vec2 uv){
+  if(uFlare.z<=0.001) return vec3(0.0);
+  const int NUM=48;
+  float density=0.6;
+  float decay=0.96;
+  float exposure=0.016;
+  vec2 delta=(uv-uFlare.xy)*(density/float(NUM));
+  vec2 coord=uv;
+  float illum=1.0;
+  float acc=0.0;
+  for(int i=0;i<NUM;i++){
+    coord-=delta;
+    float lum=dot(texture(uScene,clamp(coord,0.001,0.999)).rgb,vec3(0.2126,0.7152,0.0722));
+    float m=clamp((lum-0.85)*3.0,0.0,1.0);
+    acc+=m*illum;
+    illum*=decay;
+  }
+  return vec3(acc)*(exposure*uFlare.z)*vec3(1.0,0.92,0.78);
+}
 void main(){
   vec3 c = texture(uScene, vUv).rgb;
   c += sunFlare(vUv);
+  c += godRays(vUv);
   frag = vec4(pow(c, vec3(1.0/2.2)), 1.0);
 }`;
 
