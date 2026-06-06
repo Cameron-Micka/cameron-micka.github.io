@@ -428,7 +428,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let iceMask = oceans * smoothstep(iceEdge - 0.045, iceEdge + 0.035, lat);
   let iceDetailPos = localPos * 8.0 + vec3<f32>(seed * 0.0031, seed * 0.0027, seed * 0.0037);
   let iceDetail = fbm(iceDetailPos);
-  let iceRidges = ridgedFbm(iceDetailPos * 0.8 + vec3<f32>(4.2, 1.7, 8.4));
+  let iceRidgePhase = vec3<f32>(4.2, 1.7, 8.4);
+  let iceRidges = ridgedFbm(iceDetailPos * 0.8 + iceRidgePhase);
   let iceBlue = smoothstep(0.52, 0.82, iceDetail) * smoothstep(0.15, 0.85, iceMask);
   let iceCrease = smoothstep(0.34, 0.72, iceRidges);
   let iceSelfShadow = 1.0 - iceCrease * smoothstep(0.0, 0.75, dot(localPos, localLightDir)) * 0.28;

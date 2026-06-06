@@ -315,7 +315,8 @@ void main(){
   float iceMask=uOceans*smoothstep(iceEdge-0.045,iceEdge+0.035,lat);
   vec3 iceDetailPos=localPos*8.0+vec3(uSeed*0.0031,uSeed*0.0027,uSeed*0.0037);
   float iceDetail=fbm(iceDetailPos);
-  float iceRidges=ridgedFbm(iceDetailPos*0.8+vec3(4.2,1.7,8.4));
+  vec3 iceRidgePhase=vec3(4.2,1.7,8.4);
+  float iceRidges=ridgedFbm(iceDetailPos*0.8+iceRidgePhase);
   float iceBlue=smoothstep(0.52,0.82,iceDetail)*smoothstep(0.15,0.85,iceMask);
   float iceCrease=smoothstep(0.34,0.72,iceRidges);
   float iceSelfShadow=1.0-iceCrease*smoothstep(0.0,0.75,dot(localPos,localLightDir))*0.28;
