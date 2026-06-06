@@ -280,6 +280,12 @@ a:hover {
   color: var(--muted);
   font-size: 12px;
   opacity: 0.85;
+  display: inline-block;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  backdrop-filter: blur(10px);
 }
 
 /* ---- Glass modal ---- */
@@ -345,6 +351,13 @@ a:hover {
 .modal .media img,
 .modal .media video {
   width: 100%;
+  border-radius: 12px;
+  display: block;
+}
+.modal .media iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
   border-radius: 12px;
   display: block;
 }

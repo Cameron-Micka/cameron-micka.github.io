@@ -4,8 +4,43 @@ import { useEngine, useEngineSnapshot } from './EngineContext';
 import { Markdown } from './Markdown';
 import { UI } from './strings';
 
+// Extract a YouTube video id from common URL shapes (youtu.be/ID,
+// youtube.com/watch?v=ID, youtube.com/embed/ID, youtube.com/shorts/ID).
+// Returns null for anything that isn't recognizable as YouTube.
+function youtubeId(src: string): string | null {
+  try {
+    const u = new URL(src);
+    const host = u.hostname.replace(/^www\./, '');
+    if (host === 'youtu.be') {
+      const id = u.pathname.slice(1);
+      return /^[\w-]{6,}$/.test(id) ? id : null;
+    }
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      if (u.pathname === '/watch') return u.searchParams.get('v');
+      const m = u.pathname.match(/^\/(embed|shorts|v)\/([\w-]{6,})/);
+      if (m) return m[2];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function MediaItem({ m }: { m: Media }) {
   if (m.type === 'video') {
+    const yt = youtubeId(m.src);
+    if (yt) {
+      return (
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${yt}`}
+          title={m.alt ?? 'YouTube video'}
+          loading="lazy"
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      );
+    }
     return (
       <video controls poster={m.poster} preload="metadata">
         <source src={m.src} />

@@ -1951,6 +1951,9 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.useProgram(this.wire.prog);
       gl.uniformMatrix4fv(this.wire.uniforms.uViewProj!, false, frame.viewProj);
       gl.bindVertexArray(this.sphereWireVao);
+      // Sun body as wireframe (drawn separately from planets, like the filled
+      // path below).
+      this.drawWire(frame.sun.center, frame.sun.radius, [0, 0, 0, 1], model);
       for (const p of frame.planets) {
         const vis = p.visibility;
         if (vis <= 0.02) continue;

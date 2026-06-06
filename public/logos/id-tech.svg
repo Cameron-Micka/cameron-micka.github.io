@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-label="iD Tech Camps logo">
+<defs><clipPath id="idTechRound"><rect width="24" height="24" rx="5"/></clipPath></defs>
+<g clip-path="url(#idTechRound)">
+<rect width="24" height="24" fill="#c0392b"/>
+<circle cx="12" cy="12" r="8.5" fill="none" stroke="#ffffff" stroke-width="1.6"/>
+<text x="12" y="16" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" fill="#ffffff">iD</text>
+</g>
+</svg>

@@ -1177,6 +1177,12 @@ export class WebGPURenderer implements SceneRenderer {
         this.sphereLines.ibuf,
         this.sphereLines.u32 ? 'uint32' : 'uint16',
       );
+      // Sun body as wireframe (drawn separately from `objects`, like the filled
+      // path below).
+      scenePass.setBindGroup(0, this.frameBG);
+      scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
+      scenePass.drawIndexed(this.sphereLines.count);
+      this.stats.drawCalls++;
       for (const o of objects) {
         if (o.kind === 2) continue; // rings use their own mesh below
         scenePass.setBindGroup(0, this.frameBG);

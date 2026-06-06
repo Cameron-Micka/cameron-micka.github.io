@@ -521,6 +521,12 @@ export class Engine {
         this.planetVisibility(i),
       );
     });
+    // Free-fly mode is for exploring the scene, not the resume content, so hide
+    // the POI markers + connector lines. Instances are rebuilt each frame, so
+    // clearing here is safe and leaves picking (which uses this.models) intact.
+    if (this.settings.freeCamera) {
+      for (const p of planets) p.pois = [];
+    }
     const frame: FrameState = {
       time: this.time,
       moonTime: this.moonTime,
