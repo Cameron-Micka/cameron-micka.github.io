@@ -1182,7 +1182,7 @@ void main(){
   if(inner.x>0.0&&inner.x<inner.y)tFar=min(tFar,inner.x);
   if(tFar<=tNear){frag=vec4(0.0);return;}
   float motion=uReducedMotion>0.5?0.0:1.0;
-  float at=uTime*motion;
+  float at=uTime*motion*0.5;
   float curtainTop=innerA+(outerR-innerA)*0.25;
   float thickness=max(curtainTop-innerA,1e-4);
   const int STEPS=24;

@@ -138,7 +138,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // noise is sampled on this plane so curtains are seamless around the pole.
 
   let motion = select(1.0, 0.0, frame.misc.y > 0.5);
-  let at = frame.misc.x * motion;
+  let at = frame.misc.x * motion * 0.5;
 
   // Curtains rise radially from innerA; cap their top at half the shell
   // thickness so they read as shorter curtains.
