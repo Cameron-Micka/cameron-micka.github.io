@@ -413,6 +413,19 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let water = mix(deepOcean, shallowOcean, depth);
   let base = mix(land, water, waterMask);
 
+  // Polar ice caps: planets with oceans freeze over near the poles. Latitude
+  // comes from the y component of the unit-sphere local position; a low-
+  // frequency noise perturbs the cap edge so the boundary is irregular rather
+  // than a clean ring. The caps sit on top of both land and open water, so a
+  // frozen sea reads continuous with the icy shoreline. Gated by the oceans
+  // flag so dry/lava worlds stay cap-free. Mirror of PLANET_FRAG.
+  let lat = abs(normalize(in.localPos).y);
+  let iceNoise = vnoise(in.localPos * 2.3 + vec3<f32>(seed * 0.0015));
+  let iceEdge = 0.74 + (iceNoise - 0.5) * 0.18;
+  let iceMask = oceans * smoothstep(iceEdge - 0.06, iceEdge + 0.06, lat);
+  let iceColor = vec3<f32>(0.90, 0.94, 0.98);
+  let base2 = mix(base, iceColor, iceMask);
+
   // --- Cook-Torrance PBR direct lighting from the key sun ---
   // Per-pixel material: water is a smooth-ish dielectric (moderate roughness,
   // low F0 ~ water IOR 1.33 -> F0 0.02); land is a rough dielectric (high
@@ -424,10 +437,13 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // 48x64 mesh; see geometry.ts). Below ~0.30 the highlight gets sharp
   // enough that its sub-triangle peak snaps to mesh seams, producing a
   // visible polygonal/chevron kink right in the brightest pixels.
-  let albedo = base;
+  let albedo = base2;
   let metallic = 0.0;
-  let roughness = mix(0.92, 0.35, waterMask);
-  let F0base = mix(vec3<f32>(0.04), vec3<f32>(0.02), waterMask);
+  // Ice is a brighter, smoother dielectric than rough land but still matte
+  // next to open water, so it gets its own roughness/F0 lerp layered on top of
+  // the land/water mix.
+  let roughness = mix(mix(0.92, 0.35, waterMask), 0.6, iceMask);
+  let F0base = mix(mix(vec3<f32>(0.04), vec3<f32>(0.02), waterMask), vec3<f32>(0.04), iceMask);
   let F0 = mix(F0base, albedo, metallic);
 
   let L = lightDir;
@@ -498,7 +514,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let lodFade = 1.0 - smoothstep(0.35, 0.9, footprint);
 
     let nightFactor = smoothstep(0.18, -0.05, NdL);
-    let landFactor = 1.0 - waterMask;
+    let landFactor = (1.0 - waterMask) * (1.0 - iceMask);
     if (nightFactor > 0.001 && landFactor > 0.05 && lodFade > 0.001) {
       // Population proxy: continents at moderate freq with a coastline boost
       // (smoothstep peak where oceanField hovers near waterLevel).
