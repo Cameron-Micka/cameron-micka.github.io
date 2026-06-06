@@ -301,13 +301,22 @@ void main(){
   float depth=smoothstep(waterLevel-0.10,waterLevel,oceanField);
   vec3 water=mix(deepOcean,shallowOcean,depth);
   vec3 base=mix(land,water,waterMask);
+  // Polar ice caps: planets with oceans freeze over near the poles. Mirror of
+  // planet.wgsl. Latitude from the unit-sphere y; low-freq noise breaks the
+  // cap edge; caps overlay both land and water. Gated by uOceans.
+  float lat=abs(normalize(vLocal).y);
+  float iceNoise=vnoise(vLocal*2.3+vec3(uSeed*0.0015));
+  float iceEdge=0.74+(iceNoise-0.5)*0.18;
+  float iceMask=uOceans*smoothstep(iceEdge-0.06,iceEdge+0.06,lat);
+  vec3 iceColor=vec3(0.90,0.94,0.98);
+  base=mix(base,iceColor,iceMask);
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
   // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere
   // triangle face, see planet.wgsl for the FWHM derivation); land = rough.
   vec3 albedo=base;
   float metallic=0.0;
-  float roughness=mix(0.92,0.35,waterMask);
-  vec3 F0base=mix(vec3(0.04),vec3(0.02),waterMask);
+  float roughness=mix(mix(0.92,0.35,waterMask),0.6,iceMask);
+  vec3 F0base=mix(mix(vec3(0.04),vec3(0.02),waterMask),vec3(0.04),iceMask);
   vec3 F0=mix(F0base,albedo,metallic);
   vec3 L=lightDir;vec3 V=viewDir;vec3 H=normalize(L+V);
   float NdL=clamp(dot(n,L),0.0,1.0);
@@ -347,7 +356,7 @@ void main(){
     // of a cell (prevents sparkling/aliasing at distance or for small planets).
     float lodFade=1.0-smoothstep(0.35,0.9,footprint);
     float nightFactor=smoothstep(0.18,-0.05,NdL);
-    float landFactor=1.0-waterMask;
+    float landFactor=(1.0-waterMask)*(1.0-iceMask);
     if(nightFactor>0.001 && landFactor>0.05 && lodFade>0.001){
       float popNoise=continentFbm(vLocal*2.2+vec3(uSeed*0.0019));
       float popMask=smoothstep(0.42,0.72,popNoise);
