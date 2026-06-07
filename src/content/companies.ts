@@ -131,7 +131,13 @@ const raw: CompanyInput[] = [
           'behavior, networked gameplay, character state machine, character ' +
           'customization, camera system, editor and debugging tools, and ' +
           'visual-scripting improvements.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/FripHuBd9ZY',
+            alt: 'Fat Princess Adventures gameplay',
+          },
+        ],
       },
       {
         slug: 'fat-princess-2-prototype',
