@@ -432,12 +432,20 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let iceWarpPos = localPos * 3.8 + vec3<f32>(seed * 0.0019, seed * 0.0023, seed * 0.0017);
   let iceWarpA = fbm(iceWarpPos) - 0.5;
   let iceWarpB = fbm(iceWarpPos + vec3<f32>(3.7, 1.8, 5.2)) - 0.5;
-  let iceWarpedPos = localPos + vec3<f32>(iceWarpA, iceWarpA * iceWarpB, iceWarpB) * 0.34;
+  // A second, higher-frequency domain-warp pass distorts the edge sampling
+  // position at a finer scale, adding crinkly, small-scale detail to the
+  // boundary on top of the broad warp.
+  let iceWarpHiPos = localPos * 11.0 + vec3<f32>(seed * 0.0026, seed * 0.0034, seed * 0.0022);
+  let iceWarpHiA = fbm(iceWarpHiPos) - 0.5;
+  let iceWarpHiB = fbm(iceWarpHiPos + vec3<f32>(2.3, 6.1, 4.4)) - 0.5;
+  let iceWarpedPos = localPos
+    + vec3<f32>(iceWarpA, iceWarpA * iceWarpB, iceWarpB) * 0.34
+    + vec3<f32>(iceWarpHiA, iceWarpHiA * iceWarpHiB, iceWarpHiB) * 0.11;
   let iceNoise = fbm(iceWarpedPos * 2.6 + vec3<f32>(seed * 0.0015, seed * 0.0021, seed * 0.0018));
   // A finer, higher-frequency octave adds small jagged fronds on top of the
   // broad domain-warped boundary so the cap edge reads more ragged.
   let iceEdgeFine = fbm(iceWarpedPos * 6.4 + vec3<f32>(seed * 0.0024, seed * 0.0033, seed * 0.0029)) - 0.5;
-  let iceEdge = 0.81 + (iceNoise - 0.5) * 0.26 + iceEdgeFine * 0.08;
+  let iceEdge = 0.87 + (iceNoise - 0.5) * 0.26 + iceEdgeFine * 0.08;
   let iceMask = oceans * smoothstep(iceEdge - 0.04, iceEdge + 0.03, lat);
   let iceDetailPos = localPos * 8.0 + vec3<f32>(seed * 0.0031, seed * 0.0027, seed * 0.0037);
   let iceDetail = fbm(iceDetailPos);

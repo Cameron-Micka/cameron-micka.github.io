@@ -315,10 +315,13 @@ void main(){
   vec3 iceWarpPos=localPos*3.8+vec3(uSeed*0.0019,uSeed*0.0023,uSeed*0.0017);
   float iceWarpA=fbm(iceWarpPos)-0.5;
   float iceWarpB=fbm(iceWarpPos+vec3(3.7,1.8,5.2))-0.5;
-  vec3 iceWarpedPos=localPos+vec3(iceWarpA,iceWarpA*iceWarpB,iceWarpB)*0.34;
+  vec3 iceWarpHiPos=localPos*11.0+vec3(uSeed*0.0026,uSeed*0.0034,uSeed*0.0022);
+  float iceWarpHiA=fbm(iceWarpHiPos)-0.5;
+  float iceWarpHiB=fbm(iceWarpHiPos+vec3(2.3,6.1,4.4))-0.5;
+  vec3 iceWarpedPos=localPos+vec3(iceWarpA,iceWarpA*iceWarpB,iceWarpB)*0.34+vec3(iceWarpHiA,iceWarpHiA*iceWarpHiB,iceWarpHiB)*0.11;
   float iceNoise=fbm(iceWarpedPos*2.6+vec3(uSeed*0.0015,uSeed*0.0021,uSeed*0.0018));
   float iceEdgeFine=fbm(iceWarpedPos*6.4+vec3(uSeed*0.0024,uSeed*0.0033,uSeed*0.0029))-0.5;
-  float iceEdge=0.81+(iceNoise-0.5)*0.26+iceEdgeFine*0.08;
+  float iceEdge=0.87+(iceNoise-0.5)*0.26+iceEdgeFine*0.08;
   float iceMask=uOceans*smoothstep(iceEdge-0.04,iceEdge+0.03,lat);
   vec3 iceDetailPos=localPos*8.0+vec3(uSeed*0.0031,uSeed*0.0027,uSeed*0.0037);
   float iceDetail=fbm(iceDetailPos);
