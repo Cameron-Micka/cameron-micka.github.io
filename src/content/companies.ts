@@ -47,8 +47,14 @@ const raw: CompanyInput[] = [
         body:
           'Contributed to MRTK2 efforts spanning developer workflow, ' +
           'rendering, and platform integration so teams could build polished ' +
-          'mixed reality experiences faster on HoloLens.',
-        media: [],
+          'mixed reality experiences faster on HoloLens in both Unity and Unreal Engine 4.',
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/tGYGA_L8Pnw',
+            alt: 'MRTK2 project video',
+          },
+        ],
       },
       {
         slug: 'graphics-tools',
