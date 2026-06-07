@@ -28,7 +28,7 @@ export default function About() {
           <a
             href="https://www.mobygames.com/person/399970/cameron-micka/"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
           >
             MobyGames
           </a>
