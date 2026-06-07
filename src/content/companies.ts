@@ -164,7 +164,13 @@ const raw: CompanyInput[] = [
           'Stood up a custom Unreal Engine 4 build to run against prototype ' +
           'Oculus Touch hardware, and built and maintained the working ' +
           'relationship with Facebook/Oculus throughout the project.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/oLzqZyqDMOU?si=bOA8Bbu6lnp_INrB',
+            alt: 'HALP gameplay video',
+          },
+        ],
       },
       {
         slug: 'escape-plan',
