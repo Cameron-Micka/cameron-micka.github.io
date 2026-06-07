@@ -23,6 +23,17 @@ export default function About() {
           where each planet is a place I've worked and each glowing point opens a
           story.
         </p>
+        <p>
+          You can also find my credits on{' '}
+          <a
+            href="https://www.mobygames.com/person/399970/cameron-micka/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            MobyGames
+          </a>
+          .
+        </p>
 
         <section>
           <h2>Where I've worked</h2>
