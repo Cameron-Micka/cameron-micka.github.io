@@ -328,12 +328,14 @@ a:hover {
 .modal h2 {
   margin: 0 0 4px;
   font-size: clamp(20px, 4vw, 26px);
+  padding-right: 96px;
 }
 .modal .eyebrow {
   color: var(--accent);
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 1px;
+  padding-right: 96px;
 }
 .modal .body {
   margin-top: 14px;
