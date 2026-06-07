@@ -175,7 +175,14 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let pc = vec2<f32>(ld.x, ld.z);
     let coarse = triNoise2d(pc * 1.4, 0.025, at);
     let group = smoothstep(0.08, 0.50, coarse);
-    let pcw = pc + vec2<f32>(coarse - 0.275, coarse - 0.275) * 0.8;
+    // Lateral wiggle: sway the filaments side-to-side along the band as they
+    // rise. The displacement runs tangent to the pole and varies with altitude
+    // and time, so each strand snakes and ripples like a real auroral curtain.
+    let radial = pc / max(length(pc), 1e-3);
+    let tangent = vec2<f32>(-radial.y, radial.x);
+    let wiggle = (sin(h * 11.0 + at * 2.2 + length(pc) * 6.0)
+                + 0.5 * sin(h * 6.0 - at * 1.7 + ld.y * 8.0)) * 0.04;
+    let pcw = pc + vec2<f32>(coarse - 0.275, coarse - 0.275) * 0.8 + tangent * wiggle;
     let fil = triNoise2d(pcw * 2.6, 0.06, at);
     let strings = pow(clamp(fil * 1.7, 0.0, 1.0), 0.8);
     let rzt = strings * group * band;

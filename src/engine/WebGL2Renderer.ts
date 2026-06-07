@@ -1277,7 +1277,12 @@ void main(){
     vec2 pc=vec2(ld.x,ld.z);
     float coarse=triNoise2d(pc*1.4,0.025,at);
     float group=smoothstep(0.08,0.50,coarse);
-    vec2 pcw=pc+vec2(coarse-0.275)*0.8;
+    // Lateral wiggle: sway filaments side-to-side along the band as they rise so
+    // each strand snakes and ripples like a real auroral curtain.
+    vec2 radial=pc/max(length(pc),1e-3);
+    vec2 tangent=vec2(-radial.y,radial.x);
+    float wiggle=(sin(h*11.0+at*2.2+length(pc)*6.0)+0.5*sin(h*6.0-at*1.7+ld.y*8.0))*0.04;
+    vec2 pcw=pc+vec2(coarse-0.275)*0.8+tangent*wiggle;
     float fil=triNoise2d(pcw*2.6,0.06,at);
     float strings=pow(clamp(fil*1.7,0.0,1.0),0.8);
     float rzt=strings*group*band;
