@@ -360,17 +360,17 @@ const raw: CompanyInput[] = [
           {
             type: 'video',
             src: 'https://youtu.be/c5NJvkL3GLQ',
-            alt: 'DigiPen student game project showcase video (c5NJvkL3GLQ)',
+            alt: 'Gameplay footage from a DigiPen student game project (video 1 of 3)',
           },
           {
             type: 'video',
             src: 'https://youtu.be/c9yoW2fkyzo',
-            alt: 'DigiPen student game project showcase video (c9yoW2fkyzo)',
+            alt: 'Gameplay footage from a DigiPen student game project (video 2 of 3)',
           },
           {
             type: 'video',
             src: 'https://youtu.be/9ujHQi1ChKM',
-            alt: 'DigiPen student game project showcase video (9ujHQi1ChKM)',
+            alt: 'Gameplay footage from a DigiPen student game project (video 3 of 3)',
           },
         ],
       },
