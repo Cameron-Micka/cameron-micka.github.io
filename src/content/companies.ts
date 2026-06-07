@@ -85,7 +85,7 @@ const raw: CompanyInput[] = [
         media: [
           {
             type: 'video',
-            src: 'https://youtu.be/FripHuBd9ZY?si=75bPCq3eO64SPAF4',
+            src: 'https://youtu.be/FripHuBd9ZY',
             alt: 'Fat Princess Adventures gameplay',
           },
         ],
