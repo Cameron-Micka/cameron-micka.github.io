@@ -185,7 +185,13 @@ const raw: CompanyInput[] = [
           'machine, root-motion system, character controller, and editor ' +
           'tools. Identified slow C# scripts and ported them to native, ' +
           'exposing additional engine methods to script along the way.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://www.youtube.com/embed/c10vfQtNzjI',
+            alt: 'Escape Plan gameplay',
+          },
+        ],
       }
     ],
   },
