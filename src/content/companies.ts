@@ -28,13 +28,7 @@ const raw: CompanyInput[] = [
           'Built early HoloLens proof-of-concepts to explore interaction, ' +
           'rendering, and product scenarios, helping teams quickly validate ' +
           'mixed reality ideas before they became larger investments.',
-        media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/c10vfQtNzjI',
-            alt: 'Escape Plan gameplay',
-          },
-        ],
+        media: [],
       },
       {
         slug: 'hololens-2-isvs',
@@ -185,7 +179,13 @@ const raw: CompanyInput[] = [
           'machine, root-motion system, character controller, and editor ' +
           'tools. Identified slow C# scripts and ported them to native, ' +
           'exposing additional engine methods to script along the way.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/c10vfQtNzjI',
+            alt: 'Escape Plan gameplay',
+          },
+        ],
       }
     ],
   },
