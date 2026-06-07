@@ -21,24 +21,53 @@ const raw: CompanyInput[] = [
     features: { rings: false, ringTilt: 0.4, oceans: true, clouds: true, cityLights: true, moons: 2 },
     pois: [
       {
-        slug: 'mrtk-graphics-tools',
-        title: 'MRTK Graphics Tools',
+        slug: 'hololens-pocs',
+        title: 'HoloLens POCs',
         accent: '#3aa0ff',
         body:
-          'Led graphics tooling for the Mixed Reality Toolkit — a library of ' +
-          'production-grade shaders and rendering utilities for Unity and ' +
-          'Unreal, tuned for the tight GPU budgets of HoloLens. Focused on ' +
-          'mobile-tier performance without sacrificing visual fidelity.',
+          'Built early HoloLens proof-of-concepts to explore interaction, ' +
+          'rendering, and product scenarios, helping teams quickly validate ' +
+          'mixed reality ideas before they became larger investments.',
         media: [],
       },
       {
-        slug: 'shader-foundations',
-        title: 'Shader Foundations (MR Speaker Series)',
+        slug: 'hololens-2-isvs',
+        title: 'HoloLens 2 ISVs',
         accent: '#7ad6ff',
         body:
-          'Authored and presented deep-dive talks on shader fundamentals for ' +
-          'mixed reality developers, covering lighting models, performance ' +
-          'profiling, and the realities of rendering on untethered devices.',
+          'Partnered with HoloLens 2 independent software vendors to unblock ' +
+          'graphics and platform challenges, improve quality, and accelerate ' +
+          'delivery of production mixed reality applications.',
+        media: [],
+      },
+      {
+        slug: 'mrtk2',
+        title: 'MRTK2',
+        accent: '#58c4dd',
+        body:
+          'Contributed to MRTK2 efforts spanning developer workflow, ' +
+          'rendering, and platform integration so teams could build polished ' +
+          'mixed reality experiences faster on HoloLens.',
+        media: [],
+      },
+      {
+        slug: 'graphics-tools',
+        title: 'Graphics Tools',
+        accent: '#4ec0ff',
+        body:
+          'Led work on Graphics Tools, delivering production-ready shaders and ' +
+          'rendering utilities tuned for the tight performance budgets of ' +
+          'mobile mixed reality hardware.',
+        media: [],
+      },
+      {
+        slug: 'visual-profiler',
+        title: 'Visual Profiler',
+        accent: '#5dd39e',
+        body:
+          'Helped shape Visual Profiler capabilities that made frame cost, ' +
+          'rendering hot spots, and performance tradeoffs easier to diagnose ' +
+          'for mixed reality developers.',
         media: [],
       },
       {
@@ -48,6 +77,26 @@ const raw: CompanyInput[] = [
         body:
           'Contributed to rendering and avatar/scene technology for Mesh, ' +
           "Microsoft's platform for shared 3D experiences across devices.",
+        media: [],
+      },
+      {
+        slug: 'teams-immersive-events',
+        title: 'Teams Immersive Events',
+        accent: '#6f9cff',
+        body:
+          'Worked on graphics and user experience foundations for Teams ' +
+          'Immersive Events, bringing shared 3D presence into familiar ' +
+          'Microsoft collaboration workflows.',
+        media: [],
+      },
+      {
+        slug: 'design-to-code',
+        title: 'Design to Code',
+        accent: '#9f7aea',
+        body:
+          'Drove Design to Code efforts that tightened the loop between design ' +
+          'intent and implementation, improving developer velocity and UI ' +
+          'quality for immersive product experiences.',
         media: [],
       },
     ],
