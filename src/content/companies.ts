@@ -29,13 +29,7 @@ const raw: CompanyInput[] = [
           'production-grade shaders and rendering utilities for Unity and ' +
           'Unreal, tuned for the tight GPU budgets of HoloLens. Focused on ' +
           'mobile-tier performance without sacrificing visual fidelity.',
-        media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/FripHuBd9ZY?si=75bPCq3eO64SPAF4',
-            alt: 'Fat Princess Adventures gameplay',
-          },
-        ],
+        media: [],
       },
       {
         slug: 'shader-foundations',
@@ -45,7 +39,13 @@ const raw: CompanyInput[] = [
           'Authored and presented deep-dive talks on shader fundamentals for ' +
           'mixed reality developers, covering lighting models, performance ' +
           'profiling, and the realities of rendering on untethered devices.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/FripHuBd9ZY?si=75bPCq3eO64SPAF4',
+            alt: 'Fat Princess Adventures gameplay',
+          },
+        ],
       },
       {
         slug: 'mesh',
