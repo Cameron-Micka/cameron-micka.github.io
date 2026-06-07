@@ -1,4 +1,4 @@
-import { Link, NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { NAV, SITE, UI } from './strings';
 
 export function TopNav({
@@ -8,10 +8,9 @@ export function TopNav({
 }) {
   return (
     <header className="topnav">
-      <Link to="/" className="brand" style={{ color: 'inherit' }}>
+      <div className="brand">
         <span className="name">{SITE.name}</span>
-        <span className="role">{SITE.role}</span>
-      </Link>
+      </div>
       <nav aria-label="Primary">
         <NavLink
           to="/"
