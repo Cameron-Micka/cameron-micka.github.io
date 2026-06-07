@@ -167,7 +167,7 @@ const raw: CompanyInput[] = [
         media: [
           {
             type: 'video',
-            src: 'https://youtu.be/oLzqZyqDMOU',
+            src: 'https://www.youtube.com/watch?v=oLzqZyqDMOU',
             alt: 'HALP gameplay video',
           },
         ],
