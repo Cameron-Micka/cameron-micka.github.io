@@ -66,8 +66,8 @@ const raw: CompanyInput[] = [
           },
           {
             type: 'video',
-            src: 'https://youtu.be/GfeG_ZFzL1g?si=gVEOdw-liEYP1yfm',
-            alt: 'Graphics Tools media video',
+            src: 'https://youtu.be/GfeG_ZFzL1g',
+            alt: 'Graphics Tools demonstration video',
           },
         ],
       },
