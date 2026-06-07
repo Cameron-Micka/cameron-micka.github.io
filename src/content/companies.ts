@@ -273,7 +273,13 @@ const raw: CompanyInput[] = [
           'and 2.0, OpenAL, and Box2D. One of the first games submitted to ' +
           'the iTunes App Store in August 2008, then partnered with ' +
           'Microsoft to port Hairball from iOS to Zune HD using XNA.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/AaIiTEN6Hzw',
+            alt: 'Hairball gameplay video',
+          },
+        ],
       },
       {
         slug: 'snowball',
