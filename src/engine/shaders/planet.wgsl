@@ -481,7 +481,11 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let G = gSmith(NdV, NdL, roughness);
   let F = fSchlick(VdH, F0);
 
-  let specular = (D * G) * F / max(4.0 * NdV * NdL, 1e-3);
+  // Golden glitter on the water: tint the specular highlight toward warm gold
+  // (only on water via waterMask) so the sun's reflection reads like a sunset
+  // glint on the ocean rather than a neutral white spot. Land stays untinted.
+  let specTint = mix(vec3<f32>(1.0), vec3<f32>(1.0, 0.78, 0.42), waterMask);
+  let specular = (D * G) * F / max(4.0 * NdV * NdL, 1e-3) * specTint;
   let kS = F;
   let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
 

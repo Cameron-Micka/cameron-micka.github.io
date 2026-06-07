@@ -345,7 +345,11 @@ void main(){
   float D=dGGX(NdH,roughness);
   float G=gSmith(NdV,NdL,roughness);
   vec3 F=fSchlick(VdH,F0);
-  vec3 specular=(D*G)*F/max(4.0*NdV*NdL,1e-3);
+  // Golden glitter on the water: tint the specular highlight toward warm gold
+  // (only on water via waterMask) so the sun's reflection reads like a sunset
+  // glint on the ocean rather than a neutral white spot. Land stays untinted.
+  vec3 specTint=mix(vec3(1.0),vec3(1.0,0.78,0.42),waterMask);
+  vec3 specular=(D*G)*F/max(4.0*NdV*NdL,1e-3)*specTint;
   vec3 kS=F;
   vec3 kD=(vec3(1.0)-kS)*(1.0-metallic);
   // Pre-multiply sun radiance by PI so diffuse simplifies to kD*albedo*NdL.
@@ -1322,8 +1326,8 @@ vec3 sunShade(vec3 p){
   float spotField=fbm(p*1.7+vec3(11.0,0.0,-4.0));
   float penumbra=1.0-smoothstep(0.26,0.36,spotField);
   float umbra=1.0-smoothstep(0.16,0.26,spotField);
-  vec3 hot=vec3(1.0,0.98,0.92);
-  vec3 warm=vec3(1.0,0.85,0.55);
+  vec3 hot=vec3(1.0,0.83,0.55);
+  vec3 warm=vec3(1.0,0.66,0.30);
   vec3 col=mix(warm,hot,gran*0.6+mottle*0.4);
   col=mix(col,vec3(0.6,0.28,0.12),penumbra*0.75);
   col=mix(col,vec3(0.32,0.13,0.05),umbra*0.88);
