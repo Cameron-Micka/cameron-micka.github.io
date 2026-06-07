@@ -182,7 +182,7 @@ const raw: CompanyInput[] = [
         media: [
           {
             type: 'video',
-            src: 'https://youtu.be/c10vfQtNzjI',
+            src: 'https://www.youtube.com/embed/c10vfQtNzjI',
             alt: 'Escape Plan gameplay',
           },
         ],
