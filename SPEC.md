@@ -328,7 +328,7 @@ below the frontmatter, allowing rich MDX (embedded React, code, etc.).
     /math                 # vec3, mat4, quat, easing, raycast utilities
     PickingSystem.ts      # CPU ray-vs-sphere
     InputController.ts    # unified wheel/touch/keyboard → scrub/orbit/pick events
-    QualityManager.ts     # presets, perf probe, runtime adjustments
+    QualityManager.ts     # presets, Auto quality ramp, runtime adjustments
     Engine.ts             # owns RAF loop, owns state, publishes events
   /ui                     # React components (top nav, ruler, ribbon, modal, settings)
   /content                # MDX loader + zod validator
@@ -400,24 +400,20 @@ Because backside POIs are visible (just dimmed), users may try to click them. **
 
 | Preset    | DPR cap | Stars | SSAO | Clouds | CA  | Bloom mips | MSAA | Notes              |
 | --------- | ------- | ----- | ---- | ------ | --- | ---------- | ---- | ------------------ |
-| High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Default if probe passes |
+| High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Top of the Auto ramp |
 | Med       | 1.25    | 2k    | off  | on     | on  | 2          | 4x   |                    |
-| Low       | 1.0     | 0     | off  | off    | off | 1          | 4x   | Hard fallback      |
+| Low       | 1.0     | 0     | off  | off    | off | 1          | 4x   | Auto starting tier / hard fallback |
 | WebGL2    | 1.0     | 2k    | off  | on     | off | 1          | off  | The fallback renderer always runs at this fidelity ceiling |
 
 > MSAA applies to the WebGPU scene pass only. WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x.
 
-**Selection:** On first load, run a 5-second perf probe (render the scene normally, measure median frame time). Map the result to a tier:
+**Selection:** Under Auto on WebGPU, the engine starts at the `Low` tier and ramps **up** one tier at a time (`Low` → `Med` → `High`). It steps up only after frame time stays good (≤ 18ms, ~55 FPS) and stable for 3+ continuous seconds; a janky frame resets the stability window, and the ramp stops once `High` is reached. Mobile (coarse-pointer) devices stay on `Low`.
 
-- ≤ 17ms → High
-- ≤ 25ms → Med
-- otherwise → Low
-
-User can override via the settings panel; the override is persisted to `localStorage` and short-circuits the probe on future loads.
+User can override via the settings panel; the override is persisted to `localStorage` and stops the Auto ramp on future loads.
 
 ### 7.8 Adaptive quality
 
-After the initial tier is locked, the engine **does not** silently change tiers mid-session (avoid jarring quality flips). If frame time degrades sustainedly (>25ms over 3 seconds), the debug HUD (if visible) flags it; otherwise no action.
+Under Auto, the engine ramps quality **upward** only — it never silently drops a tier mid-session (avoids jarring quality flips). If frame time degrades sustainedly (>25ms over 3 seconds), the debug HUD (if visible) flags it; otherwise no action.
 
 ### 7.9 Frame loop
 
@@ -480,7 +476,7 @@ Triggered by the gear icon top-right. Modal-style panel (smaller than POI modal,
 
 | Setting          | Options                                                | Default        |
 | ---------------- | ------------------------------------------------------ | -------------- |
-| Quality          | Auto (probe), High, Med, Low, WebGL2 (force)           | Auto           |
+| Quality          | Auto (ramp), High, Med, Low, WebGL2 (force)            | Auto           |
 | Sound            | On / Off                                               | Off            |
 | Reduced motion   | Auto (follow OS), Force on, Force off                  | Auto           |
 | Debug HUD        | On / Off                                               | Off            |
@@ -586,7 +582,7 @@ PRs run steps 1–6 (no deploy). Branch protection: green CI required.
   - Desktop, discrete GPU: 60 FPS sustained.
   - Mid-range laptop iGPU: 30 FPS minimum.
   - Modern mobile (iPhone 13+, Pixel 7+): 30 FPS minimum.
-  - Below floor → next-lower quality preset (pre-locked via probe, not mid-session).
+  - Below floor: Auto never auto-downgrades mid-session; the user can pick a lower preset manually.
 
 ---
 
@@ -646,7 +642,7 @@ Explicitly **not** included in the first release:
 - Per-route or per-planet dynamic OG images.
 - Custom domain (file is committed when the domain is ready; nothing else changes).
 - Visual regression / snapshot testing.
-- Adaptive quality changes during a session (locked after the initial probe).
+- Adaptive quality *downgrades* during a session (Auto only ramps up, never auto-drops a tier).
 - Screen reader narration of timeline scrubbing / planet orbit (chrome + modal + print resume only).
 
 ---
@@ -657,7 +653,7 @@ Explicitly **not** included in the first release:
 2. **No runtime tests.** Trades safety net for development velocity. Mitigated by strict TS, zod validation of content, and the error boundary catching live failures with full stack traces.
 3. **Hard reload on GPU device loss.** Trades graceful recovery for simplicity. Acceptable because device loss is rare on modern hardware.
 4. **No screen-reader mirror of 3D scrubbing.** Trades full a11y for engineering scope. Hidden print-resume DOM provides full content access; documented as a known limitation.
-5. **No adaptive quality mid-session.** Avoids the bad UX of mid-session quality drops; relies on the initial probe being accurate. Override via settings panel for users who disagree.
+5. **Upward-only adaptive quality.** Auto starts at Low and ramps up when performance is good and stable for 3+ seconds; it never drops a tier mid-session, avoiding the bad UX of mid-session quality drops. Override via settings panel for users who disagree.
 6. **Bundled videos in the repo.** Trades repo size for asset reliability. Re-evaluate if the repo crosses ~500MB.
 7. **Pause-and-snapshot blur instead of real-time backdrop blur.** Trades the "living" backdrop behind modals for guaranteed cross-browser correctness and lower GPU load while the modal is open.
 8. **No mid-scene WebGPU↔WebGL2 swap.** The backend is chosen once at boot and stuck with for the session.

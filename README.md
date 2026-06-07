@@ -33,7 +33,7 @@ src/
     Scene.ts      Procedural planet models (radius from tenure, seeded POIs)
     Camera.ts     Single-axis dolly camera + fly-in cinematic
     InputController.ts  wheel / pointer / touch / keyboard -> intents
-    QualityManager.ts   Quality presets + runtime perf probe
+    QualityManager.ts   Quality presets + Auto quality ramp
     Engine.ts     Owns state + RAF loop; exposes a useSyncExternalStore store
   content/        Company data (TS) validated by a zod schema
   ui/             React overlay: nav, ruler, ribbon, POI modal, settings, HUD
@@ -48,8 +48,9 @@ stats).
 ### Backends & quality
 
 WebGPU is used when available (two-step adapter+device probe); otherwise the app
-falls back to WebGL2. On WebGPU, an initial ~4s frame-time probe selects a
-quality tier (`high`/`med`/`low`). Users can override quality, motion,
+falls back to WebGL2. On WebGPU, Auto quality starts at the `low` tier and ramps
+up one tier at a time (`low` → `med` → `high`) whenever frame time stays good and
+stable for 3+ seconds. Users can override quality, motion,
 sound, and a debug HUD from the settings panel; preferences persist in
 `localStorage`.
 

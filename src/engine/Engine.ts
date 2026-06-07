@@ -272,11 +272,13 @@ export class Engine {
 
     if (this.settings.quality === 'auto' && this.backend === 'webgpu') {
       if (this.coarsePointer) {
-        // Mobile (coarse pointer) devices always resolve to Low under Auto, so
-        // start there immediately rather than probing from High for 4 seconds.
+        // Mobile (coarse pointer) devices always stay on Low under Auto.
         this.applyTier(QUALITY_PRESETS.low);
       } else {
-        this.quality.startProbe(performance.now(), 4000, (tier) => {
+        // Start at Low and ramp up a tier whenever performance stays good and
+        // stable for 3+ seconds.
+        this.applyTier(QUALITY_PRESETS.low);
+        this.quality.start('low', (tier) => {
           this.applyTier(QUALITY_PRESETS[tier]);
         });
       }
@@ -750,16 +752,20 @@ export class Engine {
     this.settings.quality = pref;
     saveSettings(this.settings);
     if (this.backend === 'webgl2') {
+      this.quality.stop();
       this.applyTier(QUALITY_PRESETS.webgl2);
     } else if (pref === 'auto') {
       if (this.coarsePointer) {
+        this.quality.stop();
         this.applyTier(QUALITY_PRESETS.low);
       } else {
-        this.quality.startProbe(performance.now(), 3000, (tier) =>
+        this.applyTier(QUALITY_PRESETS.low);
+        this.quality.start('low', (tier) =>
           this.applyTier(QUALITY_PRESETS[tier]),
         );
       }
     } else {
+      this.quality.stop();
       this.applyTier(QUALITY_PRESETS[pref]);
     }
     this.commit();
