@@ -64,6 +64,11 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/rXbkJRhaBqE',
             alt: 'Graphics Tools for Unity overview',
           },
+          {
+            type: 'video',
+            src: 'https://youtu.be/GfeG_ZFzL1g?si=gVEOdw-liEYP1yfm',
+            alt: 'Graphics Tools media video',
+          },
         ],
       },
       {
