@@ -315,18 +315,19 @@ void main(){
   vec3 iceWarpPos=localPos*3.8+vec3(uSeed*0.0019,uSeed*0.0023,uSeed*0.0017);
   float iceWarpA=fbm(iceWarpPos)-0.5;
   float iceWarpB=fbm(iceWarpPos+vec3(3.7,1.8,5.2))-0.5;
-  vec3 iceWarpedPos=localPos+vec3(iceWarpA,iceWarpA*iceWarpB,iceWarpB)*0.22;
+  vec3 iceWarpedPos=localPos+vec3(iceWarpA,iceWarpA*iceWarpB,iceWarpB)*0.34;
   float iceNoise=fbm(iceWarpedPos*2.6+vec3(uSeed*0.0015,uSeed*0.0021,uSeed*0.0018));
-  float iceEdge=0.81+(iceNoise-0.5)*0.14;
-  float iceMask=uOceans*smoothstep(iceEdge-0.055,iceEdge+0.04,lat);
+  float iceEdgeFine=fbm(iceWarpedPos*6.4+vec3(uSeed*0.0024,uSeed*0.0033,uSeed*0.0029))-0.5;
+  float iceEdge=0.81+(iceNoise-0.5)*0.26+iceEdgeFine*0.08;
+  float iceMask=uOceans*smoothstep(iceEdge-0.04,iceEdge+0.03,lat);
   vec3 iceDetailPos=localPos*8.0+vec3(uSeed*0.0031,uSeed*0.0027,uSeed*0.0037);
   float iceDetail=fbm(iceDetailPos);
   vec3 iceRidgePhase=vec3(4.2,1.7,8.4);
   float iceRidges=ridgedFbm(iceDetailPos*0.8+iceRidgePhase);
-  float iceBlue=smoothstep(0.52,0.82,iceDetail)*smoothstep(0.15,0.85,iceMask);
+  float iceBlue=smoothstep(0.44,0.78,iceDetail)*smoothstep(0.12,0.7,iceMask);
   float iceCrease=smoothstep(0.34,0.72,iceRidges);
   float iceSelfShadow=1.0-iceCrease*smoothstep(0.0,0.75,dot(localPos,localLightDir))*0.28;
-  vec3 iceColor=mix(vec3(0.88,0.93,0.98),vec3(0.60,0.78,0.92),iceBlue*0.65);
+  vec3 iceColor=mix(vec3(0.88,0.93,0.98),vec3(0.48,0.70,0.92),iceBlue*0.85);
   base=mix(base,iceColor*iceSelfShadow,iceMask);
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
   // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere
