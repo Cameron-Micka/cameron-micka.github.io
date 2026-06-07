@@ -29,7 +29,13 @@ const raw: CompanyInput[] = [
           'production-grade shaders and rendering utilities for Unity and ' +
           'Unreal, tuned for the tight GPU budgets of HoloLens. Focused on ' +
           'mobile-tier performance without sacrificing visual fidelity.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/FripHuBd9ZY?si=75bPCq3eO64SPAF4',
+            alt: 'Fat Princess Adventures gameplay',
+          },
+        ],
       },
       {
         slug: 'shader-foundations',
