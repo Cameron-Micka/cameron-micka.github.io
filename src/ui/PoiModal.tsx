@@ -177,20 +177,22 @@ export function PoiModal({ companies }: { companies: Company[] }) {
           </button>
         </div>
 
-        <div className="eyebrow">{company.name}</div>
-        <h2 id="poi-title">
-          {poiIndex + 1}. {poi.title}
-        </h2>
-        <div className="body">
-          <Markdown text={poi.body} />
-        </div>
-        {poi.media.length > 0 && (
-          <div className="media">
-            {poi.media.map((m, i) => (
-              <MediaItem key={i} m={m} />
-            ))}
+        <div className="modal-content">
+          <div className="eyebrow">{company.name}</div>
+          <h2 id="poi-title">
+            {poiIndex + 1}. {poi.title}
+          </h2>
+          <div className="body">
+            <Markdown text={poi.body} />
           </div>
-        )}
+          {poi.media.length > 0 && (
+            <div className="media">
+              {poi.media.map((m, i) => (
+                <MediaItem key={i} m={m} />
+              ))}
+            </div>
+          )}
+        </div>
 
         {company.pois.length > 1 && (
           <nav className="poi-nav" aria-label="Points of interest">
