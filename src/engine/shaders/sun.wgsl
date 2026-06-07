@@ -116,8 +116,8 @@ fn sunShade(p : vec3<f32>) -> vec3<f32> {
   let spotField = fbm(p * 1.7 + vec3<f32>(11.0, 0.0, -4.0));
   let penumbra = 1.0 - smoothstep(0.26, 0.36, spotField);
   let umbra = 1.0 - smoothstep(0.16, 0.26, spotField);
-  let hot = vec3<f32>(1.0, 0.98, 0.92);
-  let warm = vec3<f32>(1.0, 0.85, 0.55);
+  let hot = vec3<f32>(1.0, 0.83, 0.55);
+  let warm = vec3<f32>(1.0, 0.66, 0.30);
   var col = mix(warm, hot, gran * 0.6 + mottle * 0.4);
   col = mix(col, vec3<f32>(0.6, 0.28, 0.12), penumbra * 0.75);
   col = mix(col, vec3<f32>(0.32, 0.13, 0.05), umbra * 0.88);
