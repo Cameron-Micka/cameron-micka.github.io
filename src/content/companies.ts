@@ -58,7 +58,13 @@ const raw: CompanyInput[] = [
           'Led work on Graphics Tools, delivering production-ready shaders and ' +
           'rendering utilities tuned for the tight performance budgets of ' +
           'mobile mixed reality hardware.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/rXbkJRhaBqE',
+            alt: 'Graphics Tools for Unity overview',
+          },
+        ],
       },
       {
         slug: 'visual-profiler',
