@@ -28,7 +28,13 @@ const raw: CompanyInput[] = [
           'Built early HoloLens proof-of-concepts to explore interaction, ' +
           'rendering, and product scenarios, helping teams quickly validate ' +
           'mixed reality ideas before they became larger investments.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/c10vfQtNzjI?si=EfgZp7zkq_R3Uw0c',
+            alt: 'Escape Plan gameplay',
+          },
+        ],
       },
       {
         slug: 'hololens-2-isvs',
