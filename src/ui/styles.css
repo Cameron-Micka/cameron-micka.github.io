@@ -130,7 +130,7 @@ a:hover {
 /* ---- Free-camera toggle (bottom-right) ---- */
 .freecam {
   position: fixed;
-  right: clamp(14px, 3vw, 32px);
+  right: max(clamp(14px, 3vw, 32px), env(safe-area-inset-right));
   bottom: clamp(14px, 3vh, 34px);
   z-index: 20;
   display: flex;
