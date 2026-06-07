@@ -362,7 +362,23 @@ const raw: CompanyInput[] = [
         body:
           'Shipped a new game each year with a team, learning engines, ' +
           'graphics, and the discipline of finishing under deadline.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/c5NJvkL3GLQ',
+            alt: 'Gameplay footage from a DigiPen student game project (video 1 of 3)',
+          },
+          {
+            type: 'video',
+            src: 'https://youtu.be/c9yoW2fkyzo',
+            alt: 'Gameplay footage from a DigiPen student game project (video 2 of 3)',
+          },
+          {
+            type: 'video',
+            src: 'https://youtu.be/9ujHQi1ChKM',
+            alt: 'Gameplay footage from a DigiPen student game project (video 3 of 3)',
+          },
+        ],
       },
       {
         slug: 'graphics-foundations',
