@@ -45,54 +45,81 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
 
 export type QualityPreference = 'auto' | QualityTier;
 
-function isCoarsePointer(): boolean {
-  return (
-    typeof matchMedia !== 'undefined' &&
-    matchMedia('(pointer: coarse)').matches
-  );
-}
+// Ascending Auto-ramp order: start at the cheapest tier and step up.
+const RAMP_ORDER: QualityTier[] = ['low', 'med', 'high'];
 
-// Runs a short probe by sampling median frame time, then maps to a tier.
+// A frame at or below this time (~55 FPS) counts as "good".
+const GOOD_FRAME_MS = 18;
+// A single frame slower than this is treated as a stall (tab switch, GC, page
+// load hitch) and ignored rather than counted against stability.
+const STALL_FRAME_MS = 500;
+// Performance must stay good for this long before stepping up a tier.
+const STABLE_MS = 3000;
+
+// Auto quality ramp: begins at Low and steps up one tier at a time whenever
+// performance stays good (frame time at or under GOOD_FRAME_MS) and stable for
+// STABLE_MS continuously. A janky frame resets the stability window, so the
+// ramp only climbs when the device comfortably sustains the current tier.
 export class QualityManager {
-  private samples: number[] = [];
-  private probing = false;
-  private probeUntil = 0;
-  private onResolved: ((tier: QualityTier) => void) | null = null;
+  private active = false;
+  private currentTier: QualityTier = 'low';
+  private stableSince = 0;
+  private onStepUp: ((tier: QualityTier) => void) | null = null;
 
-  startProbe(now: number, durationMs: number, cb: (tier: QualityTier) => void): void {
-    this.samples = [];
-    this.probing = true;
-    this.probeUntil = now + durationMs;
-    this.onResolved = cb;
+  // Begin ramping up from `startTier`. The caller is responsible for having
+  // already applied `startTier`; `onStepUp` is invoked with each higher tier.
+  start(startTier: QualityTier, onStepUp: (tier: QualityTier) => void): void {
+    this.currentTier = startTier;
+    this.onStepUp = onStepUp;
+    this.stableSince = 0;
+    // Nothing to ramp toward if we're already at the top of the order.
+    this.active = this.nextTier(startTier) !== null;
   }
 
-  get isProbing(): boolean {
-    return this.probing;
+  // Halt the ramp (e.g. the user picked an explicit tier).
+  stop(): void {
+    this.active = false;
+    this.onStepUp = null;
+    this.stableSince = 0;
+  }
+
+  get isActive(): boolean {
+    return this.active;
   }
 
   sample(now: number, frameMs: number): void {
-    if (!this.probing) return;
-    // Ignore the first few warm-up frames.
-    if (frameMs > 0 && frameMs < 500) this.samples.push(frameMs);
-    if (now >= this.probeUntil) this.resolve();
-  }
+    if (!this.active) return;
+    // Ignore stalls and invalid deltas so a tab switch doesn't reset progress.
+    if (frameMs <= 0 || frameMs >= STALL_FRAME_MS) return;
 
-  private resolve(): void {
-    this.probing = false;
-    let tier: QualityTier = 'low';
-    // On mobile (coarse pointer) devices, Low is the default Auto tier.
-    if (!isCoarsePointer()) {
-      const median = this.median();
-      if (median <= 17) tier = 'high';
-      else if (median <= 25) tier = 'med';
+    if (frameMs <= GOOD_FRAME_MS) {
+      if (this.stableSince === 0) this.stableSince = now;
+      if (now - this.stableSince >= STABLE_MS) this.stepUp();
+    } else {
+      // A janky frame breaks stability; restart the window.
+      this.stableSince = 0;
     }
-    this.onResolved?.(tier);
-    this.onResolved = null;
   }
 
-  private median(): number {
-    if (this.samples.length === 0) return 16.7;
-    const s = [...this.samples].sort((a, b) => a - b);
-    return s[Math.floor(s.length / 2)]!;
+  private stepUp(): void {
+    const next = this.nextTier(this.currentTier);
+    if (next === null) {
+      this.stop();
+      return;
+    }
+    this.currentTier = next;
+    this.stableSince = 0;
+    this.onStepUp?.(next);
+    // Once we reach the top tier there is nowhere left to climb.
+    if (this.nextTier(next) === null) {
+      this.active = false;
+      this.onStepUp = null;
+    }
+  }
+
+  private nextTier(tier: QualityTier): QualityTier | null {
+    const i = RAMP_ORDER.indexOf(tier);
+    if (i < 0 || i >= RAMP_ORDER.length - 1) return null;
+    return RAMP_ORDER[i + 1]!;
   }
 }
