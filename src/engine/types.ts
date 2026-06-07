@@ -1,6 +1,7 @@
 import type { Mat4 } from './math/mat4';
 import type { Vec3 } from './math/vec3';
 import type { Quat } from './math/quat';
+import type { Frustum } from './math/frustum';
 
 export type RendererBackend = 'webgpu' | 'webgl2';
 
@@ -83,6 +84,10 @@ export interface FrameState {
   // unproject screen-space NDC back into world-space ray directions so they
   // can sample world-locked fields instead of moving with the camera.
   invViewProj: Mat4;
+  // Six-plane camera frustum (derived from viewProj). Renderers use it to cull
+  // off-screen bodies — individual moons and the sun — before drawing. Whole
+  // off-screen planets are already dropped from `planets` upstream.
+  frustum: Frustum;
   cameraPos: Vec3;
   keyLightDir: Vec3;
   // The star lighting the scene. Positioned along keyLightDir so the visible

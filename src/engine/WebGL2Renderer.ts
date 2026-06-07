@@ -1972,6 +1972,13 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.disable(gl.BLEND);
     gl.enable(gl.DEPTH_TEST);
     const model = mat4.create();
+    // Frustum-cull the sun (body + corona). Inflate the test radius to 1.6× so
+    // the additive corona billboard (1.5× the body radius) isn't clipped a frame
+    // early as the star slides off screen.
+    const sunVisible = frame.frustum.intersectsSphere(
+      frame.sun.center,
+      frame.sun.radius * 1.6,
+    );
     if (frame.wireframe) {
       // Debug wireframe: planets and moons as edges.
       gl.depthMask(true);
@@ -1979,8 +1986,10 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.wire.uniforms.uViewProj!, false, frame.viewProj);
       gl.bindVertexArray(this.sphereWireVao);
       // Sun body as wireframe (drawn separately from planets, like the filled
-      // path below).
-      this.drawWire(frame.sun.center, frame.sun.radius, [0, 0, 0, 1], model);
+      // path below). Skipped when the sun is off screen.
+      if (sunVisible) {
+        this.drawWire(frame.sun.center, frame.sun.radius, [0, 0, 0, 1], model);
+      }
       for (const p of frame.planets) {
         const vis = p.visibility;
         if (vis <= 0.02) continue;
@@ -1993,12 +2002,18 @@ export class WebGL2Renderer implements SceneRenderer {
             Math.sin(m.angle) * orbit,
           ];
           const wo = quat.rotateVec3(p.orientation, localOffset);
+          const moonCenter: [number, number, number] = [
+            p.center[0] + wo[0],
+            p.center[1] + wo[1],
+            p.center[2] + wo[2],
+          ];
+          if (!frame.frustum.intersectsSphere(moonCenter, m.size * vis)) continue;
           const moonRot = quat.multiply(
             p.orientation,
             quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
           );
           this.drawWire(
-            [p.center[0] + wo[0], p.center[1] + wo[1], p.center[2] + wo[2]],
+            moonCenter,
             m.size * vis,
             moonRot,
             model,
@@ -2006,8 +2021,10 @@ export class WebGL2Renderer implements SceneRenderer {
         }
       }
     } else {
-    // Sun body (opaque, emissive). No culling — the near surface wins on depth,
-    // matching how planets are drawn in this backend.
+    // Sun body (opaque, emissive). Skipped entirely when the sun is outside the
+    // view frustum; otherwise the near surface wins on depth, matching how
+    // planets are drawn in this backend.
+    if (sunVisible) {
     gl.depthMask(true);
     gl.useProgram(this.sun.prog);
     gl.uniformMatrix4fv(this.sun.uniforms.uViewProj!, false, frame.viewProj);
@@ -2026,6 +2043,7 @@ export class WebGL2Renderer implements SceneRenderer {
     );
     this.stats.drawCalls++;
     this.stats.triangles += this.sphereCount / 3;
+    }
 
     gl.useProgram(this.planet.prog);
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
@@ -2057,13 +2075,21 @@ export class WebGL2Renderer implements SceneRenderer {
           Math.sin(m.angle) * orbit,
         ];
         const wo = quat.rotateVec3(p.orientation, localOffset);
+        const moonCenter: [number, number, number] = [
+          p.center[0] + wo[0],
+          p.center[1] + wo[1],
+          p.center[2] + wo[2],
+        ];
+        // Per-moon frustum cull: skip moons whose own bounding sphere is fully
+        // off screen even when the parent planet is visible.
+        if (!frame.frustum.intersectsSphere(moonCenter, m.size * vis)) continue;
         const moonRot = quat.multiply(
           p.orientation,
           quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
         );
         this.drawSphere(
           p,
-          [p.center[0] + wo[0], p.center[1] + wo[1], p.center[2] + wo[2]],
+          moonCenter,
           m.size * vis,
           moonRot,
           m.paletteLow as [number, number, number],
@@ -2229,7 +2255,9 @@ export class WebGL2Renderer implements SceneRenderer {
 
     // Sun corona (additive billboard). Depth-tested so planets in front occlude
     // it and the sun body masks the disc; drawn before alpha rings so rings
-    // composite over the glow. No depth write.
+    // composite over the glow. No depth write. Skipped when the sun is off
+    // screen.
+    if (sunVisible) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
     gl.depthMask(false);
@@ -2245,6 +2273,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.stats.drawCalls++;
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+    }
 
     // Planetary rings (alpha-blended, double-sided, depth-test but no write).
     // Drawn after the atmosphere to match the WebGPU draw order. The ring tilt

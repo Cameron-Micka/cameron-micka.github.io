@@ -906,6 +906,13 @@ export class WebGPURenderer implements SceneRenderer {
     // Reserve obj slot 0 for the sun so its uniform is never crowded out by the
     // planet budget. The body and corona pipelines both read this same entry.
     const sunObjIndex = objIndex;
+    // Frustum-cull the sun. Inflate the test radius to 1.6× so the additive
+    // corona billboard (which extends to 1.5× the body radius) isn't clipped a
+    // frame early as the star slides off screen.
+    const sunVisible = frame.frustum.intersectsSphere(
+      frame.sun.center,
+      frame.sun.radius * 1.6,
+    );
     mat4.fromRotationTranslationScale(
       model,
       [0, 0, 0, 1],
@@ -1075,6 +1082,10 @@ export class WebGPURenderer implements SceneRenderer {
           p.center[2] + worldOffset[2],
         ];
         const moonR = m.size * vis;
+        // Per-moon frustum cull: a moon can swing well clear of its parent, so
+        // skip any whose own bounding sphere is fully off screen even when the
+        // planet itself is visible.
+        if (!frame.frustum.intersectsSphere(moonCenter, moonR)) continue;
         // Compose the planet's orientation with the moon's own slow spin so
         // the moon's surface frame inherits the planet's rotation too.
         const moonRot = quat.multiply(
@@ -1178,11 +1189,13 @@ export class WebGPURenderer implements SceneRenderer {
         this.sphereLines.u32 ? 'uint32' : 'uint16',
       );
       // Sun body as wireframe (drawn separately from `objects`, like the filled
-      // path below).
-      scenePass.setBindGroup(0, this.frameBG);
-      scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
-      scenePass.drawIndexed(this.sphereLines.count);
-      this.stats.drawCalls++;
+      // path below). Skipped when the sun is off screen.
+      if (sunVisible) {
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.sphereLines.count);
+        this.stats.drawCalls++;
+      }
       for (const o of objects) {
         if (o.kind === 2) continue; // rings use their own mesh below
         scenePass.setBindGroup(0, this.frameBG);
@@ -1211,13 +1224,16 @@ export class WebGPURenderer implements SceneRenderer {
         this.sphere.u32 ? 'uint32' : 'uint16',
       );
 
-      // Sun body (opaque, emissive). Sphere mesh already bound.
-      scenePass.setPipeline(this.pipelines.sun);
-      scenePass.setBindGroup(0, this.frameBG);
-      scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
-      scenePass.drawIndexed(this.sphere.count);
-      this.stats.drawCalls++;
-      this.stats.triangles += this.sphere.count / 3;
+      // Sun body (opaque, emissive). Sphere mesh already bound. Skipped when the
+      // sun lies outside the view frustum.
+      if (sunVisible) {
+        scenePass.setPipeline(this.pipelines.sun);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
+        scenePass.drawIndexed(this.sphere.count);
+        this.stats.drawCalls++;
+        this.stats.triangles += this.sphere.count / 3;
+      }
 
       for (const o of objects) {
         if (o.kind !== 0) continue;
@@ -1311,13 +1327,16 @@ export class WebGPURenderer implements SceneRenderer {
       // Sun corona (additive billboard). Drawn after atmosphere shells but
       // before alpha-blended rings so rings composite over the glow. Uses the
       // unit-quad billboard buffer; the sun obj entry supplies center + radius.
-      scenePass.setPipeline(this.pipelines.sunCorona);
-      scenePass.setBindGroup(0, this.frameBG);
-      scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
-      scenePass.setVertexBuffer(0, this.quadBuf);
-      scenePass.draw(6);
-      this.stats.drawCalls++;
-      this.stats.triangles += 2;
+      // Skipped when the sun (corona included) is off screen.
+      if (sunVisible) {
+        scenePass.setPipeline(this.pipelines.sunCorona);
+        scenePass.setBindGroup(0, this.frameBG);
+        scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
+        scenePass.setVertexBuffer(0, this.quadBuf);
+        scenePass.draw(6);
+        this.stats.drawCalls++;
+        this.stats.triangles += 2;
+      }
 
       // Rings (alpha).
       let ringBound = false;

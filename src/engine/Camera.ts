@@ -1,5 +1,6 @@
 import { mat4, type Mat4 } from './math/mat4';
 import type { Vec3 } from './math/vec3';
+import { Frustum } from './math/frustum';
 import { PLANET_SPACING } from './Scene';
 
 const FOV = (50 * Math.PI) / 180;
@@ -47,6 +48,8 @@ export class Camera {
   proj: Mat4 = mat4.create();
   viewProj: Mat4 = mat4.create();
   invViewProj: Mat4 = mat4.create();
+  // Six-plane frustum derived from viewProj each update, for sphere culling.
+  frustum = new Frustum();
   position: Vec3;
 
   private aspect = 1;
@@ -128,6 +131,7 @@ export class Camera {
     mat4.perspective(this.proj, FOV, this.aspect, NEAR, FAR);
     mat4.multiply(this.viewProj, this.proj, this.view);
     mat4.invert(this.invViewProj, this.viewProj);
+    this.frustum.setFromViewProj(this.viewProj);
   }
 
   // Update from an arbitrary eye + Euler yaw/pitch (no roll). Used by the
@@ -147,5 +151,6 @@ export class Camera {
     mat4.perspective(this.proj, FOV, this.aspect, NEAR, FAR);
     mat4.multiply(this.viewProj, this.proj, this.view);
     mat4.invert(this.invViewProj, this.viewProj);
+    this.frustum.setFromViewProj(this.viewProj);
   }
 }

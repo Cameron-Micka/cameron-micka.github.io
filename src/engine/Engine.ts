@@ -1,6 +1,7 @@
 import type {
   FrameState,
   LoadProgressFn,
+  PlanetInstance,
   RendererBackend,
   RenderStats,
   SceneRenderer,
@@ -527,6 +528,16 @@ export class Engine {
     if (this.settings.freeCamera) {
       for (const p of planets) p.pois = [];
     }
+    // Frustum-cull whole planets: drop any planet whose entire system bounding
+    // sphere (body + ring/atmosphere margin + moon orbits + satellites) lies
+    // outside the view frustum, which also discards its moons and satellites
+    // for free. Shadow casters are still gathered from the full list below so an
+    // off-screen body can keep casting onto a visible one. Renderers further
+    // cull individual moons and the sun against this same frustum.
+    const frustum = this.camera.frustum;
+    const visiblePlanets = planets.filter((p) =>
+      frustum.intersectsSphere(p.center, this.planetSystemRadius(p)),
+    );
     const frame: FrameState = {
       time: this.time,
       moonTime: this.moonTime,
@@ -534,10 +545,11 @@ export class Engine {
       proj: this.camera.proj,
       viewProj: this.camera.viewProj,
       invViewProj: this.camera.invViewProj,
+      frustum,
       cameraPos: this.camera.position,
       keyLightDir: KEY_LIGHT,
       sun: this.sun,
-      planets,
+      planets: visiblePlanets,
       quality: this.activeQuality,
       shadowCasters: this.activeQuality.shadows
         ? planets
@@ -821,6 +833,25 @@ export class Engine {
     const rel = i - this.scrubCurrent; // > 0 => planet i is more recent
     if (rel <= 0.2) return 1;
     return clamp(1 - (rel - 0.2) / 0.7, 0, 1);
+  }
+
+  // Conservative radius of the sphere (centered on the planet) that bounds the
+  // whole planet system: the body plus a margin for its ring/atmosphere/cloud
+  // shells, every moon's orbit, and every orbiting satellite. Used for coarse
+  // frustum culling so a planet is only dropped when nothing it owns could be
+  // on screen. Moon/satellite orbits are scaled by visibility at render time
+  // (≤ 1), so the unscaled extent used here always over-estimates — safe.
+  private planetSystemRadius(p: PlanetInstance): number {
+    // ~1.35× covers the atmosphere/cloud shells and ring outer edge.
+    let r = p.radius * 1.35;
+    for (const m of p.moons) {
+      r = Math.max(r, m.orbitRadius + m.size);
+    }
+    for (const s of p.satellites) {
+      const d = Math.hypot(s.offset[0], s.offset[1], s.offset[2]);
+      r = Math.max(r, d + s.size);
+    }
+    return r;
   }
 
   private applyTier(q: QualitySettings): void {
