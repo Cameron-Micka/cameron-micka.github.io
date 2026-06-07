@@ -39,13 +39,7 @@ const raw: CompanyInput[] = [
           'Authored and presented deep-dive talks on shader fundamentals for ' +
           'mixed reality developers, covering lighting models, performance ' +
           'profiling, and the realities of rendering on untethered devices.',
-        media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/FripHuBd9ZY?si=75bPCq3eO64SPAF4',
-            alt: 'Fat Princess Adventures gameplay',
-          },
-        ],
+        media: [],
       },
       {
         slug: 'mesh',
@@ -88,7 +82,13 @@ const raw: CompanyInput[] = [
           'behavior, networked gameplay, character state machine, character ' +
           'customization, camera system, editor and debugging tools, and ' +
           'visual-scripting improvements.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/FripHuBd9ZY?si=75bPCq3eO64SPAF4',
+            alt: 'Fat Princess Adventures gameplay',
+          },
+        ],
       },
       {
         slug: 'fat-princess-2-prototype',
