@@ -243,7 +243,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // toward palHigh (icy/bright tone). Gated by shadow so a particle in the
   // planet's umbra can't scatter sunlight it isn't receiving.
   let V = normalize(frame.cameraPos.xyz - in.worldPos);
-  let fwd = pow(max(dot(V, -L), 0.0), 3.0) * shadow;
+  let fwdC = max(dot(V, -L), 0.0);
+  let fwd = fwdC * fwdC * fwdC * shadow;
   let scatterTint = mix(obj.palMid.rgb, obj.palHigh.rgb, 0.75);
   let scatterBoost = 1.0 + fwd * 3.2;
   let scatterCol = mix(vec3<f32>(1.0), scatterTint * 1.7, fwd);

@@ -889,7 +889,13 @@ export class WebGPURenderer implements SceneRenderer {
       f[o + 3] = 0;
     }
     f[60] = sCount;
-    f[61] = 0;
+    // shadowMisc.y: low-tier flag (1.0 on the 'low' quality tier, else 0.0).
+    // Heavy fullscreen / per-surface procedural shaders read this to drop to a
+    // cheaper path (fewer raymarch steps, single flow-field sample) on the low
+    // tier, where fragment throughput is the bottleneck — pronounced on macOS
+    // (Metal/Dawn). The branch is uniform across the draw, so it's coherent and
+    // divergence-free.
+    f[61] = frame.quality.tier === 'low' ? 1 : 0;
     f[62] = 0;
     f[63] = 0;
     // invViewProj for the nebula backdrop (and any other fullscreen pass that
@@ -1161,9 +1167,14 @@ export class WebGPURenderer implements SceneRenderer {
       },
     });
 
+    // Group 0 (per-frame uniforms) is invariant for the entire scene pass and
+    // its layout is shared by every pipeline used here, so bind it once instead
+    // of before every draw. Fewer setBindGroup calls = less encoder/driver
+    // overhead, which is disproportionately expensive on Metal/Dawn (macOS).
+    scenePass.setBindGroup(0, this.frameBG);
+
     // Nebula.
     scenePass.setPipeline(this.pipelines.nebula);
-    scenePass.setBindGroup(0, this.frameBG);
     scenePass.draw(3);
     this.stats.drawCalls++;
     this.stats.triangles += 1;
@@ -1172,7 +1183,6 @@ export class WebGPURenderer implements SceneRenderer {
     if (frame.quality.starCount > 0 && this.starCount > 0) {
       const drawStars = Math.min(this.starCount, frame.quality.starCount);
       scenePass.setPipeline(this.pipelines.star);
-      scenePass.setBindGroup(0, this.frameBG);
       scenePass.setVertexBuffer(0, this.quadBuf);
       scenePass.setVertexBuffer(1, this.starBuf);
       scenePass.draw(6, drawStars);
@@ -1191,14 +1201,12 @@ export class WebGPURenderer implements SceneRenderer {
       // Sun body as wireframe (drawn separately from `objects`, like the filled
       // path below). Skipped when the sun is off screen.
       if (sunVisible) {
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphereLines.count);
         this.stats.drawCalls++;
       }
       for (const o of objects) {
         if (o.kind === 2) continue; // rings use their own mesh below
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphereLines.count);
         this.stats.drawCalls++;
@@ -1211,7 +1219,6 @@ export class WebGPURenderer implements SceneRenderer {
           scenePass.setIndexBuffer(this.ringLines.ibuf, 'uint16');
           wireRingBound = true;
         }
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.ringLines.count);
         this.stats.drawCalls++;
@@ -1228,7 +1235,6 @@ export class WebGPURenderer implements SceneRenderer {
       // sun lies outside the view frustum.
       if (sunVisible) {
         scenePass.setPipeline(this.pipelines.sun);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphere.count);
         this.stats.drawCalls++;
@@ -1238,7 +1244,6 @@ export class WebGPURenderer implements SceneRenderer {
       for (const o of objects) {
         if (o.kind !== 0) continue;
         scenePass.setPipeline(this.pipelines.planet);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphere.count);
         this.stats.drawCalls++;
@@ -1254,7 +1259,6 @@ export class WebGPURenderer implements SceneRenderer {
       for (const o of objects) {
         if (o.kind !== 3) continue;
         scenePass.setPipeline(this.pipelines.planet);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.moonSphere.count);
         this.stats.drawCalls++;
@@ -1276,7 +1280,6 @@ export class WebGPURenderer implements SceneRenderer {
       const satCount = this.uploadSatellites(frame);
       if (satCount > 0) {
         scenePass.setPipeline(this.pipelines.satellite);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setVertexBuffer(0, this.quadBuf);
         scenePass.setVertexBuffer(1, this.satelliteBuf);
         scenePass.draw(6, satCount);
@@ -1294,7 +1297,6 @@ export class WebGPURenderer implements SceneRenderer {
       for (const o of objects) {
         if (o.kind !== 5) continue;
         scenePass.setPipeline(this.pipelines.clouds);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphere.count);
         this.stats.drawCalls++;
@@ -1305,7 +1307,6 @@ export class WebGPURenderer implements SceneRenderer {
       for (const o of objects) {
         if (o.kind !== 4) continue;
         scenePass.setPipeline(this.pipelines.atmosphere);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphere.count);
         this.stats.drawCalls++;
@@ -1317,7 +1318,6 @@ export class WebGPURenderer implements SceneRenderer {
       for (const o of objects) {
         if (o.kind !== 6) continue;
         scenePass.setPipeline(this.pipelines.aurora);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.sphere.count);
         this.stats.drawCalls++;
@@ -1330,7 +1330,6 @@ export class WebGPURenderer implements SceneRenderer {
       // Skipped when the sun (corona included) is off screen.
       if (sunVisible) {
         scenePass.setPipeline(this.pipelines.sunCorona);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
         scenePass.setVertexBuffer(0, this.quadBuf);
         scenePass.draw(6);
@@ -1348,7 +1347,6 @@ export class WebGPURenderer implements SceneRenderer {
           ringBound = true;
         }
         scenePass.setPipeline(this.pipelines.ring);
-        scenePass.setBindGroup(0, this.frameBG);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
         scenePass.drawIndexed(this.ring.count);
         this.stats.drawCalls++;
@@ -1359,7 +1357,6 @@ export class WebGPURenderer implements SceneRenderer {
     // POI connector lines (additive), drawn under the markers.
     if (this.poiCount > 0) {
       scenePass.setPipeline(this.pipelines.poiLine);
-      scenePass.setBindGroup(0, this.frameBG);
       scenePass.setVertexBuffer(0, this.poiBuf);
       scenePass.draw(6, this.poiCount);
       this.stats.drawCalls++;
@@ -1369,7 +1366,6 @@ export class WebGPURenderer implements SceneRenderer {
     // POIs (additive billboards).
     if (this.poiCount > 0) {
       scenePass.setPipeline(this.pipelines.poi);
-      scenePass.setBindGroup(0, this.frameBG);
       scenePass.setVertexBuffer(0, this.quadBuf);
       scenePass.setVertexBuffer(1, this.poiBuf);
       scenePass.draw(6, this.poiCount);
@@ -1382,7 +1378,6 @@ export class WebGPURenderer implements SceneRenderer {
     // occlude segments that pass behind them.
     if (this.flightPathSegmentCount > 0 && this.flightPathBuf) {
       scenePass.setPipeline(this.pipelines.flightPath);
-      scenePass.setBindGroup(0, this.frameBG);
       scenePass.setVertexBuffer(0, this.flightPathBuf);
       // Ribbon segments plus one trailing arrowhead instance.
       const instances = this.flightPathSegmentCount + 1;

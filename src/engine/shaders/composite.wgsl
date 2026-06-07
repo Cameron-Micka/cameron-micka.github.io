@@ -50,9 +50,12 @@ fn sampleScene(uv : vec2<f32>) -> vec3<f32> {
 fn lensflare(uv : vec2<f32>, pos : vec2<f32>) -> vec3<f32> {
   let uvd = uv * length(uv);
 
-  let f2 = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.8 * pos), 2.0)), 0.0) * 0.25;
-  let f22 = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.85 * pos), 2.0)), 0.0) * 0.23;
-  let f23 = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.9 * pos), 2.0)), 0.0) * 0.21;
+  let f2v = uvd + 0.8 * pos;
+  let f2 = max(1.0 / (1.0 + 32.0 * dot(f2v, f2v)), 0.0) * 0.25;
+  let f22v = uvd + 0.85 * pos;
+  let f22 = max(1.0 / (1.0 + 32.0 * dot(f22v, f22v)), 0.0) * 0.23;
+  let f23v = uvd + 0.9 * pos;
+  let f23 = max(1.0 / (1.0 + 32.0 * dot(f23v, f23v)), 0.0) * 0.21;
 
   var uvx = mix(uv, uvd, -0.5);
   let f4 = max(0.01 - pow(length(uvx + 0.4 * pos), 2.4), 0.0) * 6.0;

@@ -8,7 +8,7 @@ struct Frame {
   keyLightDir : vec4<f32>,
   misc : vec4<f32>, // x=time, y=reducedMotion, z=qualityScale, w=unused
   shadowSpheres : array<vec4<f32>, 8>, // xyz=center, w=radius
-  shadowMisc : vec4<f32>, // x=active sphere count, yzw unused
+  shadowMisc : vec4<f32>, // x=active sphere count, y=lowTier flag, zw unused
 };
 
 struct Obj {
@@ -142,7 +142,10 @@ fn gSmith(NdV : f32, NdL : f32, roughness : f32) -> f32 {
 }
 
 fn fSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
-  let f = pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+  // pow(x, 5) via multiplies — exact, avoids a transcendental in the hot path.
+  let x = clamp(1.0 - cosTheta, 0.0, 1.0);
+  let x2 = x * x;
+  let f = x2 * x2 * x;
   return F0 + (vec3<f32>(1.0) - F0) * f;
 }
 
@@ -269,22 +272,17 @@ const CLOUD_SHADOW_STRENGTH : f32 = 1.0;
 // freq 3.2), so this is the minimum gap that makes shadows visible.
 const CLOUD_SHADOW_SHELL : f32 = 1.06;
 
-// Cloud shadow on the planet surface. From the surface fragment (vLocal is
-// the unit-sphere local position), march along the local-space sun direction
+// Cloud shadow on the planet surface. From the surface fragment (vn is the
+// normalized unit-sphere local position), march along the local-space sun
+// direction (localL, the world sun dir rotated into the planet's local frame)
 // to the exact ray-sphere intersection with the cloud shell, sample the same
 // cloud density function the cloud shader uses, and attenuate direct light.
-// Returns a multiplier in [1 - STRENGTH, 1] for the direct term, or 1.0 on
-// the night side where NdL would already kill the direct contribution.
-fn cloudShadow(vLocal : vec3<f32>, worldL : vec3<f32>, time : f32, seedf : f32, reducedMotion : f32, enabled : f32) -> f32 {
+// vn and localL are precomputed by the caller (the fragment body already needs
+// the planet's rotation basis for ice shading) so this avoids recomputing the
+// basis and the two normalizes here. Returns a multiplier in [1 - STRENGTH, 1]
+// for the direct term, or 1.0 on the night side where NdL already kills it.
+fn cloudShadow(vn : vec3<f32>, localL : vec3<f32>, time : f32, seedf : f32, reducedMotion : f32, enabled : f32) -> f32 {
   if (enabled < 0.001) { return 1.0; }
-  // Recover the planet's rotation from the model matrix columns. Scale is
-  // uniform (T*R*S with s = radius*visibility), so normalizing the columns
-  // gives the rotation basis vectors in world space. localL = R^T * worldL.
-  let r0 = normalize(obj.model[0].xyz);
-  let r1 = normalize(obj.model[1].xyz);
-  let r2 = normalize(obj.model[2].xyz);
-  let localL = vec3<f32>(dot(r0, worldL), dot(r1, worldL), dot(r2, worldL));
-  let vn = normalize(vLocal);
   let nL = dot(vn, localL);
   if (nL <= 0.0) { return 1.0; }
   // Exact ray-sphere intersection from a unit-length surface point along a
@@ -364,7 +362,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let n = normalize(in.nrm);
   let viewDir = normalize(frame.cameraPos.xyz - in.worldPos);
   let lightDir = normalize(frame.keyLightDir.xyz);
-  let rim = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 3.0);
+  let rimB = 1.0 - clamp(dot(n, viewDir), 0.0, 1.0);
+  let rim = rimB * rimB * rimB;
 
   let basePos = in.localPos * (2.2 + seed * 0.0001) + vec3<f32>(seed * 0.001);
 
@@ -376,7 +375,12 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // unboundedly past a half cycle. Disabled under reduced motion.
   var land : vec3<f32>;
   var height : f32;
-  if (obj.p2.y > 0.5) {
+  // On the low tier, skip the two-sample flow-field advection and render the
+  // static marble with a single surfaceMarble call. surfaceMarble is the
+  // heaviest per-pixel function on the planet, so halving it is a sizeable
+  // low-tier win on macOS; the streaming motion it drops is subtle on low.
+  let lowTier = frame.shadowMisc.y > 0.5;
+  if (obj.p2.y > 0.5 && !lowTier) {
     let rm = frame.misc.y;
     let speed = select(0.16, 0.0, rm > 0.5);
     let mag = 1.0;
@@ -491,8 +495,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // alpha-blended cloud shell). Uses the same noise/rotation as clouds.wgsl
   // so the shadow lands directly under the rendered puff.
   let cloudShadowMul = cloudShadow(
-    in.localPos,
-    lightDir,
+    localPos,
+    localLightDir,
     obj.p0.z,
     obj.p0.y,
     frame.misc.y,

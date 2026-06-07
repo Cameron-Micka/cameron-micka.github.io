@@ -64,11 +64,11 @@ fn vnoise3(x : vec3<f32>) -> f32 {
   );
 }
 
-fn fbm3(p : vec3<f32>) -> f32 {
+fn fbm3(p : vec3<f32>, oct : i32) -> f32 {
   var v = 0.0;
   var a = 0.5;
   var q = p;
-  for (var i = 0; i < 4; i = i + 1) {
+  for (var i = 0; i < oct; i = i + 1) {
     v = v + a * vnoise3(q);
     q = q * 2.03;
     a = a * 0.5;
@@ -117,9 +117,21 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   var t = 0.45 + jitter;
   var col = vec3<f32>(0.0);
   var alpha = 0.0;
-  for (var i = 0; i < 28; i = i + 1) {
+  // The nebula is the only shader that covers every pixel on every tier, so its
+  // raymarch dominates fragment cost on the low tier (no post-processing there).
+  // On low, halve the step count and drop one fbm octave; the larger steps and
+  // coarser field are barely perceptible on a backdrop but roughly halve the
+  // per-pixel work — the single biggest low-tier win on macOS (Metal/Dawn).
+  let low = frame.shadowMisc.y > 0.5;
+  let steps = select(28, 14, low);
+  let stepLen = select(0.10, 0.20, low);
+  let oct = select(4, 3, low);
+  // Each low step covers ~2x the depth, so weight its contribution ~2x to keep
+  // the integrated brightness close to the high-tier march.
+  let incScale = select(1.0, 1.9, low);
+  for (var i = 0; i < steps; i = i + 1) {
     let p = ro + rd * t;
-    let n = fbm3(p * 1.05 + drift);
+    let n = fbm3(p * 1.05 + drift, oct);
     // Soft billow carving — leaves airy gaps without sharp edges.
     let dens = smoothstep(0.46, 0.78, n);
     let coreFade = exp(-rad * 1.10);
@@ -131,12 +143,12 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     var samp = mix(cool, warm, clamp(warmth, 0.0, 1.0));
     samp = mix(samp, glow, smoothstep(0.72, 1.0, n) * coreFade * 0.65);
 
-    let inc = density * 0.14;
+    let inc = density * 0.14 * incScale;
     col = col + samp * inc * (1.0 - alpha);
     alpha = alpha + inc * (1.0 - alpha);
 
     if (alpha > 0.97) { break; }
-    t = t + 0.10 + t * 0.020;
+    t = t + stepLen + t * 0.020;
   }
 
   // Deep background fills the periphery (away from coreDir) with dark navy.

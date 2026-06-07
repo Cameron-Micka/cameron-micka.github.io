@@ -143,7 +143,10 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   var col = atmoColor * dayGlow * 0.55 * intensity;
 
   // Subtle forward (Mie) scatter where we look toward the sun through the shell.
-  let mie = pow(max(dot(rd, sun), 0.0), 8.0) * dayGlow * 0.22;
+  let mieC = max(dot(rd, sun), 0.0);
+  let mieC2 = mieC * mieC;
+  let mieC4 = mieC2 * mieC2;
+  let mie = mieC4 * mieC4 * dayGlow * 0.22;
   col = col + atmoColor * mie * intensity;
 
   // Surface-aware limb gate: limbSun is geared for *limb* (miss) rays where

@@ -51,7 +51,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   }
   let d = length(in.uv);
   let glow = smoothstep(1.0, 0.0, d);
-  let core = pow(glow, 4.0);
+  let glow2 = glow * glow;
+  let core = glow2 * glow2;
   let a = core * in.intensity;
   let col = mix(vec3<f32>(0.7, 0.8, 1.0), in.tint, 0.5) * a * 1.6;
   return vec4<f32>(col, a);
