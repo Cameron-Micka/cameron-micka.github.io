@@ -109,17 +109,32 @@ export class Camera {
   // The timeline is reversed (higher index = more recent), so the camera sits on
   // the +z side and looks toward -z, leaving older planets receding ahead.
   //
-  // Zoom and the cinematic `extra` pull-back both dolly the camera along its
-  // own forward vector (rather than just sliding eyeZ) so ctrl+wheel pulls
-  // straight in toward whatever the camera is looking at, regardless of the
-  // off-axis 3/4 view angle. Look direction is unchanged by dolly.
+  // Zoom and the cinematic `extra` pull-back both dolly the camera toward (or
+  // away from) the focused planet's center along the eye→planet vector rather
+  // than the camera's forward look vector. Because the framing is an off-axis
+  // 3/4 view, the planet does not sit on the forward axis; dollying along
+  // forward would slide the planet across the screen as you zoom. Moving along
+  // the eye→planet line instead keeps the planet on the same view ray, so it
+  // stays at a constant screen position while zooming. Look direction is
+  // unchanged by dolly.
   update(scrub: number): void {
     const focusZ = scrub * PLANET_SPACING;
     const dolly = (1 - this.zoom) * this.viewDistance - this.extra;
+    // Vector from the un-dollied eye to the focused planet center. The eye sits
+    // at (eyeSideOffset, eyeHeight, focusZ + viewDistance) and the planet at
+    // (0, 0, focusZ), so the focusZ terms cancel in z and the delta is constant
+    // across planets.
+    let toFocusX = -this.eyeSideOffset;
+    let toFocusY = -this.eyeHeight;
+    let toFocusZ = -this.viewDistance;
+    const len = Math.hypot(toFocusX, toFocusY, toFocusZ) || 1;
+    toFocusX /= len;
+    toFocusY /= len;
+    toFocusZ /= len;
     this.position = [
-      this.eyeSideOffset + this.forwardX * dolly,
-      this.eyeHeight + this.forwardY * dolly,
-      focusZ + this.viewDistance + this.forwardZ * dolly,
+      this.eyeSideOffset + toFocusX * dolly,
+      this.eyeHeight + toFocusY * dolly,
+      focusZ + this.viewDistance + toFocusZ * dolly,
     ];
     const center: Vec3 = [
       this.position[0] + this.forwardX,
