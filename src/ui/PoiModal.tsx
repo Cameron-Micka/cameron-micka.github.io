@@ -105,9 +105,41 @@ export function PoiModal({ companies }: { companies: Company[] }) {
 
   if (!openPoi || !company || !poi) return null;
 
-  const goto = (next: number) => {
-    const target = company.pois[next];
-    if (target) engine.openPoiRef(company.slug, target.slug);
+  const companyIndex = companies.findIndex((c) => c.slug === company.slug);
+
+  // Find the nearest company in `dir` (-1/+1) that has at least one POI, so we
+  // can hop across empty planets when navigating between systems.
+  const adjacentCompany = (dir: number) => {
+    for (let i = companyIndex + dir; i >= 0 && i < companies.length; i += dir) {
+      const c = companies[i];
+      if (c && c.pois.length > 0) return c;
+    }
+    return undefined;
+  };
+
+  const prevCompany = adjacentCompany(-1);
+  const nextCompany = adjacentCompany(1);
+  const canGoPrev = poiIndex > 0 || prevCompany !== undefined;
+  const canGoNext = poiIndex < company.pois.length - 1 || nextCompany !== undefined;
+
+  const goPrev = () => {
+    if (poiIndex > 0) {
+      const target = company.pois[poiIndex - 1];
+      if (target) engine.openPoiRef(company.slug, target.slug);
+    } else if (prevCompany) {
+      const target = prevCompany.pois[prevCompany.pois.length - 1];
+      if (target) engine.openPoiRef(prevCompany.slug, target.slug);
+    }
+  };
+
+  const goNext = () => {
+    if (poiIndex < company.pois.length - 1) {
+      const target = company.pois[poiIndex + 1];
+      if (target) engine.openPoiRef(company.slug, target.slug);
+    } else if (nextCompany) {
+      const target = nextCompany.pois[0];
+      if (target) engine.openPoiRef(nextCompany.slug, target.slug);
+    }
   };
 
   return (
@@ -194,19 +226,19 @@ export function PoiModal({ companies }: { companies: Company[] }) {
           )}
         </div>
 
-        {company.pois.length > 1 && (
+        {(company.pois.length > 1 || prevCompany || nextCompany) && (
           <nav className="poi-nav" aria-label="Points of interest">
             <button
               type="button"
-              disabled={poiIndex <= 0}
-              onClick={() => goto(poiIndex - 1)}
+              disabled={!canGoPrev}
+              onClick={goPrev}
             >
               ← Previous
             </button>
             <button
               type="button"
-              disabled={poiIndex >= company.pois.length - 1}
-              onClick={() => goto(poiIndex + 1)}
+              disabled={!canGoNext}
+              onClick={goNext}
             >
               Next →
             </button>
