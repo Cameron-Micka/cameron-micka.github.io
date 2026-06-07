@@ -423,7 +423,7 @@ void main(){
 
 const POINT_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
-layout(location=1) in vec4 aAttr; // x size, y phase/dim, z digit (POIs only), w unused
+layout(location=1) in vec4 aAttr; // x size, y phase/dim, z digit (Arabic numeral, POIs only), w unused
 layout(location=2) in vec3 aColor;
 uniform mat4 uViewProj;
 uniform float uTime;
@@ -452,62 +452,41 @@ precision highp float;
 in vec4 vAttr;in vec3 vColor;in float vDigit;
 uniform float uWireframe;
 out vec4 frag;
-// Roman numerals I..IX rendered as a union of line-segment SDFs in a
-// normalized glyph-local box [-1,1]x[-1,1]. Each numeral lists its strokes;
-// the fragment unions them by min-distance and masks the pixel by
-// smoothstep of distance vs. stroke half-width. Variable-width numerals
-// (VIII especially) fit cleanly without bitmap rasterization artifacts.
+// Arabic numerals 0..9 rendered as a seven-segment union of line-segment SDFs
+// in a normalized glyph-local box [-1,1]x[-1,1]. Each digit lights a subset of
+// the seven segments; the fragment unions them by min-distance and masks the
+// pixel by smoothstep of distance vs. stroke half-width, so digits render
+// crisply without bitmap rasterization artifacts.
 float segDist(vec2 p,vec2 a,vec2 b){
   vec2 pa=p-a;vec2 ba=b-a;
   float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-6),0.0,1.0);
   return length(pa-ba*h);
 }
-float iStem(vec2 p,float x){
-  // Capital-I stroke: vertical body plus short horizontal top + bottom
-  // serifs so multi-I numerals don't read as pause-button bars.
-  float body=segDist(p,vec2(x,-1.0),vec2(x,1.0));
-  float top=segDist(p,vec2(x-0.2,1.0),vec2(x+0.2,1.0));
-  float bot=segDist(p,vec2(x-0.2,-1.0),vec2(x+0.2,-1.0));
-  return min(body,min(top,bot));
-}
-float romanDist(vec2 p,int d){
-  float dm=1e9;
+float digitDist(vec2 p,int d){
+  // Seven-segment layout corners. x/y inset from the glyph box edges.
+  float x=0.55;float y=0.9;
+  vec2 tl=vec2(-x,y);vec2 tr=vec2(x,y);
+  vec2 ml=vec2(-x,0.0);vec2 mr=vec2(x,0.0);
+  vec2 bl=vec2(-x,-y);vec2 br=vec2(x,-y);
+  // "1" reads better as a single centered stem than as a right-aligned pair.
   if(d==1){
-    dm=min(dm,iStem(p,0.0));
-  }else if(d==2){
-    dm=min(dm,iStem(p,-0.5));
-    dm=min(dm,iStem(p,0.5));
-  }else if(d==3){
-    dm=min(dm,iStem(p,-0.8));
-    dm=min(dm,iStem(p,0.0));
-    dm=min(dm,iStem(p,0.8));
-  }else if(d==4){
-    dm=min(dm,iStem(p,-0.6));
-    dm=min(dm,segDist(p,vec2(-0.05,1.0),vec2(0.3,-1.0)));
-    dm=min(dm,segDist(p,vec2(0.65,1.0),vec2(0.3,-1.0)));
-  }else if(d==5){
-    dm=min(dm,segDist(p,vec2(-0.6,1.0),vec2(0.0,-1.0)));
-    dm=min(dm,segDist(p,vec2(0.6,1.0),vec2(0.0,-1.0)));
-  }else if(d==6){
-    dm=min(dm,segDist(p,vec2(-0.65,1.0),vec2(-0.3,-1.0)));
-    dm=min(dm,segDist(p,vec2(0.05,1.0),vec2(-0.3,-1.0)));
-    dm=min(dm,iStem(p,0.6));
-  }else if(d==7){
-    dm=min(dm,segDist(p,vec2(-0.75,1.0),vec2(-0.45,-1.0)));
-    dm=min(dm,segDist(p,vec2(-0.15,1.0),vec2(-0.45,-1.0)));
-    dm=min(dm,iStem(p,0.25));
-    dm=min(dm,iStem(p,0.75));
-  }else if(d==8){
-    dm=min(dm,segDist(p,vec2(-0.85,1.0),vec2(-0.6,-1.0)));
-    dm=min(dm,segDist(p,vec2(-0.35,1.0),vec2(-0.6,-1.0)));
-    dm=min(dm,iStem(p,0.0));
-    dm=min(dm,iStem(p,0.4));
-    dm=min(dm,iStem(p,0.8));
-  }else if(d==9){
-    dm=min(dm,iStem(p,-0.7));
-    dm=min(dm,segDist(p,vec2(-0.2,1.0),vec2(0.6,-1.0)));
-    dm=min(dm,segDist(p,vec2(0.6,1.0),vec2(-0.2,-1.0)));
+    return segDist(p,vec2(0.0,y),vec2(0.0,-y));
   }
+  float dm=1e9;
+  // a (top)
+  if(d==0||d==2||d==3||d==5||d==6||d==7||d==8||d==9){dm=min(dm,segDist(p,tl,tr));}
+  // f (upper-left)
+  if(d==0||d==4||d==5||d==6||d==8||d==9){dm=min(dm,segDist(p,tl,ml));}
+  // b (upper-right)
+  if(d==0||d==2||d==3||d==4||d==7||d==8||d==9){dm=min(dm,segDist(p,tr,mr));}
+  // g (middle)
+  if(d==2||d==3||d==4||d==5||d==6||d==8||d==9){dm=min(dm,segDist(p,ml,mr));}
+  // e (lower-left)
+  if(d==0||d==2||d==6||d==8){dm=min(dm,segDist(p,ml,bl));}
+  // c (lower-right)
+  if(d==0||d==3||d==4||d==5||d==6||d==7||d==8||d==9){dm=min(dm,segDist(p,mr,br));}
+  // d (bottom)
+  if(d==0||d==2||d==3||d==5||d==6||d==8||d==9){dm=min(dm,segDist(p,bl,br));}
   return dm;
 }
 void main(){
@@ -535,14 +514,14 @@ void main(){
     // No solid core so the line reads ~1.5px wide regardless of marker
     // size.
     float outline=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y;
-    // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW
-    // is wide enough to fit even VIII (the broadest numeral) without
-    // crowding the ring at radius 0.85. gl_PointCoord origin is upper-left,
-    // so we flip Y here to match the glyph-local convention where +y = top.
+    // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH
+    // size the digit so it sits comfortably inside the ring at radius 0.85.
+    // gl_PointCoord origin is upper-left, so we flip Y here to match the
+    // glyph-local convention where +y = top.
     float halfW=0.28;float halfH=0.30;
     vec2 gp=vec2(uv.x/halfW,-uv.y/halfH);
     int dig=int(vDigit+0.5);
-    float glyphDist=romanDist(gp,dig);
+    float glyphDist=digitDist(gp,dig);
     // One screen pixel in glyph-local units (isotropic AA).
     vec2 dgx=dFdx(gp);vec2 dgy=dFdy(gp);
     float aaG=sqrt(dot(dgx,dgx)+dot(dgy,dgy))*0.5;

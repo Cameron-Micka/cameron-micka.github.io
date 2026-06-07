@@ -22,7 +22,7 @@ fn vs(
   @location(1) center : vec3<f32>,   // POI world position
   @location(2) attribs : vec4<f32>,  // x=size y=dim z=accentR w=accentG
   @location(3) accentB : f32,        // accentB
-  @location(4) digit : f32,          // 1..9 = numeral icon, 0 = none
+  @location(4) digit : f32,          // 1..9 = Arabic numeral icon, 0 = none
 ) -> VSOut {
   var out : VSOut;
   let clip = frame.viewProj * vec4<f32>(center, 1.0);
@@ -38,12 +38,11 @@ fn vs(
   return out;
 }
 
-// Roman numerals I..IX rendered as a union of line-segment SDFs in a
-// normalized glyph-local box [-1,1]x[-1,1]. Each numeral lists its strokes;
-// the fragment shader unions them by min-distance, then masks the marker
-// pixel by smoothstep of (distance vs. stroke half-width). Variable-width
-// numerals (VIII especially) fit cleanly without bitmap rasterization
-// artifacts.
+// Arabic numerals 0..9 rendered as a seven-segment union of line-segment SDFs
+// in a normalized glyph-local box [-1,1]x[-1,1]. Each digit lights a subset of
+// the seven segments; the fragment shader unions them by min-distance, then
+// masks the marker pixel by smoothstep of (distance vs. stroke half-width), so
+// the digits render crisply without bitmap rasterization artifacts.
 fn segDist(p : vec2<f32>, a : vec2<f32>, b : vec2<f32>) -> f32 {
   let pa = p - a;
   let ba = b - a;
@@ -51,62 +50,48 @@ fn segDist(p : vec2<f32>, a : vec2<f32>, b : vec2<f32>) -> f32 {
   return length(pa - ba * h);
 }
 
-fn iStem(p : vec2<f32>, x : f32) -> f32 {
-  // A capital-I stroke: the vertical body plus short horizontal serifs at
-  // top and bottom so multi-I numerals (II, III, ...) read as Roman
-  // numerals instead of pause-button bars.
-  let body = segDist(p, vec2<f32>(x, -1.0), vec2<f32>(x, 1.0));
-  let top = segDist(p, vec2<f32>(x - 0.2, 1.0), vec2<f32>(x + 0.2, 1.0));
-  let bot = segDist(p, vec2<f32>(x - 0.2, -1.0), vec2<f32>(x + 0.2, -1.0));
-  return min(body, min(top, bot));
-}
-
-fn romanDist(p : vec2<f32>, d : i32) -> f32 {
-  var dm : f32 = 1e9;
+fn digitDist(p : vec2<f32>, d : i32) -> f32 {
+  // Seven-segment layout corners. x/y inset from the glyph box edges.
+  let x = 0.55;
+  let y = 0.9;
+  let tl = vec2<f32>(-x, y);
+  let tr = vec2<f32>(x, y);
+  let ml = vec2<f32>(-x, 0.0);
+  let mr = vec2<f32>(x, 0.0);
+  let bl = vec2<f32>(-x, -y);
+  let br = vec2<f32>(x, -y);
+  // "1" reads better as a single centered stem than as a right-aligned pair.
   if (d == 1) {
-    // I
-    dm = min(dm, iStem(p, 0.0));
-  } else if (d == 2) {
-    // II
-    dm = min(dm, iStem(p, -0.5));
-    dm = min(dm, iStem(p, 0.5));
-  } else if (d == 3) {
-    // III
-    dm = min(dm, iStem(p, -0.8));
-    dm = min(dm, iStem(p, 0.0));
-    dm = min(dm, iStem(p, 0.8));
-  } else if (d == 4) {
-    // IV: I on the left, V on the right.
-    dm = min(dm, iStem(p, -0.6));
-    dm = min(dm, segDist(p, vec2<f32>(-0.05, 1.0), vec2<f32>(0.3, -1.0)));
-    dm = min(dm, segDist(p, vec2<f32>(0.65, 1.0), vec2<f32>(0.3, -1.0)));
-  } else if (d == 5) {
-    // V
-    dm = min(dm, segDist(p, vec2<f32>(-0.6, 1.0), vec2<f32>(0.0, -1.0)));
-    dm = min(dm, segDist(p, vec2<f32>(0.6, 1.0), vec2<f32>(0.0, -1.0)));
-  } else if (d == 6) {
-    // VI: V on the left, I on the right.
-    dm = min(dm, segDist(p, vec2<f32>(-0.65, 1.0), vec2<f32>(-0.3, -1.0)));
-    dm = min(dm, segDist(p, vec2<f32>(0.05, 1.0), vec2<f32>(-0.3, -1.0)));
-    dm = min(dm, iStem(p, 0.6));
-  } else if (d == 7) {
-    // VII
-    dm = min(dm, segDist(p, vec2<f32>(-0.75, 1.0), vec2<f32>(-0.45, -1.0)));
-    dm = min(dm, segDist(p, vec2<f32>(-0.15, 1.0), vec2<f32>(-0.45, -1.0)));
-    dm = min(dm, iStem(p, 0.25));
-    dm = min(dm, iStem(p, 0.75));
-  } else if (d == 8) {
-    // VIII: a narrower V on the left to make room for III on the right.
-    dm = min(dm, segDist(p, vec2<f32>(-0.85, 1.0), vec2<f32>(-0.6, -1.0)));
-    dm = min(dm, segDist(p, vec2<f32>(-0.35, 1.0), vec2<f32>(-0.6, -1.0)));
-    dm = min(dm, iStem(p, 0.0));
-    dm = min(dm, iStem(p, 0.4));
-    dm = min(dm, iStem(p, 0.8));
-  } else if (d == 9) {
-    // IX: I on the left, X on the right.
-    dm = min(dm, iStem(p, -0.7));
-    dm = min(dm, segDist(p, vec2<f32>(-0.2, 1.0), vec2<f32>(0.6, -1.0)));
-    dm = min(dm, segDist(p, vec2<f32>(0.6, 1.0), vec2<f32>(-0.2, -1.0)));
+    return segDist(p, vec2<f32>(0.0, y), vec2<f32>(0.0, -y));
+  }
+  var dm : f32 = 1e9;
+  // a (top)
+  if (d == 0 || d == 2 || d == 3 || d == 5 || d == 6 || d == 7 || d == 8 || d == 9) {
+    dm = min(dm, segDist(p, tl, tr));
+  }
+  // f (upper-left)
+  if (d == 0 || d == 4 || d == 5 || d == 6 || d == 8 || d == 9) {
+    dm = min(dm, segDist(p, tl, ml));
+  }
+  // b (upper-right)
+  if (d == 0 || d == 2 || d == 3 || d == 4 || d == 7 || d == 8 || d == 9) {
+    dm = min(dm, segDist(p, tr, mr));
+  }
+  // g (middle)
+  if (d == 2 || d == 3 || d == 4 || d == 5 || d == 6 || d == 8 || d == 9) {
+    dm = min(dm, segDist(p, ml, mr));
+  }
+  // e (lower-left)
+  if (d == 0 || d == 2 || d == 6 || d == 8) {
+    dm = min(dm, segDist(p, ml, bl));
+  }
+  // c (lower-right)
+  if (d == 0 || d == 3 || d == 4 || d == 5 || d == 6 || d == 7 || d == 8 || d == 9) {
+    dm = min(dm, segDist(p, mr, br));
+  }
+  // d (bottom)
+  if (d == 0 || d == 2 || d == 3 || d == 5 || d == 6 || d == 8 || d == 9) {
+    dm = min(dm, segDist(p, bl, br));
   }
   return dm;
 }
@@ -141,13 +126,12 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // of marker size.
   let outline = (1.0 - smoothstep(0.0, 1.5 * aa, abs(d - radius))) * in.dim;
   let digit = i32(in.digit + 0.5);
-  // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW is
-  // wide enough to fit even VIII (the broadest numeral) without crowding
-  // the ring at radius 0.85.
+  // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH
+  // size the digit so it sits comfortably inside the ring at radius 0.85.
   let halfW = 0.28;
   let halfH = 0.30;
   let gp = vec2<f32>(in.uv.x / halfW, in.uv.y / halfH);
-  let glyphDist = romanDist(gp, digit);
+  let glyphDist = digitDist(gp, digit);
   // One screen pixel in glyph-local units (isotropic AA, same trick as the
   // ring). Stroke half-width is in the same units as the glyph definitions.
   let dgx = dpdx(gp);
