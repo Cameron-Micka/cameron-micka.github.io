@@ -132,13 +132,18 @@ float continentFbm(vec3 p){float v=0.,a=.6;for(int i=0;i<3;i++){v+=a*vnoise(p);p
 float ridgedFbm(vec3 p){float v=0.,a=.65;for(int i=0;i<2;i++){float n=vnoise(p);v+=a*(1.0-abs(n-0.5)*2.0);p*=2.1;a*=.5;}return v;}
 vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 // --- Terrain relief (mirror of planet.wgsl) ------------------------------
-// Land elevation field: smooth fBm base for rolling hills plus a squared
-// ridged term so mountain chains rise sharply out of the valleys. ~[0,1],
-// deliberately cheap since it is sampled three times per land fragment.
+// Land elevation field: smooth fBm base for rolling hills plus a weathered
+// ridged term for mountain chains. ~[0,1], deliberately cheap since it is
+// sampled three times per land fragment. The ridge term uses a smoothstep
+// S-curve (rounds crests, lifts troughs) instead of a square (knife-edge
+// peaks), and the partial sqrt models sediment fill in the basins, so the
+// range reads as eroded over time rather than freshly uplifted.
 float terrainElevation(vec3 p){
-  float base=fbm(p*1.6);
+  float base=fbm(p*1.5);
   float ridges=ridgedFbm(p*0.9);
-  return clamp(base*0.55+ridges*ridges*0.45,0.0,1.0);
+  float worn=ridges*ridges*(3.0-2.0*ridges);
+  float h=clamp(base*0.6+worn*0.4,0.0,1.0);
+  return mix(h,sqrt(h),0.45);
 }
 // Elevation gradient in the sphere's tangent plane (xyz = local-space
 // gradient, w = elevation at the shading point). True displacement is not an
@@ -154,8 +159,10 @@ vec4 terrainRelief(vec3 vn,vec3 sp,float eps){
   float hb=terrainElevation(sp+b*eps);
   return vec4(t*(ht-h0)+b*(hb-h0),h0);
 }
-// Shading-normal tilt per unit finite difference, tuned against RELIEF_EPS.
-const float RELIEF_STRENGTH=7.0;
+// Shading-normal tilt per unit finite difference. Kept low deliberately so
+// the relief reads as a subtle weathered texture rather than towering peaks
+// and bottomless valleys.
+const float RELIEF_STRENGTH=3.0;
 const float RELIEF_EPS=0.055;
 // --- Cook-Torrance PBR helpers (mirror of planet.wgsl) ---
 const float PI=3.14159265359;
@@ -379,7 +386,7 @@ void main(){
     vec3 gWorld=r0*g.x+r1*g.y+r2*g.z;
     N=normalize(n-gWorld*(RELIEF_STRENGTH*amount));
     // Cheap cavity term: valleys shade down, peaks catch a little more light.
-    reliefShade=mix(1.0,mix(0.78,1.10,smoothstep(0.18,0.72,g.w)),amount);
+    reliefShade=mix(1.0,mix(0.90,1.05,smoothstep(0.25,0.85,g.w)),amount);
   }
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
   // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere

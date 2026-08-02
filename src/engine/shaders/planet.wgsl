@@ -118,14 +118,24 @@ fn ridgedFbm(p : vec3<f32>) -> f32 {
 }
 
 // --- Terrain relief -------------------------------------------------------
-// Land elevation field: a smooth fBm base for rolling hills plus a squared
-// ridged term so mountain chains rise sharply out of the valleys between
-// them. Roughly [0,1]. Deliberately cheap (5 noise octaves) because it is
-// evaluated three times per land fragment.
+// Land elevation field: a smooth fBm base for rolling hills plus a weathered
+// ridged term for mountain chains. Roughly [0,1]. Deliberately cheap (5 noise
+// octaves) because it is evaluated three times per land fragment.
+//
+// The ridge term is run through a smoothstep S-curve rather than squared: a
+// square sharpens crests and deepens troughs (young, knife-edge peaks),
+// whereas the S-curve rounds the crests and lifts the troughs, which is what
+// weathering does to a range over geological time. A partial sqrt on the
+// combined field then models sediment fill — debris shed from the high ground
+// settles in the basins, so the low end of the range is compressed toward a
+// common valley floor while summits stay roughly put. The net effect is
+// concave, worn slopes instead of raw fractal spikes.
 fn terrainElevation(p : vec3<f32>) -> f32 {
-  let base = fbm(p * 1.6);
+  let base = fbm(p * 1.5);
   let ridges = ridgedFbm(p * 0.9);
-  return clamp(base * 0.55 + ridges * ridges * 0.45, 0.0, 1.0);
+  let worn = ridges * ridges * (3.0 - 2.0 * ridges);
+  let h = clamp(base * 0.6 + worn * 0.4, 0.0, 1.0);
+  return mix(h, sqrt(h), 0.45);
 }
 
 // Gradient of the elevation field in the sphere's tangent plane, returned as
@@ -149,9 +159,10 @@ fn terrainRelief(vn : vec3<f32>, sp : vec3<f32>, eps : f32) -> vec4<f32> {
 }
 
 // Tilt applied to the shading normal per unit of (un-normalized) finite
-// difference. Tuned against RELIEF_EPS so peaks read as real terrain without
-// the normal ever flipping past the horizon.
-const RELIEF_STRENGTH : f32 = 7.0;
+// difference. Kept low deliberately: at higher values the bump reads as
+// implausibly tall mountains and bottomless valleys on a body this size, so
+// the relief is meant to be a subtle texture rather than the dominant feature.
+const RELIEF_STRENGTH : f32 = 3.0;
 const RELIEF_EPS : f32 = 0.055;
 
 // --- Cook-Torrance PBR helpers ---
@@ -517,8 +528,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let gWorld = r0 * g.x + r1 * g.y + r2 * g.z;
     N = normalize(n - gWorld * (RELIEF_STRENGTH * amount));
     // Cheap cavity term: valleys sit in their own shade and peaks catch a
-    // little extra light, which sells the depth even where NdL barely moves.
-    reliefShade = mix(1.0, mix(0.78, 1.10, smoothstep(0.18, 0.72, g.w)), amount);
+    // little extra light. Kept to a narrow range so it reads as gentle
+    // weathered relief rather than painted-on contrast.
+    reliefShade = mix(1.0, mix(0.90, 1.05, smoothstep(0.25, 0.85, g.w)), amount);
   }
 
   // --- Cook-Torrance PBR direct lighting from the key sun ---
