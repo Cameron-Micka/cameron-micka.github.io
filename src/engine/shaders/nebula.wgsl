@@ -117,18 +117,21 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   var t = 0.45 + jitter;
   var col = vec3<f32>(0.0);
   var alpha = 0.0;
-  // The nebula is the only shader that covers every pixel on every tier, so its
-  // raymarch dominates fragment cost on the low tier (no post-processing there).
-  // On low, halve the step count and drop one fbm octave; the larger steps and
-  // coarser field are barely perceptible on a backdrop but roughly halve the
-  // per-pixel work — the single biggest low-tier win on macOS (Metal/Dawn).
-  let low = frame.shadowMisc.y > 0.5;
-  let steps = select(28, 14, low);
-  let stepLen = select(0.10, 0.20, low);
-  let oct = select(4, 3, low);
-  // Each low step covers ~2x the depth, so weight its contribution ~2x to keep
+  // The nebula is by far the heaviest per-pixel shader in the scene, so it is
+  // rendered into a reduced-resolution backdrop target (see backdrop.wgsl) and
+  // upsampled. On top of that, step and octave counts scale down with the
+  // quality tier: larger steps and a coarser field are barely perceptible on a
+  // soft backdrop but roughly halve the per-pixel work. The branch is uniform
+  // across the draw, so it's coherent and divergence-free.
+  let tier = frame.shadowMisc.y; // 0 = high, 1 = med, 2 = low
+  let med = tier > 0.5;
+  let low = tier > 1.5;
+  let steps = select(select(28, 20, med), 14, low);
+  let stepLen = select(select(0.10, 0.14, med), 0.20, low);
+  let oct = select(select(4, 3, med), 3, low);
+  // Each coarser step covers more depth, so weight its contribution up to keep
   // the integrated brightness close to the high-tier march.
-  let incScale = select(1.0, 1.9, low);
+  let incScale = select(select(1.0, 1.35, med), 1.9, low);
   for (var i = 0; i < steps; i = i + 1) {
     let p = ro + rd * t;
     let n = fbm3(p * 1.05 + drift, oct);

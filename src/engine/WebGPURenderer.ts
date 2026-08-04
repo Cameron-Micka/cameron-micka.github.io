@@ -19,6 +19,7 @@ import { mulberry32 } from './math/rng';
 import { poiMarkerDistance, poiFocusFade } from './Scene';
 import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
+import { QUALITY_PRESETS } from './QualityManager';
 
 import planetWGSL from './shaders/planet.wgsl?raw';
 import nebulaWGSL from './shaders/nebula.wgsl?raw';
@@ -29,6 +30,8 @@ import poiLineWGSL from './shaders/poi_line.wgsl?raw';
 import flightPathWGSL from './shaders/flight_path.wgsl?raw';
 import ringWGSL from './shaders/ring.wgsl?raw';
 import compositeWGSL from './shaders/composite.wgsl?raw';
+import backdropWGSL from './shaders/backdrop.wgsl?raw';
+import postfxWGSL from './shaders/postfx.wgsl?raw';
 import wireframeWGSL from './shaders/wireframe.wgsl?raw';
 import atmosphereWGSL from './shaders/atmosphere.wgsl?raw';
 import cloudsWGSL from './shaders/clouds.wgsl?raw';
@@ -58,6 +61,7 @@ export class WebGPURenderer implements SceneRenderer {
 
   private width = 1;
   private height = 1;
+  private dpr = 1;
 
   private hdrTex!: GPUTexture;
   private hdrView!: GPUTextureView;
@@ -66,6 +70,24 @@ export class WebGPURenderer implements SceneRenderer {
   private depthTex!: GPUTexture;
   private depthView!: GPUTextureView;
   private sampleCount = 1;
+
+  // Reduced-resolution target holding the nebula raymarch, upsampled into the
+  // scene pass. Sized from CSS pixels so it doesn't scale with devicePixelRatio.
+  private backdropTex!: GPUTexture;
+  private backdropView!: GPUTextureView;
+  private backdropW = 0;
+  private backdropH = 0;
+  // Reduced-resolution post chain: fxSrc holds a box-downsample of the scene,
+  // fx holds bloom + god rays + lens flare (+ the blurred scene while a modal
+  // is open). Both are sized from CSS pixels like the backdrop.
+  private fxSrcTex!: GPUTexture;
+  private fxSrcView!: GPUTextureView;
+  private fxTex!: GPUTexture;
+  private fxView!: GPUTextureView;
+  private fxW = 0;
+  private fxH = 0;
+  private backdropScale = QUALITY_PRESETS.high.backdropScale;
+  private postScale = QUALITY_PRESETS.high.postScale;
 
   private sphere!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number; u32: boolean };
   private moonSphere!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number; u32: boolean };
@@ -93,10 +115,16 @@ export class WebGPURenderer implements SceneRenderer {
   private frameBG!: GPUBindGroup;
   private objBG!: GPUBindGroup;
   private compositeBG!: GPUBindGroup;
+  private backdropBG!: GPUBindGroup;
+  private downsampleBG!: GPUBindGroup;
+  private fxBG!: GPUBindGroup;
   private sampler!: GPUSampler;
 
   private pipelines!: {
     nebula: GPURenderPipeline;
+    backdrop: GPURenderPipeline;
+    downsample: GPURenderPipeline;
+    postfx: GPURenderPipeline;
     planet: GPURenderPipeline;
     sun: GPURenderPipeline;
     sunCorona: GPURenderPipeline;
@@ -115,6 +143,8 @@ export class WebGPURenderer implements SceneRenderer {
   private frameLayout!: GPUBindGroupLayout;
   private objLayout!: GPUBindGroupLayout;
   private compositeLayout!: GPUBindGroupLayout;
+  private blitLayout!: GPUBindGroupLayout;
+  private postLayout!: GPUBindGroupLayout;
 
   private objScratch = new Float32Array(OBJ_FLOATS * MAX_OBJECTS);
   // 64 base floats (viewProj 16 + cameraPos 4 + keyLightDir 4 + misc 4 +
@@ -122,7 +152,7 @@ export class WebGPURenderer implements SceneRenderer {
   // the nebula backdrop's world-direction unprojection. Shaders that don't
   // need invViewProj simply declare a shorter Frame struct.
   private frameScratch = new Float32Array(80);
-  private postScratch = new Float32Array(12);
+  private postScratch = new Float32Array(16);
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
@@ -314,6 +344,27 @@ export class WebGPURenderer implements SceneRenderer {
         },
         { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+      ],
+    });
+    // Sampler + single source texture; used by the backdrop upsample blit.
+    this.blitLayout = d.createBindGroupLayout({
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+      ],
+    });
+    // Post uniform + sampler + single source texture; shared by the scene
+    // downsample and the FX pass, which differ only in their source texture.
+    this.postLayout = d.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: 'uniform' },
+        },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {} },
       ],
     });
 
@@ -356,6 +407,8 @@ export class WebGPURenderer implements SceneRenderer {
     const poiLineMod = d.createShaderModule({ code: poiLineWGSL });
     const flightPathMod = d.createShaderModule({ code: flightPathWGSL });
     const compositeMod = d.createShaderModule({ code: compositeWGSL });
+    const backdropMod = d.createShaderModule({ code: backdropWGSL });
+    const postfxMod = d.createShaderModule({ code: postfxWGSL });
     const wireframeMod = d.createShaderModule({ code: wireframeWGSL });
     const atmosphereMod = d.createShaderModule({ code: atmosphereWGSL });
     const cloudsMod = d.createShaderModule({ code: cloudsWGSL });
@@ -408,11 +461,30 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
+    // Nebula backdrop. Rendered into its own reduced-resolution target — no
+    // MSAA (it's a smooth fullscreen field with no edges to resolve) and no
+    // depth attachment — then upsampled into the scene pass by `backdrop`.
     const nebula = d.createRenderPipeline({
       layout: sceneFramePL,
       vertex: { module: nebulaMod, entryPoint: 'vs' },
       fragment: {
         module: nebulaMod,
+        entryPoint: 'fs',
+        targets: [{ format: HDR_FORMAT }],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
+
+    // Upsample blit of the backdrop target, drawn first in the scene pass in
+    // place of the fullscreen nebula it replaces (depth always, no write).
+    const backdropPL = d.createPipelineLayout({
+      bindGroupLayouts: [this.blitLayout],
+    });
+    const backdrop = d.createRenderPipeline({
+      layout: backdropPL,
+      vertex: { module: backdropMod, entryPoint: 'vs' },
+      fragment: {
+        module: backdropMod,
         entryPoint: 'fs',
         targets: [{ format: HDR_FORMAT }],
       },
@@ -423,6 +495,30 @@ export class WebGPURenderer implements SceneRenderer {
         depthCompare: 'always',
       },
       multisample,
+    });
+
+    const postPL = d.createPipelineLayout({
+      bindGroupLayouts: [this.postLayout],
+    });
+    const downsample = d.createRenderPipeline({
+      layout: postPL,
+      vertex: { module: postfxMod, entryPoint: 'vs' },
+      fragment: {
+        module: postfxMod,
+        entryPoint: 'fs_down',
+        targets: [{ format: HDR_FORMAT }],
+      },
+      primitive: { topology: 'triangle-list' },
+    });
+    const postfx = d.createRenderPipeline({
+      layout: postPL,
+      vertex: { module: postfxMod, entryPoint: 'vs' },
+      fragment: {
+        module: postfxMod,
+        entryPoint: 'fs_fx',
+        targets: [{ format: HDR_FORMAT }],
+      },
+      primitive: { topology: 'triangle-list' },
     });
 
     const starInstanceLayout: GPUVertexBufferLayout = {
@@ -702,7 +798,7 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    this.pipelines = { nebula, planet, sun, sunCorona, ring, star, satellite, poi, poiLine, flightPath, composite, wireframe, atmosphere, clouds, aurora };
+    this.pipelines = { nebula, backdrop, downsample, postfx, planet, sun, sunCorona, ring, star, satellite, poi, poiLine, flightPath, composite, wireframe, atmosphere, clouds, aurora };
   }
 
   private buildStars(count: number): void {
@@ -738,11 +834,12 @@ export class WebGPURenderer implements SceneRenderer {
     this.starCount = count;
   }
 
-  resize(width: number, height: number): void {
+  resize(width: number, height: number, dpr = 1): void {
     width = Math.max(1, Math.floor(width));
     height = Math.max(1, Math.floor(height));
     this.width = width;
     this.height = height;
+    this.dpr = dpr > 0 ? dpr : 1;
     this.canvas.width = width;
     this.canvas.height = height;
 
@@ -777,12 +874,79 @@ export class WebGPURenderer implements SceneRenderer {
     });
     this.depthView = this.depthTex.createView();
 
-    this.compositeBG = this.device.createBindGroup({
+    this.ensureAuxTargets(true);
+  }
+
+  // Size of a reduced-resolution helper target. `scale` is expressed in CSS
+  // pixels so a 2x-DPR display gets the same backdrop/FX resolution as a 1x
+  // one — these targets carry only low-frequency detail, so spending device
+  // pixels on them is pure waste on high-DPI screens.
+  private auxSize(scale: number): [number, number] {
+    const s = Math.max(0.1, Math.min(1, scale)) / this.dpr;
+    return [
+      Math.max(1, Math.min(this.width, Math.round(this.width * s))),
+      Math.max(1, Math.min(this.height, Math.round(this.height * s))),
+    ];
+  }
+
+  // (Re)creates the backdrop and post-FX targets whenever the viewport or the
+  // active quality tier's resolution scales change, then rebuilds every bind
+  // group that references them.
+  private ensureAuxTargets(force = false): void {
+    const [bw, bh] = this.auxSize(this.backdropScale);
+    const [fw, fh] = this.auxSize(this.postScale);
+    if (!force && bw === this.backdropW && bh === this.backdropH && fw === this.fxW && fh === this.fxH) {
+      return;
+    }
+    const d = this.device;
+    const usage =
+      GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
+
+    this.backdropTex?.destroy();
+    this.backdropTex = d.createTexture({ size: [bw, bh], format: HDR_FORMAT, usage });
+    this.backdropView = this.backdropTex.createView();
+    this.backdropW = bw;
+    this.backdropH = bh;
+
+    this.fxSrcTex?.destroy();
+    this.fxTex?.destroy();
+    this.fxSrcTex = d.createTexture({ size: [fw, fh], format: HDR_FORMAT, usage });
+    this.fxSrcView = this.fxSrcTex.createView();
+    this.fxTex = d.createTexture({ size: [fw, fh], format: HDR_FORMAT, usage });
+    this.fxView = this.fxTex.createView();
+    this.fxW = fw;
+    this.fxH = fh;
+
+    this.backdropBG = d.createBindGroup({
+      layout: this.blitLayout,
+      entries: [
+        { binding: 0, resource: this.sampler },
+        { binding: 1, resource: this.backdropView },
+      ],
+    });
+    this.downsampleBG = d.createBindGroup({
+      layout: this.postLayout,
+      entries: [
+        { binding: 0, resource: { buffer: this.postUBO } },
+        { binding: 1, resource: this.sampler },
+        { binding: 2, resource: this.hdrView },
+      ],
+    });
+    this.fxBG = d.createBindGroup({
+      layout: this.postLayout,
+      entries: [
+        { binding: 0, resource: { buffer: this.postUBO } },
+        { binding: 1, resource: this.sampler },
+        { binding: 2, resource: this.fxSrcView },
+      ],
+    });
+    this.compositeBG = d.createBindGroup({
       layout: this.compositeLayout,
       entries: [
         { binding: 0, resource: { buffer: this.postUBO } },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: this.hdrView },
+        { binding: 3, resource: this.fxView },
       ],
     });
   }
@@ -795,7 +959,7 @@ export class WebGPURenderer implements SceneRenderer {
     if (n === this.sampleCount) return;
     this.sampleCount = n;
     this.createPipelines(n);
-    this.resize(this.width, this.height);
+    this.resize(this.width, this.height, this.dpr);
   }
 
   private writeObject(
@@ -850,7 +1014,10 @@ export class WebGPURenderer implements SceneRenderer {
     const d = this.device;
     this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
 
+    this.backdropScale = frame.quality.backdropScale;
+    this.postScale = frame.quality.postScale;
     this.ensureSampleCount(frame.quality.msaa);
+    this.ensureAuxTargets();
 
     // Frame uniform.
     const f = this.frameScratch;
@@ -889,13 +1056,13 @@ export class WebGPURenderer implements SceneRenderer {
       f[o + 3] = 0;
     }
     f[60] = sCount;
-    // shadowMisc.y: low-tier flag (1.0 on the 'low' quality tier, else 0.0).
-    // Heavy fullscreen / per-surface procedural shaders read this to drop to a
-    // cheaper path (fewer raymarch steps, single flow-field sample) on the low
-    // tier, where fragment throughput is the bottleneck — pronounced on macOS
+    // shadowMisc.y: quality tier index (0 = high, 1 = med, 2 = low). Heavy
+    // procedural shaders read this to drop to cheaper paths (fewer raymarch
+    // steps, fewer fbm octaves, single flow-field sample) on weaker tiers,
+    // where fragment throughput is the bottleneck — pronounced on macOS
     // (Metal/Dawn). The branch is uniform across the draw, so it's coherent and
     // divergence-free.
-    f[61] = frame.quality.tier === 'low' ? 1 : 0;
+    f[61] = frame.quality.tier === 'low' ? 2 : frame.quality.tier === 'med' ? 1 : 0;
     f[62] = 0;
     f[63] = 0;
     // invViewProj for the nebula backdrop (and any other fullscreen pass that
@@ -1137,14 +1304,41 @@ export class WebGPURenderer implements SceneRenderer {
     post[3] = lowNoPost ? 0 : (frame.quality.bloomMips > 0 ? 0.8 : 0);
     post[4] = 1 / this.width;
     post[5] = 1 / this.height;
+    post[6] = 1 / this.fxW;
+    post[7] = 1 / this.fxH;
     const flare = computeSunFlare(frame);
     post[8] = flare.u;
     post[9] = flare.v;
     post[10] = lowNoPost ? 0 : flare.strength;
     post[11] = this.width / this.height;
+    // Skip the downsample + FX passes entirely when nothing in the FX layer
+    // would contribute (the low tier disables post-processing wholesale).
+    const fxEnabled = post[0] > 0.001 || post[3] > 0.001 || post[10] > 0.001;
+    post[12] = fxEnabled ? 1 : 0;
     d.queue.writeBuffer(this.postUBO, 0, post);
 
     const encoder = d.createCommandEncoder();
+
+    // Nebula backdrop into its own reduced-resolution target. Its raymarch is
+    // the heaviest per-pixel shader in the scene and carries no high-frequency
+    // detail, so rendering it small and upsampling is the single largest
+    // fill-rate saving available.
+    const backdropPass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.backdropView,
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    backdropPass.setPipeline(this.pipelines.nebula);
+    backdropPass.setBindGroup(0, this.frameBG);
+    backdropPass.draw(3);
+    backdropPass.end();
+    this.stats.drawCalls++;
+    this.stats.triangles += 1;
 
     // Scene pass into HDR. With MSAA, render into the multisampled target and
     // resolve into the single-sampled hdrTex that the composite pass samples.
@@ -1163,23 +1357,30 @@ export class WebGPURenderer implements SceneRenderer {
         view: this.depthView,
         depthClearValue: 1,
         depthLoadOp: 'clear',
-        depthStoreOp: 'store',
+        // Nothing reads depth after this pass, so discarding it keeps the
+        // (4x multisampled) depth buffer in tile memory on tile-based GPUs
+        // instead of flushing it to VRAM every frame.
+        depthStoreOp: 'discard',
       },
     });
 
-    // Group 0 (per-frame uniforms) is invariant for the entire scene pass and
-    // its layout is shared by every pipeline used here, so bind it once instead
-    // of before every draw. Fewer setBindGroup calls = less encoder/driver
-    // overhead, which is disproportionately expensive on Metal/Dawn (macOS).
-    scenePass.setBindGroup(0, this.frameBG);
-
-    // Nebula.
-    scenePass.setPipeline(this.pipelines.nebula);
+    // Backdrop upsample — replaces the fullscreen nebula draw that used to
+    // open this pass.
+    scenePass.setPipeline(this.pipelines.backdrop);
+    scenePass.setBindGroup(0, this.backdropBG);
     scenePass.draw(3);
     this.stats.drawCalls++;
     this.stats.triangles += 1;
 
-    // Stars.
+    // Group 0 (per-frame uniforms) is invariant for the rest of the scene pass
+    // and its layout is shared by every pipeline used here, so bind it once
+    // instead of before every draw. Fewer setBindGroup calls = less encoder/
+    // driver overhead, which is disproportionately expensive on Metal/Dawn.
+    scenePass.setBindGroup(0, this.frameBG);
+
+    // Stars. Kept at native resolution: they're the one part of the backdrop
+    // with pixel-scale detail, and thousands of tiny sprites cost far less
+    // than a fullscreen procedural shader.
     if (frame.quality.starCount > 0 && this.starCount > 0) {
       const drawStars = Math.min(this.starCount, frame.quality.starCount);
       scenePass.setPipeline(this.pipelines.star);
@@ -1388,6 +1589,45 @@ export class WebGPURenderer implements SceneRenderer {
 
     scenePass.end();
 
+    // Reduced-resolution post chain. Bloom, god rays, the lens flare and the
+    // modal freeze-blur are all wide, low-frequency filters with high tap
+    // counts (89+ samples per pixel between them), so running them at native
+    // resolution dominates frame time on fill-rate limited GPUs. Downsample the
+    // scene once, then evaluate them all against that small source.
+    if (fxEnabled) {
+      const downPass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.fxSrcView,
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      });
+      downPass.setPipeline(this.pipelines.downsample);
+      downPass.setBindGroup(0, this.downsampleBG);
+      downPass.draw(3);
+      downPass.end();
+      this.stats.drawCalls++;
+
+      const fxPass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.fxView,
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      });
+      fxPass.setPipeline(this.pipelines.postfx);
+      fxPass.setBindGroup(0, this.fxBG);
+      fxPass.draw(3);
+      fxPass.end();
+      this.stats.drawCalls++;
+    }
+
     // Composite pass to swapchain.
     const view = this.context.getCurrentTexture().createView();
     const compositePass = encoder.beginRenderPass({
@@ -1560,8 +1800,10 @@ export class WebGPURenderer implements SceneRenderer {
     const hdr = this.width * this.height * 8;
     const depth = this.width * this.height * 4 * this.sampleCount;
     const msaa = this.sampleCount > 1 ? hdr * this.sampleCount : 0;
+    const backdrop = this.backdropW * this.backdropH * 8;
+    const fx = this.fxW * this.fxH * 8 * 2;
     const stars = this.starCount * 7 * 4;
-    return (hdr * 2 + msaa + depth + stars) / (1024 * 1024);
+    return (hdr * 2 + msaa + depth + backdrop + fx + stars) / (1024 * 1024);
   }
 
   getStats(): RenderStats {
@@ -1576,6 +1818,9 @@ export class WebGPURenderer implements SceneRenderer {
     this.hdrTex?.destroy();
     this.msaaTex?.destroy();
     this.depthTex?.destroy();
+    this.backdropTex?.destroy();
+    this.fxSrcTex?.destroy();
+    this.fxTex?.destroy();
     this.starBuf?.destroy();
     this.satelliteBuf?.destroy();
     this.poiBuf?.destroy();

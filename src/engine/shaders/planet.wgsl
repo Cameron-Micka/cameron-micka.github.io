@@ -379,7 +379,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // static marble with a single surfaceMarble call. surfaceMarble is the
   // heaviest per-pixel function on the planet, so halving it is a sizeable
   // low-tier win on macOS; the streaming motion it drops is subtle on low.
-  let lowTier = frame.shadowMisc.y > 0.5;
+  let lowTier = frame.shadowMisc.y > 1.5;
   if (obj.p2.y > 0.5 && !lowTier) {
     let rm = frame.misc.y;
     let speed = select(0.16, 0.0, rm > 0.5);

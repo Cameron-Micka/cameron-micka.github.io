@@ -10,6 +10,8 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     bloomMips: 3,
     msaa: 4,
     shadows: true,
+    backdropScale: 0.4,
+    postScale: 0.5,
   },
   med: {
     tier: 'med',
@@ -20,6 +22,8 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     bloomMips: 2,
     msaa: 4,
     shadows: true,
+    backdropScale: 0.35,
+    postScale: 0.5,
   },
   low: {
     tier: 'low',
@@ -30,6 +34,8 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     bloomMips: 0,
     msaa: 1,
     shadows: false,
+    backdropScale: 0.3,
+    postScale: 0.5,
   },
   webgl2: {
     tier: 'webgl2',
@@ -40,6 +46,8 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     bloomMips: 1,
     msaa: 1,
     shadows: false,
+    backdropScale: 1,
+    postScale: 1,
   },
 };
 

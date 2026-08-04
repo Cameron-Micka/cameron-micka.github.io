@@ -16,6 +16,15 @@ export interface QualitySettings {
   bloomMips: number;
   msaa: number; // MSAA sample count: 1 = off, 2, or 4
   shadows: boolean; // planet-cast shadows on other planets/rings/moons
+  // Resolution of the nebula backdrop target, as a fraction of CSS pixels
+  // (i.e. independent of devicePixelRatio). The nebula raymarch is by far the
+  // most expensive per-pixel shader and it's entirely low-frequency, so it is
+  // rendered small and bilinearly upsampled into the scene.
+  backdropScale: number;
+  // Resolution of the bloom / god-ray / modal-blur target, again as a fraction
+  // of CSS pixels. These are all wide, low-frequency filters with high tap
+  // counts, so running them at a fraction of native is nearly free visually.
+  postScale: number;
 }
 
 // Per-planet data the renderer needs to draw one planet (+ optional ring/moons).
