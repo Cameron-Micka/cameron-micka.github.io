@@ -131,39 +131,6 @@ float continentFbm(vec3 p){float v=0.,a=.6;for(int i=0;i<3;i++){v+=a*vnoise(p);p
 // get continuous Andes/Himalaya-like scars instead of noisy peaks.
 float ridgedFbm(vec3 p){float v=0.,a=.65;for(int i=0;i<2;i++){float n=vnoise(p);v+=a*(1.0-abs(n-0.5)*2.0);p*=2.1;a*=.5;}return v;}
 vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
-// --- Terrain relief (mirror of planet.wgsl) ------------------------------
-// Land elevation field: smooth fBm base for rolling hills plus a weathered
-// ridged term for mountain chains. ~[0,1], deliberately cheap since it is
-// sampled three times per land fragment. The ridge term uses a smoothstep
-// S-curve (rounds crests, lifts troughs) instead of a square (knife-edge
-// peaks), and the partial sqrt models sediment fill in the basins, so the
-// range reads as eroded over time rather than freshly uplifted.
-float terrainElevation(vec3 p){
-  float base=fbm(p*1.5);
-  float ridges=ridgedFbm(p*0.9);
-  float worn=ridges*ridges*(3.0-2.0*ridges);
-  float h=clamp(base*0.6+worn*0.4,0.0,1.0);
-  return mix(h,sqrt(h),0.45);
-}
-// Elevation gradient in the sphere's tangent plane (xyz = local-space
-// gradient, w = elevation at the shading point). True displacement is not an
-// option on a 48x64 UV sphere without re-tessellation, so this is the
-// fragment-side equivalent: sample the height field at the shading point plus
-// two small tangent offsets and rebuild the shading normal from the slope.
-vec4 terrainRelief(vec3 vn,vec3 sp,float eps){
-  vec3 up=abs(vn.y)>0.99?vec3(1.0,0.0,0.0):vec3(0.0,1.0,0.0);
-  vec3 t=normalize(cross(up,vn));
-  vec3 b=cross(vn,t);
-  float h0=terrainElevation(sp);
-  float ht=terrainElevation(sp+t*eps);
-  float hb=terrainElevation(sp+b*eps);
-  return vec4(t*(ht-h0)+b*(hb-h0),h0);
-}
-// Shading-normal tilt per unit finite difference. Kept low deliberately so
-// the relief reads as a subtle weathered texture rather than towering peaks
-// and bottomless valleys.
-const float RELIEF_STRENGTH=3.0;
-const float RELIEF_EPS=0.055;
 // --- Cook-Torrance PBR helpers (mirror of planet.wgsl) ---
 const float PI=3.14159265359;
 float dGGX(float NdH,float r){float a=r*r;float a2=a*a;float f=NdH*NdH*(a2-1.0)+1.0;return a2/(PI*f*f);}
@@ -365,41 +332,18 @@ void main(){
   float iceSelfShadow=1.0-iceCrease*smoothstep(0.0,0.75,dot(localPos,localLightDir))*0.28;
   vec3 iceColor=mix(vec3(0.88,0.93,0.98),vec3(0.48,0.70,0.92),iceBlue*0.85);
   base=mix(base,iceColor*iceSelfShadow,iceMask);
-  // Terrain relief (bump mapping): perturb the shading normal by the land
-  // elevation gradient so mountains and valleys are lit like real relief
-  // instead of flat paint. Water and ice keep the smooth sphere normal.
-  // fwidth needs uniform control flow, so the footprint is computed before
-  // the per-fragment land gate.
-  vec3 reliefFw=fwidth(sp);
-  float reliefFootprint=max(reliefFw.x,max(reliefFw.y,reliefFw.z));
-  // LOD fade: once a pixel spans more than the sampling offset the finite
-  // differences alias into speckle, so fade the bump out with distance.
-  float reliefLod=1.0-smoothstep(RELIEF_EPS,RELIEF_EPS*4.0,reliefFootprint);
-  float landMask=clamp((1.0-waterMask)*(1.0-iceMask),0.0,1.0);
-  vec3 N=n;
-  float reliefShade=1.0;
-  if(landMask>0.01 && reliefLod>0.001){
-    vec4 g=terrainRelief(localPos,sp,RELIEF_EPS);
-    float amount=landMask*reliefLod;
-    // Model matrix has uniform scale, so its normalized columns rotate the
-    // local-space gradient into world space.
-    vec3 gWorld=r0*g.x+r1*g.y+r2*g.z;
-    N=normalize(n-gWorld*(RELIEF_STRENGTH*amount));
-    // Cheap cavity term: valleys shade down, peaks catch a little more light.
-    reliefShade=mix(1.0,mix(0.90,1.05,smoothstep(0.25,0.85,g.w)),amount);
-  }
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
   // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere
   // triangle face, see planet.wgsl for the FWHM derivation); land = rough.
-  vec3 albedo=base*reliefShade;
+  vec3 albedo=base;
   float metallic=0.0;
   float roughness=mix(mix(0.92,0.35,waterMask),0.5,iceMask);
   vec3 F0base=mix(mix(vec3(0.04),vec3(0.02),waterMask),vec3(0.05,0.055,0.06),iceMask);
   vec3 F0=mix(F0base,albedo,metallic);
   vec3 L=lightDir;vec3 V=viewDir;vec3 H=normalize(L+V);
-  float NdL=clamp(dot(N,L),0.0,1.0);
-  float NdV=max(dot(N,V),1e-4);
-  float NdH=clamp(dot(N,H),0.0,1.0);
+  float NdL=clamp(dot(n,L),0.0,1.0);
+  float NdV=max(dot(n,V),1e-4);
+  float NdH=clamp(dot(n,H),0.0,1.0);
   float VdH=clamp(dot(V,H),0.0,1.0);
   float D=dGGX(NdH,roughness);
   float G=gSmith(NdV,NdL,roughness);

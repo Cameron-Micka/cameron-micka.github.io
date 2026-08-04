@@ -117,54 +117,6 @@ fn ridgedFbm(p : vec3<f32>) -> f32 {
   return v;
 }
 
-// --- Terrain relief -------------------------------------------------------
-// Land elevation field: a smooth fBm base for rolling hills plus a weathered
-// ridged term for mountain chains. Roughly [0,1]. Deliberately cheap (5 noise
-// octaves) because it is evaluated three times per land fragment.
-//
-// The ridge term is run through a smoothstep S-curve rather than squared: a
-// square sharpens crests and deepens troughs (young, knife-edge peaks),
-// whereas the S-curve rounds the crests and lifts the troughs, which is what
-// weathering does to a range over geological time. A partial sqrt on the
-// combined field then models sediment fill — debris shed from the high ground
-// settles in the basins, so the low end of the range is compressed toward a
-// common valley floor while summits stay roughly put. The net effect is
-// concave, worn slopes instead of raw fractal spikes.
-fn terrainElevation(p : vec3<f32>) -> f32 {
-  let base = fbm(p * 1.5);
-  let ridges = ridgedFbm(p * 0.9);
-  let worn = ridges * ridges * (3.0 - 2.0 * ridges);
-  let h = clamp(base * 0.6 + worn * 0.4, 0.0, 1.0);
-  return mix(h, sqrt(h), 0.45);
-}
-
-// Gradient of the elevation field in the sphere's tangent plane, returned as
-// xyz = local-space gradient vector, w = elevation at the shading point.
-// True displacement mapping is not an option here: the planet mesh is a
-// 48x64 UV sphere (see geometry.ts) and is far too coarse to resolve
-// mountain-scale detail without re-tessellation. This is the fragment-side
-// equivalent — sample the height field at the shading point plus two small
-// tangent offsets and rebuild the shading normal from the slope, so ridges
-// catch the sun and valleys fall into shadow for three noise taps and no
-// geometry cost. Mirror of PLANET_FRAG.
-fn terrainRelief(vn : vec3<f32>, sp : vec3<f32>, eps : f32) -> vec4<f32> {
-  // Arbitrary but stable orthonormal tangent frame around the surface normal.
-  let up = select(vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(1.0, 0.0, 0.0), abs(vn.y) > 0.99);
-  let t = normalize(cross(up, vn));
-  let b = cross(vn, t);
-  let h0 = terrainElevation(sp);
-  let ht = terrainElevation(sp + t * eps);
-  let hb = terrainElevation(sp + b * eps);
-  return vec4<f32>(t * (ht - h0) + b * (hb - h0), h0);
-}
-
-// Tilt applied to the shading normal per unit of (un-normalized) finite
-// difference. Kept low deliberately: at higher values the bump reads as
-// implausibly tall mountains and bottomless valleys on a body this size, so
-// the relief is meant to be a subtle texture rather than the dominant feature.
-const RELIEF_STRENGTH : f32 = 3.0;
-const RELIEF_EPS : f32 = 0.055;
-
 // --- Cook-Torrance PBR helpers ---
 // Standard real-time GGX BRDF (Walter et al. 2007 / Karis 2013). Lets land
 // and water share one lighting path while their roughness/F0 alone shape the
@@ -505,34 +457,6 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let iceColor = mix(vec3<f32>(0.88, 0.93, 0.98), vec3<f32>(0.48, 0.70, 0.92), iceBlue * 0.85);
   let base2 = mix(base, iceColor * iceSelfShadow, iceMask);
 
-  // --- Terrain relief (bump mapping) ---
-  // Perturb the shading normal by the land elevation gradient so mountains
-  // and valleys are lit like real relief instead of reading as flat paint.
-  // Water and ice keep the smooth sphere normal. fwidth() must be evaluated
-  // in uniform control flow, so the footprint is computed before the
-  // per-fragment land gate below.
-  let reliefFw = fwidth(basePos);
-  let reliefFootprint = max(reliefFw.x, max(reliefFw.y, reliefFw.z));
-  // LOD fade: once a pixel spans more than the sampling offset the finite
-  // differences alias into shimmering speckle, so fade the bump out with
-  // distance / small planets.
-  let reliefLod = 1.0 - smoothstep(RELIEF_EPS, RELIEF_EPS * 4.0, reliefFootprint);
-  let landMask = clamp((1.0 - waterMask) * (1.0 - iceMask), 0.0, 1.0);
-  var N = n;
-  var reliefShade = 1.0;
-  if (landMask > 0.01 && reliefLod > 0.001) {
-    let g = terrainRelief(localPos, basePos, RELIEF_EPS);
-    let amount = landMask * reliefLod;
-    // Rotate the local-space tangent gradient into world space; the model
-    // matrix has uniform scale, so its normalized columns are the rotation.
-    let gWorld = r0 * g.x + r1 * g.y + r2 * g.z;
-    N = normalize(n - gWorld * (RELIEF_STRENGTH * amount));
-    // Cheap cavity term: valleys sit in their own shade and peaks catch a
-    // little extra light. Kept to a narrow range so it reads as gentle
-    // weathered relief rather than painted-on contrast.
-    reliefShade = mix(1.0, mix(0.90, 1.05, smoothstep(0.25, 0.85, g.w)), amount);
-  }
-
   // --- Cook-Torrance PBR direct lighting from the key sun ---
   // Per-pixel material: water is a smooth-ish dielectric (moderate roughness,
   // low F0 ~ water IOR 1.33 -> F0 0.02); land is a rough dielectric (high
@@ -544,7 +468,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // 48x64 mesh; see geometry.ts). Below ~0.30 the highlight gets sharp
   // enough that its sub-triangle peak snaps to mesh seams, producing a
   // visible polygonal/chevron kink right in the brightest pixels.
-  let albedo = base2 * reliefShade;
+  let albedo = base2;
   let metallic = 0.0;
   // Ice is a brighter, smoother dielectric than rough land but still matte
   // next to open water, so it gets its own roughness/F0 lerp layered on top of
@@ -556,9 +480,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let L = lightDir;
   let V = viewDir;
   let H = normalize(L + V);
-  let NdL = clamp(dot(N, L), 0.0, 1.0);
-  let NdV = max(dot(N, V), 1e-4);
-  let NdH = clamp(dot(N, H), 0.0, 1.0);
+  let NdL = clamp(dot(n, L), 0.0, 1.0);
+  let NdV = max(dot(n, V), 1e-4);
+  let NdH = clamp(dot(n, H), 0.0, 1.0);
   let VdH = clamp(dot(V, H), 0.0, 1.0);
 
   let D = dGGX(NdH, roughness);

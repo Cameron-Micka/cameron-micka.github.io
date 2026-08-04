@@ -9,7 +9,6 @@ import { BottomRibbon } from './BottomRibbon';
 import { PoiModal } from './PoiModal';
 import { SettingsPanel } from './SettingsPanel';
 import { DebugHud } from './DebugHud';
-import { recordError } from './errorLog';
 import { UI } from './strings';
 
 function SoundBridge() {
@@ -119,9 +118,7 @@ export function Experience({ companies }: { companies: Company[] }) {
     const eng = new Engine(canvas, companies);
     setEngine(eng);
     eng.start().catch((err: unknown) => {
-      const error = err instanceof Error ? err : new Error(String(err));
-      recordError('error', `Engine start failed: ${error.message}`, error.stack ?? '');
-      setStartError(error);
+      setStartError(err instanceof Error ? err : new Error(String(err)));
     });
     return () => eng.destroy();
   }, [companies]);
@@ -134,7 +131,7 @@ export function Experience({ companies }: { companies: Company[] }) {
           <div className="error-card">
             <h1>{UI.errorTitle}</h1>
             <p>{UI.errorBody}</p>
-            <pre>{startError.stack ?? startError.message}</pre>
+            <pre>{startError.message}</pre>
           </div>
         </div>
       )}
