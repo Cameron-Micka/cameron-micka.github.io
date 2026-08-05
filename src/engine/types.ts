@@ -112,6 +112,8 @@ export interface FrameState {
   blur: number;
   reducedMotion: boolean;
   wireframe: boolean;
+  // CRT lens curvature applied by the final present pass. 0 = flat.
+  crtBarrel: number;
   // Flat XYZ samples of the rocket trajectory polyline drawn through every
   // planet. Empty array means no flight path is rendered this frame.
   flightPath: Float32Array;

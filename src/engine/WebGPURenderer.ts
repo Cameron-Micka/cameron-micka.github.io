@@ -1315,6 +1315,7 @@ export class WebGPURenderer implements SceneRenderer {
     // would contribute (the low tier disables post-processing wholesale).
     const fxEnabled = post[0] > 0.001 || post[3] > 0.001 || post[10] > 0.001;
     post[12] = fxEnabled ? 1 : 0;
+    post[13] = frame.crtBarrel;
     d.queue.writeBuffer(this.postUBO, 0, post);
 
     const encoder = d.createCommandEncoder();

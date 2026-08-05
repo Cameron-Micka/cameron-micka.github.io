@@ -903,6 +903,7 @@ in vec2 vUv;
 uniform sampler2D uScene;
 uniform vec3 uFlare;   // xy = sun screen uv, z = strength
 uniform float uAspect; // width / height
+uniform float uBarrel; // CRT lens curvature, 0 = flat
 out vec4 frag;
 // Deep-space lens flare (mu6k 4sX3Rs): chromatic ghost discs through screen
 // centre and reflection halos. uv/pos centred + aspect.
@@ -958,10 +959,20 @@ vec3 godRays(vec2 uv){
   }
   return vec3(acc)*(exposure*uFlare.z)*vec3(1.0,0.92,0.78);
 }
+// CRT lens curvature: bow the sample coordinates outward with r^2, then divide
+// by the corner factor (r^2 = 0.5) so the corners still land exactly on the
+// frame edge and the warped image keeps filling the canvas.
+vec2 barrel(vec2 uv){
+  if(uBarrel<=0.0001) return uv;
+  vec2 c=uv-0.5;
+  float r2=dot(c,c);
+  return 0.5 + c*((1.0+uBarrel*r2)/(1.0+uBarrel*0.5));
+}
 void main(){
-  vec3 c = texture(uScene, vUv).rgb;
-  c += sunFlare(vUv);
-  c += godRays(vUv);
+  vec2 uv = barrel(vUv);
+  vec3 c = texture(uScene, uv).rgb;
+  c += sunFlare(uv);
+  c += godRays(uv);
   frag = vec4(pow(c, vec3(1.0/2.2)), 1.0);
 }`;
 
@@ -1570,7 +1581,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.corona = this.makeProgram(CORONA_VERT, CORONA_FRAG, [
       'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime', 'uReducedMotion',
     ]);
-    this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene', 'uFlare', 'uAspect']);
+    this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene', 'uFlare', 'uAspect', 'uBarrel']);
 
     await report(0.75, 'Building scene geometry…');
     this.buildSphere();
@@ -2400,6 +2411,7 @@ export class WebGL2Renderer implements SceneRenderer {
     const flare = computeSunFlare(frame);
     gl.uniform3f(this.present.uniforms.uFlare!, flare.u, flare.v, flare.strength);
     gl.uniform1f(this.present.uniforms.uAspect!, this.width / this.height);
+    gl.uniform1f(this.present.uniforms.uBarrel!, frame.crtBarrel);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.stats.drawCalls++;
   }

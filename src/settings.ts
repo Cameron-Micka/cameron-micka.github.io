@@ -12,6 +12,7 @@ export interface PersistedSettings {
   forceBackend: BackendPref;
   freeCamera: boolean;
   flightPath: boolean;
+  crt: boolean;
 }
 
 const KEY = 'cm-portfolio-settings';
@@ -24,6 +25,7 @@ const DEFAULTS: PersistedSettings = {
   forceBackend: 'auto',
   freeCamera: false,
   flightPath: true,
+  crt: true,
 };
 
 function isValidQuality(q: unknown): q is QualityPreference {
@@ -68,4 +70,11 @@ export function resolveReducedMotion(pref: ReducedMotionPref): boolean {
   if (pref === 'off') return false;
   if (typeof matchMedia === 'undefined') return false;
   return matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+// The CRT scanline/grain overlay lives on <body> pseudo-elements, so it is
+// toggled with a class on <html> rather than through React.
+export function applyCrt(on: boolean): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.toggle('crt-off', !on);
 }

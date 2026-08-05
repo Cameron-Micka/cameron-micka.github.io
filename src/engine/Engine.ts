@@ -31,6 +31,7 @@ import {
   loadSettings,
   saveSettings,
   resolveReducedMotion,
+  applyCrt,
   type PersistedSettings,
   type ReducedMotionPref,
   type BackendPref,
@@ -55,6 +56,7 @@ export interface EngineSnapshot {
   wireframe: boolean;
   freeCamera: boolean;
   flightPath: boolean;
+  crt: boolean;
   // Populated only while free camera is active. Yaw/pitch are in degrees;
   // yaw is normalized to (-180, 180].
   freeCameraState: {
@@ -100,6 +102,11 @@ const FLY_SPEED = 8;
 const FLY_VELOCITY_DAMP = 5; // half-life ~0.14s → noticeable but snappy momentum
 const LOOK_SENSITIVITY = 0.0025; // rad / px
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
+
+// Barrel distortion of the presented frame. Renormalized against the corner
+// radius in the shader, so this is roughly the fraction of the image lost at
+// the middle of each edge.
+const CRT_BARREL = 0.08;
 
 // Normalize a yaw in degrees to (-180, 180]. Used for HUD readout.
 function normalizeYawDeg(deg: number): number {
@@ -566,6 +573,7 @@ export class Engine {
       blur: this.blurCurrent,
       reducedMotion: this.reducedMotion(),
       wireframe: this.settings.wireframe,
+      crtBarrel: this.settings.crt ? CRT_BARREL : 0,
       flightPath: this.settings.flightPath ? this.flightPath : new Float32Array(0),
     };
     r.render(frame);
@@ -824,6 +832,14 @@ export class Engine {
     this.commit();
   }
 
+  setCrt(on: boolean): void {
+    if (this.settings.crt === on) return;
+    this.settings.crt = on;
+    saveSettings(this.settings);
+    applyCrt(on);
+    this.commit();
+  }
+
   // ---- helpers ----
 
   private reducedMotion(): boolean {
@@ -914,6 +930,7 @@ export class Engine {
       freeCamera: this.settings.freeCamera,
       freeCameraState,
       flightPath: this.settings.flightPath,
+      crt: this.settings.crt,
       stats: { ...stats, fps: Math.round(this.fps) },
     };
   }

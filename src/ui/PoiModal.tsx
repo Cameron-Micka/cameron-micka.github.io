@@ -212,7 +212,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
         <div className="modal-content">
           <div className="eyebrow">{company.name}</div>
           <h2 id="poi-title">
-            {poiIndex + 1}. {poi.title}
+            <span className="poi-index">{poiIndex + 1}.</span> {poi.title}
           </h2>
           <div className="body">
             <Markdown text={poi.body} />
