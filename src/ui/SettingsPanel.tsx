@@ -58,16 +58,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="row">
-        <label htmlFor="set-crt">CRT</label>
-        <input
-          id="set-crt"
-          type="checkbox"
-          checked={s.crt}
-          onChange={(e) => engine.setCrt(e.target.checked)}
-        />
-      </div>
-
-      <div className="row">
         <label htmlFor="set-debug">Debug HUD</label>
         <input
           id="set-debug"
@@ -84,6 +74,16 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           type="checkbox"
           checked={s.wireframe}
           onChange={(e) => engine.setWireframe(e.target.checked)}
+        />
+      </div>
+
+      <div className="row">
+        <label htmlFor="set-crt">CRT</label>
+        <input
+          id="set-crt"
+          type="checkbox"
+          checked={s.crt}
+          onChange={(e) => engine.setCrt(e.target.checked)}
         />
       </div>
 
