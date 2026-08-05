@@ -18,6 +18,8 @@ const HALF_THICK : f32 = 0.0035;
 // Marker circle rim radius in NDC per unit of marker `size` (the billboard
 // draws its rim at uv radius 0.85).
 const CIRCLE_R : f32 = 0.85;
+// UI accent orange (--accent: #ff7a18) so connectors match the interface.
+const UI_ACCENT : vec3<f32> = vec3<f32>(1.0, 0.478, 0.094);
 
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
@@ -68,7 +70,7 @@ fn vs(
   let ndc = vec2<f32>(p.x / aspect, p.y);
   out.pos = vec4<f32>(ndc * w, z, w);
 
-  out.color = vec3<f32>(attribs.z, attribs.w, accentB);
+  out.color = UI_ACCENT;
   // Brighter near the marker, faint where it meets the surface.
   out.alpha = attribs.y * select(0.25, 0.9, isOuter);
   out.edge = side;
