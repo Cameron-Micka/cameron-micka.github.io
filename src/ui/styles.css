@@ -1151,11 +1151,12 @@ a:hover {
   .ruler {
     display: none;
   }
-  .topnav .brand .role {
+  .topnav .brand {
     display: none;
   }
   .topnav {
     gap: 8px;
+    justify-content: flex-end;
   }
   .topnav nav {
     gap: 2px;
