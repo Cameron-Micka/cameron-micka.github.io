@@ -732,8 +732,8 @@ void main(){
   float fogA=exp(-s*s);
   // Ribbon fades with edge AA; the arrowhead fills solid.
   float a = vShape>0.5 ? 0.95*fogA : 0.85*cov*fogA;
-  // Traveling pulse sweeping start -> end; frozen for reduced motion.
-  float head = uReducedMotion>0.5 ? 0.0 : fract(uTime*PULSE_SPEED);
+  // Traveling pulse sweeping end -> start; frozen for reduced motion.
+  float head = uReducedMotion>0.5 ? 1.0 : 1.0-fract(uTime*PULSE_SPEED);
   float pulse = 1.0-smoothstep(0.0,PULSE_LEN,abs(vArc-head));
   float glow = vShape>0.5 ? 0.0 : pulse*fogA;
   vec3 rgb = vec3(0.75)*a + vec3(1.0,0.95,0.85)*glow*1.6;
