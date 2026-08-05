@@ -10,6 +10,8 @@ import {
   createRingGeometry,
   interleave,
   trianglesToLineIndices,
+  selectSphereLod,
+  SPHERE_LODS,
   type GeometryData,
 } from './geometry';
 import { mat4 } from './math/mat4';
@@ -89,10 +91,17 @@ export class WebGPURenderer implements SceneRenderer {
   private backdropScale = QUALITY_PRESETS.high.backdropScale;
   private postScale = QUALITY_PRESETS.high.postScale;
 
-  private sphere!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number; u32: boolean };
-  private moonSphere!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number; u32: boolean };
+  // One sphere mesh per LOD level (index 0 = finest). Bodies pick a level from
+  // their on-screen angular size, so distant planets/moons draw far fewer
+  // triangles while close-up bodies keep the original tessellation.
+  private sphereLods: {
+    vbuf: GPUBuffer;
+    ibuf: GPUBuffer;
+    count: number;
+    u32: boolean;
+  }[] = [];
+  private sphereLineLods: { ibuf: GPUBuffer; count: number; u32: boolean }[] = [];
   private ring!: { vbuf: GPUBuffer; ibuf: GPUBuffer; count: number };
-  private sphereLines!: { ibuf: GPUBuffer; count: number; u32: boolean };
   private ringLines!: { ibuf: GPUBuffer; count: number };
   private quadBuf!: GPUBuffer;
 
@@ -200,46 +209,31 @@ export class WebGPURenderer implements SceneRenderer {
 
   private createGeometry(): void {
     const d = this.device;
-    const sphereGeo = createSphere(48, 64);
-    const sphereData = interleave(sphereGeo);
-    const svb = d.createBuffer({
-      size: sphereData.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-    d.queue.writeBuffer(svb, 0, sphereData);
-    const sib = d.createBuffer({
-      size: sphereGeo.indices.byteLength,
-      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-    });
-    d.queue.writeBuffer(sib, 0, sphereGeo.indices);
-    this.sphere = {
-      vbuf: svb,
-      ibuf: sib,
-      count: sphereGeo.indexCount,
-      u32: sphereGeo.indices instanceof Uint32Array,
-    };
-    this.sphereLines = this.createLineIndexBuffer(sphereGeo);
-
-    // Low-resolution sphere for moons. They render small on screen, so the
-    // full planet tessellation is wasteful; a coarse mesh reads identically.
-    const moonGeo = createSphere(16, 24);
-    const moonData = interleave(moonGeo);
-    const mvb = d.createBuffer({
-      size: moonData.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-    d.queue.writeBuffer(mvb, 0, moonData);
-    const mib = d.createBuffer({
-      size: moonGeo.indices.byteLength,
-      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-    });
-    d.queue.writeBuffer(mib, 0, moonGeo.indices);
-    this.moonSphere = {
-      vbuf: mvb,
-      ibuf: mib,
-      count: moonGeo.indexCount,
-      u32: moonGeo.indices instanceof Uint32Array,
-    };
+    // Build every sphere LOD up front (they are tiny and static). Moons and
+    // distant planets simply bind a coarser level at draw time.
+    this.sphereLods = [];
+    this.sphereLineLods = [];
+    for (const [latBands, lonBands] of SPHERE_LODS) {
+      const geo = createSphere(latBands, lonBands);
+      const data = interleave(geo);
+      const vb = d.createBuffer({
+        size: data.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+      d.queue.writeBuffer(vb, 0, data);
+      const ib = d.createBuffer({
+        size: geo.indices.byteLength,
+        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+      });
+      d.queue.writeBuffer(ib, 0, geo.indices);
+      this.sphereLods.push({
+        vbuf: vb,
+        ibuf: ib,
+        count: geo.indexCount,
+        u32: geo.indices instanceof Uint32Array,
+      });
+      this.sphereLineLods.push(this.createLineIndexBuffer(geo));
+    }
 
     const ringGeo = createRingGeometry();
     const ringData = interleave(ringGeo);
@@ -1073,7 +1067,7 @@ export class WebGPURenderer implements SceneRenderer {
     d.queue.writeBuffer(this.frameUBO, 0, f, 0, 80);
 
     // Build per-object uniforms + collect POI billboards.
-    const objects: { kind: number; index: number }[] = [];
+    const objects: { kind: number; index: number; lod: number }[] = [];
     const poiData: number[] = [];
     let objIndex = 0;
     const model = mat4.create();
@@ -1087,6 +1081,11 @@ export class WebGPURenderer implements SceneRenderer {
     const sunVisible = frame.frustum.intersectsSphere(
       frame.sun.center,
       frame.sun.radius * 1.6,
+    );
+    const sunLod = selectSphereLod(
+      frame.sun.center,
+      frame.sun.radius,
+      frame.cameraPos,
     );
     mat4.fromRotationTranslationScale(
       model,
@@ -1118,6 +1117,9 @@ export class WebGPURenderer implements SceneRenderer {
       const er = p.radius * vis;
       const rot = p.orientation;
       const cloudShadowStrength = p.clouds && !frame.wireframe ? vis : 0;
+      // One LOD per planet, shared by its atmosphere/cloud/aurora shells so
+      // the shells keep the same silhouette as the surface they wrap.
+      const planetLod = selectSphereLod(p.center, er, frame.cameraPos);
       mat4.fromRotationTranslationScale(model, rot, p.center, er);
       this.writeObject(
         objIndex,
@@ -1136,7 +1138,7 @@ export class WebGPURenderer implements SceneRenderer {
         p.cityLights ? 1 : 0,
         p.flowMap ? 1 : 0,
       );
-      objects.push({ kind: 0, index: objIndex });
+      objects.push({ kind: 0, index: objIndex, lod: planetLod });
       objIndex++;
 
       this.collectPois(p, poiData, er, vis);
@@ -1159,7 +1161,7 @@ export class WebGPURenderer implements SceneRenderer {
           1.4 * vis,
           0,
         );
-        objects.push({ kind: 4, index: objIndex });
+        objects.push({ kind: 4, index: objIndex, lod: planetLod });
         objIndex++;
       }
 
@@ -1182,7 +1184,7 @@ export class WebGPURenderer implements SceneRenderer {
           1.0 * vis, // p1.y = intensity
           0,
         );
-        objects.push({ kind: 6, index: objIndex });
+        objects.push({ kind: 6, index: objIndex, lod: planetLod });
         objIndex++;
       }
 
@@ -1208,7 +1210,7 @@ export class WebGPURenderer implements SceneRenderer {
           0,             // p1.z = unused for clouds
           vis,           // p1.w = visibility (overload, normally oceans flag)
         );
-        objects.push({ kind: 5, index: objIndex });
+        objects.push({ kind: 5, index: objIndex, lod: planetLod });
         objIndex++;
       }
 
@@ -1235,7 +1237,7 @@ export class WebGPURenderer implements SceneRenderer {
           0,
           p.thinRing ? 1 : 0,
         );
-        objects.push({ kind: 2, index: objIndex });
+        objects.push({ kind: 2, index: objIndex, lod: planetLod });
         objIndex++;
       }
 
@@ -1267,6 +1269,7 @@ export class WebGPURenderer implements SceneRenderer {
           rot,
           quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
         );
+        const moonLod = selectSphereLod(moonCenter, moonR, frame.cameraPos);
         mat4.fromRotationTranslationScale(model, moonRot, moonCenter, moonR);
         this.writeObject(
           objIndex,
@@ -1282,7 +1285,7 @@ export class WebGPURenderer implements SceneRenderer {
           0,
           0,
         );
-        objects.push({ kind: 3, index: objIndex });
+        objects.push({ kind: 3, index: objIndex, lod: moonLod });
         objIndex++;
       }
     }
@@ -1394,31 +1397,53 @@ export class WebGPURenderer implements SceneRenderer {
       this.stats.triangles += drawStars * 2;
     }
 
+    // Sphere LOD binding helpers. `boundLod` tracks which LOD mesh (and which
+    // index list — triangles vs. wireframe edges) is currently bound so the
+    // common case of consecutive draws at the same LOD costs no extra calls.
+    // Set to -1 whenever a non-sphere vertex buffer is bound.
+    let boundLod = -1;
+    let boundLines = false;
+    const bindSphere = (lod: number) => {
+      if (boundLod === lod && !boundLines) return;
+      const mesh = this.sphereLods[lod]!;
+      scenePass.setVertexBuffer(0, mesh.vbuf);
+      scenePass.setIndexBuffer(mesh.ibuf, mesh.u32 ? 'uint32' : 'uint16');
+      boundLod = lod;
+      boundLines = false;
+    };
+    const bindSphereLines = (lod: number) => {
+      if (boundLod === lod && boundLines) return;
+      const mesh = this.sphereLods[lod]!;
+      const lines = this.sphereLineLods[lod]!;
+      scenePass.setVertexBuffer(0, mesh.vbuf);
+      scenePass.setIndexBuffer(lines.ibuf, lines.u32 ? 'uint32' : 'uint16');
+      boundLod = lod;
+      boundLines = true;
+    };
+
     if (frame.wireframe) {
       // Debug wireframe: draw every mesh as edges instead of filled surfaces.
       scenePass.setPipeline(this.pipelines.wireframe);
-      scenePass.setVertexBuffer(0, this.sphere.vbuf);
-      scenePass.setIndexBuffer(
-        this.sphereLines.ibuf,
-        this.sphereLines.u32 ? 'uint32' : 'uint16',
-      );
       // Sun body as wireframe (drawn separately from `objects`, like the filled
       // path below). Skipped when the sun is off screen.
       if (sunVisible) {
+        bindSphereLines(sunLod);
         scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.sphereLines.count);
+        scenePass.drawIndexed(this.sphereLineLods[sunLod]!.count);
         this.stats.drawCalls++;
       }
       for (const o of objects) {
         if (o.kind === 2) continue; // rings use their own mesh below
+        bindSphereLines(o.lod);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.sphereLines.count);
+        scenePass.drawIndexed(this.sphereLineLods[o.lod]!.count);
         this.stats.drawCalls++;
       }
       let wireRingBound = false;
       for (const o of objects) {
         if (o.kind !== 2) continue;
         if (!wireRingBound) {
+          boundLod = -1;
           scenePass.setVertexBuffer(0, this.ring.vbuf);
           scenePass.setIndexBuffer(this.ringLines.ibuf, 'uint16');
           wireRingBound = true;
@@ -1428,54 +1453,27 @@ export class WebGPURenderer implements SceneRenderer {
         this.stats.drawCalls++;
       }
     } else {
-      // Opaque planets.
-      scenePass.setVertexBuffer(0, this.sphere.vbuf);
-      scenePass.setIndexBuffer(
-        this.sphere.ibuf,
-        this.sphere.u32 ? 'uint32' : 'uint16',
-      );
-
-      // Sun body (opaque, emissive). Sphere mesh already bound. Skipped when the
-      // sun lies outside the view frustum.
+      // Sun body (opaque, emissive). Skipped when the sun lies outside the
+      // view frustum.
       if (sunVisible) {
+        bindSphere(sunLod);
         scenePass.setPipeline(this.pipelines.sun);
         scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.sphere.count);
+        scenePass.drawIndexed(this.sphereLods[sunLod]!.count);
         this.stats.drawCalls++;
-        this.stats.triangles += this.sphere.count / 3;
+        this.stats.triangles += this.sphereLods[sunLod]!.count / 3;
       }
 
+      // Opaque planets, then moons — same pipeline, each at its own LOD.
       for (const o of objects) {
-        if (o.kind !== 0) continue;
+        if (o.kind !== 0 && o.kind !== 3) continue;
+        bindSphere(o.lod);
         scenePass.setPipeline(this.pipelines.planet);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.sphere.count);
+        scenePass.drawIndexed(this.sphereLods[o.lod]!.count);
         this.stats.drawCalls++;
-        this.stats.triangles += this.sphere.count / 3;
+        this.stats.triangles += this.sphereLods[o.lod]!.count / 3;
       }
-
-      // Opaque moons — same planet pipeline but a coarser sphere mesh.
-      scenePass.setVertexBuffer(0, this.moonSphere.vbuf);
-      scenePass.setIndexBuffer(
-        this.moonSphere.ibuf,
-        this.moonSphere.u32 ? 'uint32' : 'uint16',
-      );
-      for (const o of objects) {
-        if (o.kind !== 3) continue;
-        scenePass.setPipeline(this.pipelines.planet);
-        scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.moonSphere.count);
-        this.stats.drawCalls++;
-        this.stats.triangles += this.moonSphere.count / 3;
-      }
-
-      // Rebind the full-res sphere for the cloud/atmosphere shell passes below,
-      // which expect planet-tessellation vertices + indices on slot 0.
-      scenePass.setVertexBuffer(0, this.sphere.vbuf);
-      scenePass.setIndexBuffer(
-        this.sphere.ibuf,
-        this.sphere.u32 ? 'uint32' : 'uint16',
-      );
 
       // Satellite point-sprites — pin-pricks orbiting each planet. Drawn after
       // the opaque planet+moon pass so depth test correctly hides satellites
@@ -1484,6 +1482,7 @@ export class WebGPURenderer implements SceneRenderer {
       const satCount = this.uploadSatellites(frame);
       if (satCount > 0) {
         scenePass.setPipeline(this.pipelines.satellite);
+        boundLod = -1;
         scenePass.setVertexBuffer(0, this.quadBuf);
         scenePass.setVertexBuffer(1, this.satelliteBuf);
         scenePass.draw(6, satCount);
@@ -1493,39 +1492,41 @@ export class WebGPURenderer implements SceneRenderer {
         // atmosphere passes — which expect sphere vertices on slot 0 — don't
         // read the quad billboard buffer. Slot 1 (satellite instances) is
         // ignored by those pipelines since their layout doesn't declare it.
-        scenePass.setVertexBuffer(0, this.sphere.vbuf);
       }
 
       // Cloud shells (alpha blended) — between the opaque planet and the
       // additive atmosphere so haze can still glow over the cloud silhouette.
       for (const o of objects) {
         if (o.kind !== 5) continue;
+        bindSphere(o.lod);
         scenePass.setPipeline(this.pipelines.clouds);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.sphere.count);
+        scenePass.drawIndexed(this.sphereLods[o.lod]!.count);
         this.stats.drawCalls++;
-        this.stats.triangles += this.sphere.count / 3;
+        this.stats.triangles += this.sphereLods[o.lod]!.count / 3;
       }
 
       // Atmospheric scattering shells (additive). Sphere mesh is still bound.
       for (const o of objects) {
         if (o.kind !== 4) continue;
+        bindSphere(o.lod);
         scenePass.setPipeline(this.pipelines.atmosphere);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.sphere.count);
+        scenePass.drawIndexed(this.sphereLods[o.lod]!.count);
         this.stats.drawCalls++;
-        this.stats.triangles += this.sphere.count / 3;
+        this.stats.triangles += this.sphereLods[o.lod]!.count / 3;
       }
 
       // Auroral shells (additive). Drawn after the atmosphere so the curtains
       // glow above the haze. Sphere mesh is still bound.
       for (const o of objects) {
         if (o.kind !== 6) continue;
+        bindSphere(o.lod);
         scenePass.setPipeline(this.pipelines.aurora);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.sphere.count);
+        scenePass.drawIndexed(this.sphereLods[o.lod]!.count);
         this.stats.drawCalls++;
-        this.stats.triangles += this.sphere.count / 3;
+        this.stats.triangles += this.sphereLods[o.lod]!.count / 3;
       }
 
       // Sun corona (additive billboard). Drawn after atmosphere shells but
@@ -1535,6 +1536,7 @@ export class WebGPURenderer implements SceneRenderer {
       if (sunVisible) {
         scenePass.setPipeline(this.pipelines.sunCorona);
         scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
+        boundLod = -1;
         scenePass.setVertexBuffer(0, this.quadBuf);
         scenePass.draw(6);
         this.stats.drawCalls++;
@@ -1546,6 +1548,7 @@ export class WebGPURenderer implements SceneRenderer {
       for (const o of objects) {
         if (o.kind !== 2) continue;
         if (!ringBound) {
+          boundLod = -1;
           scenePass.setVertexBuffer(0, this.ring.vbuf);
           scenePass.setIndexBuffer(this.ring.ibuf, 'uint16');
           ringBound = true;
