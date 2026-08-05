@@ -502,8 +502,8 @@ a:hover {
   left: 50%;
   /* The rule is 4px tall and starts at the top of the ribbon. */
   top: 2px;
-  width: clamp(17px, 3.2vw, 26px);
-  height: clamp(17px, 3.2vw, 26px);
+  width: clamp(21px, 3.9vw, 32px);
+  height: clamp(21px, 3.9vw, 32px);
   transform: translate(-50%, -50%);
 }
 .ribbon .role {
