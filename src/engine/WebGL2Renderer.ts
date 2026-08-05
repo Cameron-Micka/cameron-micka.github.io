@@ -637,6 +637,8 @@ const FLIGHT_VERT = `#version 300 es
 layout(location=0) in vec3 aPrev;
 layout(location=1) in vec3 aNext;
 layout(location=2) in float aKind; // 0 = ribbon segment, 1 = arrowhead
+layout(location=3) in float aArcPrev; // normalized arc length at prev
+layout(location=4) in float aArcNext; // normalized arc length at next
 uniform mat4 uViewProj;
 uniform float uAspect;
 uniform float uThick; // half-thickness in aspect-corrected NDC
@@ -644,6 +646,7 @@ out float vEdge;
 out vec3 vWorld;
 out float vAxial;
 out float vShape; // 0 = ribbon, 1 = arrowhead
+out float vArc; // normalized 0..1 distance along the whole path
 const float ARROW_LEN = 0.024;
 const float ARROW_HALF = 0.013;
 void main(){
@@ -669,6 +672,7 @@ void main(){
     vWorld = aPrev;
     vAxial = 1.0;
     vShape = 1.0;
+    vArc = aArcPrev;
     return;
   }
   const float ends[6]  = float[6](0.0, 1.0, 1.0, 0.0, 1.0, 0.0);
@@ -685,6 +689,7 @@ void main(){
   vWorld = isEnd ? aNext : aPrev;
   vAxial = ends[vid];
   vShape = 0.0;
+  vArc = isEnd ? aArcNext : aArcPrev;
 }`;
 
 const FLIGHT_FRAG = `#version 300 es
@@ -693,10 +698,16 @@ in float vEdge;
 in vec3 vWorld;
 in float vAxial;
 in float vShape;
+in float vArc;
 uniform vec3 uCamera;
 uniform float uWireframe;
+uniform float uTime;
+uniform float uReducedMotion;
 out vec4 frag;
 const float FOG_DENSITY=0.018;
+// Traveling light pulse: half-length in normalized arc length, loops/second.
+const float PULSE_LEN=0.012;
+const float PULSE_SPEED=0.09;
 void main(){
   if(uWireframe>0.5){
     // Wireframe debug: 4 quad edges + diagonal of each segment.
@@ -721,7 +732,12 @@ void main(){
   float fogA=exp(-s*s);
   // Ribbon fades with edge AA; the arrowhead fills solid.
   float a = vShape>0.5 ? 0.95*fogA : 0.85*cov*fogA;
-  frag=vec4(vec3(0.75)*a,a);
+  // Traveling pulse sweeping start -> end; frozen for reduced motion.
+  float head = uReducedMotion>0.5 ? 0.0 : fract(uTime*PULSE_SPEED);
+  float pulse = 1.0-smoothstep(0.0,PULSE_LEN,abs(vArc-head));
+  float glow = vShape>0.5 ? 0.0 : pulse*fogA;
+  vec3 rgb = vec3(0.75)*a + vec3(1.0,0.95,0.85)*glow*1.6;
+  frag=vec4(rgb,min(1.0,a+glow*0.8));
 }`;
 
 const WIRE_FRAG = `#version 300 es
@@ -1575,7 +1591,8 @@ export class WebGL2Renderer implements SceneRenderer {
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
-      'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe',
+      'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe', 'uTime',
+      'uReducedMotion',
     ]);
     this.sun = this.makeProgram(PLANET_VERT, SUN_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uTime', 'uReducedMotion', 'uSeed',
@@ -2382,6 +2399,8 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform1f(this.flight.uniforms.uThick!, 0.0045);
       gl.uniform3fv(this.flight.uniforms.uCamera!, frame.cameraPos);
       gl.uniform1f(this.flight.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
+      gl.uniform1f(this.flight.uniforms.uTime!, frame.time);
+      gl.uniform1f(this.flight.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
       gl.bindVertexArray(this.flightVao);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.flightSegments + 1);
       gl.depthMask(true);
@@ -2435,10 +2454,21 @@ export class WebGL2Renderer implements SceneRenderer {
       return;
     }
     const segments = points - 1;
+    // Cumulative arc length per point, normalized to 0..1, so the fragment
+    // shader can place a pulse at a constant world-space speed along the path.
+    const arc = new Float32Array(points);
+    for (let i = 1; i < points; i++) {
+      const dx = path[i * 3 + 0]! - path[(i - 1) * 3 + 0]!;
+      const dy = path[i * 3 + 1]! - path[(i - 1) * 3 + 1]!;
+      const dz = path[i * 3 + 2]! - path[(i - 1) * 3 + 2]!;
+      arc[i] = arc[i - 1]! + Math.hypot(dx, dy, dz);
+    }
+    const total = arc[points - 1]! || 1;
+    for (let i = 0; i < points; i++) arc[i] = arc[i]! / total;
     // One extra instance for the arrowhead at the end of the path.
-    const data = new Float32Array((segments + 1) * 7);
+    const data = new Float32Array((segments + 1) * 9);
     for (let i = 0; i < segments; i++) {
-      const o = i * 7;
+      const o = i * 9;
       data[o + 0] = path[i * 3 + 0]!;
       data[o + 1] = path[i * 3 + 1]!;
       data[o + 2] = path[i * 3 + 2]!;
@@ -2446,9 +2476,11 @@ export class WebGL2Renderer implements SceneRenderer {
       data[o + 4] = path[(i + 1) * 3 + 1]!;
       data[o + 5] = path[(i + 1) * 3 + 2]!;
       data[o + 6] = 0;
+      data[o + 7] = arc[i]!;
+      data[o + 8] = arc[i + 1]!;
     }
     // Arrowhead: prev = first point (start), next = second point.
-    const a = segments * 7;
+    const a = segments * 9;
     data[a + 0] = path[0]!;
     data[a + 1] = path[1]!;
     data[a + 2] = path[2]!;
@@ -2456,6 +2488,8 @@ export class WebGL2Renderer implements SceneRenderer {
     data[a + 4] = path[4]!;
     data[a + 5] = path[5]!;
     data[a + 6] = 1;
+    data[a + 7] = 0;
+    data[a + 8] = arc[1]!;
     if (this.flightBuf) gl.deleteBuffer(this.flightBuf);
     if (this.flightVao) gl.deleteVertexArray(this.flightVao);
     const vao = gl.createVertexArray()!;
@@ -2463,7 +2497,7 @@ export class WebGL2Renderer implements SceneRenderer {
     const buf = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-    const stride = 7 * 4;
+    const stride = 9 * 4;
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 3, gl.FLOAT, false, stride, 0);
     gl.vertexAttribDivisor(0, 1);
@@ -2473,6 +2507,12 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.enableVertexAttribArray(2);
     gl.vertexAttribPointer(2, 1, gl.FLOAT, false, stride, 24);
     gl.vertexAttribDivisor(2, 1);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 1, gl.FLOAT, false, stride, 28);
+    gl.vertexAttribDivisor(3, 1);
+    gl.enableVertexAttribArray(4);
+    gl.vertexAttribPointer(4, 1, gl.FLOAT, false, stride, 32);
+    gl.vertexAttribDivisor(4, 1);
     gl.bindVertexArray(null);
     this.flightVao = vao;
     this.flightBuf = buf;
