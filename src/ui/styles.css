@@ -496,15 +496,15 @@ a:hover {
   justify-content: center;
   gap: 0.42em;
 }
+/* Centered on the orange rule that sits above the company name. */
 .ribbon .company-logo {
-  width: 1em;
-  height: 1em;
-  flex: 0 0 auto;
-  display: inline-block;
-  vertical-align: middle;
-  /* Pull the logo down a hair so it sits on the type baseline rather than
-     the cap-height — visually centers next to weight-800 text. */
-  transform: translateY(0.05em);
+  position: absolute;
+  left: 50%;
+  /* The rule is 4px tall and starts at the top of the ribbon. */
+  top: 2px;
+  width: clamp(17px, 3.2vw, 26px);
+  height: clamp(17px, 3.2vw, 26px);
+  transform: translate(-50%, -50%);
 }
 .ribbon .role {
   color: var(--accent);
