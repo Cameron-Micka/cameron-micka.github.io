@@ -17,8 +17,8 @@ const HALF_THICK : f32 = 0.0045;
 // Arrowhead size (aspect-corrected NDC) drawn at the end of the path.
 const ARROW_LEN : f32 = 0.024;  // how far the tip extends past the end point
 const ARROW_HALF : f32 = 0.013; // half-width of the arrowhead base
-// Traveling light pulse: a small bright blob that runs from the start of the
-// path to the end and repeats. LEN is its half-length in normalized arc
+// Traveling light pulse: a small bright blob that runs from the end of the
+// path back to the start and repeats. LEN is its half-length in normalized arc
 // length; SPEED is loops per second.
 const PULSE_LEN : f32 = 0.012;
 const PULSE_SPEED : f32 = 0.09;
@@ -133,10 +133,10 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let arrowA = 0.95 * fogA;
   let a = select(ribbonA, arrowA, in.shape > 0.5);
   // Traveling pulse: brightens a short stretch of the ribbon that sweeps from
-  // the start of the path to the end. Frozen at the start when the user
+  // the end of the path back to the start. Frozen at the end when the user
   // prefers reduced motion.
   let reduced = frame.misc.y;
-  let head = select(fract(frame.misc.x * PULSE_SPEED), 0.0, reduced > 0.5);
+  let head = select(1.0 - fract(frame.misc.x * PULSE_SPEED), 1.0, reduced > 0.5);
   let pulse = 1.0 - smoothstep(0.0, PULSE_LEN, abs(in.arc - head));
   let glow = select(pulse * fogA, 0.0, in.shape > 0.5);
   let rgb = vec3<f32>(0.75) * a + vec3<f32>(1.0, 0.95, 0.85) * glow * 1.6;
