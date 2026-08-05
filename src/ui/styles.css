@@ -1186,6 +1186,15 @@ a:hover {
   .topnav nav .icon-btn {
     margin-left: auto;
   }
+  /* Shrink the travel hint so it clears the free-camera button that sits in
+     the bottom-right corner. */
+  .ribbon .hint {
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    padding: 4px 7px;
+    margin-top: 10px;
+    max-width: calc(100% - 96px);
+  }
 }
 
 /* Short viewports (e.g. phones in landscape): drop the bottom company ribbon
