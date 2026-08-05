@@ -22,6 +22,7 @@
   --font:
     ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas,
     'DejaVu Sans Mono', 'Roboto Mono', monospace;
+  --font-display: 'Michroma', var(--font);
   --track: 0.14em;
 }
 
@@ -203,12 +204,14 @@ a:hover {
   transform: translateY(-50%);
   background: var(--accent);
   box-shadow: var(--glow);
+  animation: brand-blink 3.2s ease-in-out infinite;
 }
 .topnav .brand .name {
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  line-height: 1.6;
   color: var(--accent-2);
   text-shadow: var(--text-glow);
 }
@@ -453,15 +456,38 @@ a:hover {
   display: block;
   height: 4px;
   margin-bottom: 12px;
-  border-top: 2px solid var(--rule);
-  border-bottom: 1px solid rgba(255, 122, 24, 0.22);
-  box-shadow: 0 0 14px rgba(255, 122, 24, 0.25);
+  /* Painted as gradients rather than borders so the rules can fade out at
+     both ends, matching the ruler's spine. */
+  background-image:
+    linear-gradient(
+      to right,
+      transparent,
+      var(--rule) 14%,
+      var(--rule) 86%,
+      transparent
+    ),
+    linear-gradient(
+      to right,
+      transparent,
+      rgba(255, 122, 24, 0.22) 14%,
+      rgba(255, 122, 24, 0.22) 86%,
+      transparent
+    );
+  background-size:
+    100% 2px,
+    100% 1px;
+  background-position:
+    0 0,
+    0 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 6px rgba(255, 122, 24, 0.45));
 }
 .ribbon .company {
-  font-size: clamp(18px, 3.6vw, 27px);
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-size: clamp(17px, 3.2vw, 26px);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.6;
   color: var(--fg);
   text-shadow: var(--text-glow);
   display: inline-flex;
@@ -498,7 +524,6 @@ a:hover {
   color: var(--muted);
   font-size: 10px;
   letter-spacing: 0.1em;
-  text-transform: uppercase;
   opacity: 0.9;
   display: inline-block;
   background: var(--glass);
@@ -536,7 +561,7 @@ a:hover {
   --modal-actions-top: 12px;
   --modal-actions-size: 36px;
   position: relative;
-  width: min(680px, 100%);
+  width: min(880px, 100%);
   max-height: 100%;
   overflow: auto;
   border-radius: 0;
@@ -565,6 +590,7 @@ a:hover {
   margin: 0 0 12px;
   font-size: clamp(17px, 3.2vw, 23px);
   letter-spacing: 0.12em;
+  text-transform: none;
   color: var(--fg);
   text-shadow: var(--text-glow);
   padding-right: var(--modal-header-actions-space);
@@ -1088,6 +1114,16 @@ a:hover {
     opacity: 0;
   }
 }
+@keyframes brand-blink {
+  0%,
+  62%,
+  100% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.12;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .modal,
@@ -1104,6 +1140,9 @@ a:hover {
     animation: none;
   }
   .loading-title::after {
+    animation: none;
+  }
+  .topnav .brand::before {
     animation: none;
   }
 }
