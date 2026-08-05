@@ -8,7 +8,7 @@ struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
-  misc : vec4<f32>,    // w=aspect(width/height)
+  misc : vec4<f32>,    // x=time(s), y=reducedMotion, z=wireframe, w=aspect(width/height)
 };
 @group(0) @binding(0) var<uniform> frame : Frame;
 
@@ -17,6 +17,11 @@ const HALF_THICK : f32 = 0.0045;
 // Arrowhead size (aspect-corrected NDC) drawn at the end of the path.
 const ARROW_LEN : f32 = 0.024;  // how far the tip extends past the end point
 const ARROW_HALF : f32 = 0.013; // half-width of the arrowhead base
+// Traveling light pulse: a small bright blob that runs from the start of the
+// path to the end and repeats. LEN is its half-length in normalized arc
+// length; SPEED is loops per second.
+const PULSE_LEN : f32 = 0.012;
+const PULSE_SPEED : f32 = 0.09;
 
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
@@ -24,6 +29,7 @@ struct VSOut {
   @location(1) worldPos : vec3<f32>,
   @location(2) axial : f32, // 0 at prev, 1 at next (for wireframe debug)
   @location(3) shape : f32, // 0 = ribbon segment, 1 = arrowhead
+  @location(4) arc : f32, // normalized 0..1 distance along the whole path
 };
 
 @vertex
@@ -32,6 +38,8 @@ fn vs(
   @location(0) prev : vec3<f32>,
   @location(1) next : vec3<f32>,
   @location(2) kind : f32, // 0 = ribbon segment, 1 = arrowhead
+  @location(3) arcPrev : f32, // normalized arc length at prev
+  @location(4) arcNext : f32, // normalized arc length at next
 ) -> VSOut {
   var out : VSOut;
   let aspect = frame.misc.w;
@@ -65,6 +73,7 @@ fn vs(
     out.worldPos = prev;
     out.axial = 1.0;
     out.shape = 1.0;
+    out.arc = arcPrev;
     return out;
   }
 
@@ -85,6 +94,7 @@ fn vs(
   out.worldPos = select(prev, next, isEnd);
   out.axial = ends[vid];
   out.shape = 0.0;
+  out.arc = select(arcPrev, arcNext, isEnd);
   return out;
 }
 
@@ -122,5 +132,13 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let ribbonA = 0.85 * cov * fogA;
   let arrowA = 0.95 * fogA;
   let a = select(ribbonA, arrowA, in.shape > 0.5);
-  return vec4<f32>(vec3<f32>(0.75) * a, a);
+  // Traveling pulse: brightens a short stretch of the ribbon that sweeps from
+  // the start of the path to the end. Frozen at the start when the user
+  // prefers reduced motion.
+  let reduced = frame.misc.y;
+  let head = select(fract(frame.misc.x * PULSE_SPEED), 0.0, reduced > 0.5);
+  let pulse = 1.0 - smoothstep(0.0, PULSE_LEN, abs(in.arc - head));
+  let glow = select(pulse * fogA, 0.0, in.shape > 0.5);
+  let rgb = vec3<f32>(0.75) * a + vec3<f32>(1.0, 0.95, 0.85) * glow * 1.6;
+  return vec4<f32>(rgb, min(1.0, a + glow * 0.8));
 }
