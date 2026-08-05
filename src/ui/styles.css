@@ -447,7 +447,8 @@ a:hover {
   left: 50%;
   bottom: clamp(14px, 3vh, 34px);
   transform: translateX(-50%);
-  max-width: min(680px, 92vw);
+  width: min(1100px, 94vw);
+  max-width: 94vw;
   text-align: center;
   z-index: 16;
 }
