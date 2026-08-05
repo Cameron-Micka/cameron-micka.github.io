@@ -19,17 +19,17 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
     : null;
   return (
     <div className="ribbon" aria-live="polite">
+      {logoSrc && (
+        <img
+          className="company-logo"
+          src={logoSrc}
+          alt=""
+          aria-hidden="true"
+          width={32}
+          height={32}
+        />
+      )}
       <div className="company">
-        {logoSrc && (
-          <img
-            className="company-logo"
-            src={logoSrc}
-            alt=""
-            aria-hidden="true"
-            width={32}
-            height={32}
-          />
-        )}
         <span className="company-name">{company.name}</span>
       </div>
       <div className="role">{company.role}</div>
