@@ -8,6 +8,9 @@ struct Frame {
 };
 @group(0) @binding(0) var<uniform> frame : Frame;
 
+// UI accent orange (--accent: #ff7a18) so the 3D markers match the interface.
+const UI_ACCENT : vec3<f32> = vec3<f32>(1.0, 0.478, 0.094);
+
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
   @location(0) uv : vec2<f32>,
@@ -140,5 +143,5 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let strokeW = 0.16;
   let glyphAlpha = (1.0 - smoothstep(strokeW - aaG, strokeW + aaG, glyphDist)) * in.dim;
   let alpha = max(outline, glyphAlpha);
-  return vec4<f32>(vec3<f32>(alpha), alpha);
+  return vec4<f32>(UI_ACCENT * alpha, alpha);
 }

@@ -536,7 +536,8 @@ void main(){
     float strokeW=0.16;
     float glyphAlpha=(1.0-smoothstep(strokeW-aaG,strokeW+aaG,glyphDist))*vAttr.y;
     float a=max(outline,glyphAlpha);
-    frag=vec4(vec3(a),a);
+    // UI accent orange (--accent: #ff7a18) so markers match the interface.
+    frag=vec4(vec3(1.0,0.478,0.094)*a,a);
   }else{
     if(uWireframe>0.5){
       // Wireframe debug: render the billboard quad as cyan edges + diagonal,
@@ -625,7 +626,8 @@ void main(){
   float aa=fwidth(vEdge);
   float cov=1.0-smoothstep(1.0-aa,1.0,abs(vEdge));
   float a=vColor.a*cov;
-  vec3 base=vColor.rgb+0.15;
+  // UI accent orange (--accent: #ff7a18) so connectors match the interface.
+  vec3 base=vec3(1.0,0.478,0.094)+0.15;
   frag=vec4(base*a,a);
 }`;
 
