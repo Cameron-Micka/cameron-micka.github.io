@@ -557,7 +557,12 @@ a:hover {
   padding: 0;
 }
 .modal {
-  --modal-header-actions-space: 96px;
+  /* Room the eyebrow must leave for the absolutely-positioned action buttons.
+     They sit 12px from the modal edge, so the modal's own padding already
+     covers part of that distance. */
+  --modal-header-actions-space: calc(
+    2 * var(--modal-actions-size) + 32px - var(--modal-pad)
+  );
   --modal-pad: clamp(20px, 4vw, 34px);
   --modal-actions-top: 12px;
   --modal-actions-size: 36px;
@@ -671,6 +676,15 @@ a:hover {
   padding-bottom: max(var(--modal-pad), env(safe-area-inset-bottom));
   padding-left: max(var(--modal-pad), env(safe-area-inset-left));
   padding-right: max(var(--modal-pad), env(safe-area-inset-right));
+}
+/* In expanded mode `.modal-content` is the scroll container, so the eyebrow's
+   negative top margin would be clipped by it. Keep the eyebrow inside the
+   content box and move the action buttons down to stay aligned with it. */
+.modal.expanded .modal-actions {
+  top: max(var(--modal-pad), env(safe-area-inset-top));
+}
+.modal.expanded .eyebrow {
+  margin-top: 0;
 }
 .modal.expanded .accent-bar {
   border-radius: 0;
