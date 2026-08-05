@@ -1173,6 +1173,20 @@ a:hover {
   }
 }
 
+/* Portrait phones: links hug the left edge, settings stays on the right. */
+@media (max-width: 720px) and (orientation: portrait) {
+  .topnav {
+    justify-content: flex-start;
+  }
+  .topnav nav {
+    flex: 1;
+    min-width: 0;
+  }
+  .topnav nav .icon-btn {
+    margin-left: auto;
+  }
+}
+
 @media (max-width: 420px) {
   .navlink {
     padding: 6px 6px;
