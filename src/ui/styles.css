@@ -1188,6 +1188,15 @@ a:hover {
   }
 }
 
+/* Short viewports (e.g. phones in landscape): drop the bottom company ribbon
+   to free vertical space. Only do this when the timeline scrubber is visible
+   (it is hidden at <= 720px wide), so the company context is never lost. */
+@media (min-width: 721px) and (max-height: 500px) {
+  .ribbon {
+    display: none;
+  }
+}
+
 @media (max-width: 420px) {
   .navlink {
     padding: 6px 6px;
