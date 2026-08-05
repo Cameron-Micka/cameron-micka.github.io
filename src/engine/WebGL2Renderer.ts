@@ -1,5 +1,5 @@
 import type { FrameState, LoadProgressFn, PlanetInstance, RenderStats, SceneRenderer } from './types';
-import { createSphere, createRingGeometry, interleave, trianglesToLineIndices } from './geometry';
+import { createSphere, createRingGeometry, interleave, trianglesToLineIndices, selectSphereLod, SPHERE_LODS_WEBGL2 } from './geometry';
 import { mat4 } from './math/mat4';
 import { quat, type Quat } from './math/quat';
 import { vec3 } from './math/vec3';
@@ -1487,16 +1487,18 @@ export class WebGL2Renderer implements SceneRenderer {
   private resolveFbo: WebGLFramebuffer | null = null;
   private sceneTex: WebGLTexture | null = null;
 
-  private sphereVao!: WebGLVertexArrayObject;
-  private sphereCount = 0;
-  private sphereU32 = false;
+  // Sphere meshes, one per LOD level (index 0 = finest). Each body selects a
+  // level from its on-screen angular size so distant planets, moons and the
+  // sun draw a coarser mesh while close-up bodies keep the original detail.
+  private sphereLods: {
+    vao: WebGLVertexArrayObject;
+    count: number;
+    u32: boolean;
+    wireVao: WebGLVertexArrayObject;
+    lineCount: number;
+    lineU32: boolean;
+  }[] = [];
   private coronaVao!: WebGLVertexArrayObject;
-  private moonSphereVao!: WebGLVertexArrayObject;
-  private moonSphereCount = 0;
-  private moonSphereU32 = false;
-  private sphereWireVao!: WebGLVertexArrayObject;
-  private sphereLineCount = 0;
-  private sphereLineU32 = false;
   private ringVao!: WebGLVertexArrayObject;
   private ringCount = 0;
   private ringU32 = false;
@@ -1660,60 +1662,45 @@ export class WebGL2Renderer implements SceneRenderer {
 
   private buildSphere(): void {
     const gl = this.gl;
-    const geo = createSphere(40, 56);
-    const data = interleave(geo);
-    const vao = gl.createVertexArray()!;
-    gl.bindVertexArray(vao);
-    const vbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-    const ibo = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, geo.indices, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
-    gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
-    gl.bindVertexArray(null);
-    this.sphereVao = vao;
-    this.sphereCount = geo.indexCount;
-    this.sphereU32 = geo.indices instanceof Uint32Array;
+    this.sphereLods = [];
+    for (const [latBands, lonBands] of SPHERE_LODS_WEBGL2) {
+      const geo = createSphere(latBands, lonBands);
+      const data = interleave(geo);
+      const vao = gl.createVertexArray()!;
+      gl.bindVertexArray(vao);
+      const vbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      const ibo = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, geo.indices, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+      gl.enableVertexAttribArray(1);
+      gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
+      gl.bindVertexArray(null);
 
-    // Wireframe VAO: same vertex buffer, edge (line-list) index buffer.
-    const lineIdx = trianglesToLineIndices(geo.indices, geo.vertexCount);
-    const wireVao = gl.createVertexArray()!;
-    gl.bindVertexArray(wireVao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    const lineIbo = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineIbo);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, lineIdx, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
-    gl.bindVertexArray(null);
-    this.sphereWireVao = wireVao;
-    this.sphereLineCount = lineIdx.length;
-    this.sphereLineU32 = lineIdx instanceof Uint32Array;
+      // Wireframe VAO: same vertex buffer, edge (line-list) index buffer.
+      const lineIdx = trianglesToLineIndices(geo.indices, geo.vertexCount);
+      const wireVao = gl.createVertexArray()!;
+      gl.bindVertexArray(wireVao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      const lineIbo = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineIbo);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, lineIdx, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+      gl.bindVertexArray(null);
 
-    // Low-resolution sphere for moons — they draw small, so the full planet
-    // tessellation is wasted detail.
-    const moonGeo = createSphere(16, 24);
-    const moonData = interleave(moonGeo);
-    const moonVao = gl.createVertexArray()!;
-    gl.bindVertexArray(moonVao);
-    const moonVbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, moonVbo);
-    gl.bufferData(gl.ARRAY_BUFFER, moonData, gl.STATIC_DRAW);
-    const moonIbo = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, moonIbo);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, moonGeo.indices, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
-    gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
-    gl.bindVertexArray(null);
-    this.moonSphereVao = moonVao;
-    this.moonSphereCount = moonGeo.indexCount;
-    this.moonSphereU32 = moonGeo.indices instanceof Uint32Array;
+      this.sphereLods.push({
+        vao,
+        count: geo.indexCount,
+        u32: geo.indices instanceof Uint32Array,
+        wireVao,
+        lineCount: lineIdx.length,
+        lineU32: lineIdx instanceof Uint32Array,
+      });
+    }
 
     // Ring annulus (flat, lies in XZ). Enables the uv attribute (location 2)
     // because the ring shader needs radial/angle from uv, unlike the sphere.
@@ -2001,21 +1988,31 @@ export class WebGL2Renderer implements SceneRenderer {
       frame.sun.center,
       frame.sun.radius * 1.6,
     );
+    const sunLod = selectSphereLod(
+      frame.sun.center,
+      frame.sun.radius,
+      frame.cameraPos,
+    );
     if (frame.wireframe) {
       // Debug wireframe: planets and moons as edges.
       gl.depthMask(true);
       gl.useProgram(this.wire.prog);
       gl.uniformMatrix4fv(this.wire.uniforms.uViewProj!, false, frame.viewProj);
-      gl.bindVertexArray(this.sphereWireVao);
       // Sun body as wireframe (drawn separately from planets, like the filled
       // path below). Skipped when the sun is off screen.
       if (sunVisible) {
-        this.drawWire(frame.sun.center, frame.sun.radius, [0, 0, 0, 1], model);
+        this.drawWire(frame.sun.center, frame.sun.radius, [0, 0, 0, 1], model, sunLod);
       }
       for (const p of frame.planets) {
         const vis = p.visibility;
         if (vis <= 0.02) continue;
-        this.drawWire(p.center, p.radius * vis, p.orientation, model);
+        this.drawWire(
+          p.center,
+          p.radius * vis,
+          p.orientation,
+          model,
+          selectSphereLod(p.center, p.radius * vis, frame.cameraPos),
+        );
         for (const m of p.moons) {
           const orbit = m.orbitRadius * vis;
           const localOffset: [number, number, number] = [
@@ -2039,6 +2036,7 @@ export class WebGL2Renderer implements SceneRenderer {
             m.size * vis,
             moonRot,
             model,
+            selectSphereLod(moonCenter, m.size * vis, frame.cameraPos),
           );
         }
       }
@@ -2056,15 +2054,16 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.sun.uniforms.uSeed!, 1234);
     mat4.fromRotationTranslationScale(model, [0, 0, 0, 1], frame.sun.center, frame.sun.radius);
     gl.uniformMatrix4fv(this.sun.uniforms.uModel!, false, model);
-    gl.bindVertexArray(this.sphereVao);
+    const sunMesh = this.sphereLods[sunLod]!;
+    gl.bindVertexArray(sunMesh.vao);
     gl.drawElements(
       gl.TRIANGLES,
-      this.sphereCount,
-      this.sphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+      sunMesh.count,
+      sunMesh.u32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
       0,
     );
     this.stats.drawCalls++;
-    this.stats.triangles += this.sphereCount / 3;
+    this.stats.triangles += sunMesh.count / 3;
     }
 
     gl.useProgram(this.planet.prog);
@@ -2073,8 +2072,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
     gl.uniform1f(this.planet.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
     this.bindShadowUniforms(this.planet, frame);
-    gl.bindVertexArray(this.sphereVao);
-    const idxType = this.sphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
     for (const p of frame.planets) {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
@@ -2085,7 +2082,8 @@ export class WebGL2Renderer implements SceneRenderer {
       // Use per-planet cloud time so cloud-shadow sampling on the planet
       // body slows in lockstep with the cloud shell when the planet pauses.
       gl.uniform1f(this.planet.uniforms.uTime!, p.cloudTime);
-      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, idxType, p.cityLights, p.flowMap);
+      const planetLod = selectSphereLod(p.center, er, frame.cameraPos);
+      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, planetLod, p.cityLights, p.flowMap);
       for (const m of p.moons) {
         const orbit = m.orbitRadius * vis;
         // Moon orbit offset lives in the planet's local frame; rotate it by
@@ -2120,10 +2118,9 @@ export class WebGL2Renderer implements SceneRenderer {
           false,
           0, // moons don't get cloud shadows
           model,
-          idxType,
+          selectSphereLod(moonCenter, m.size * vis, frame.cameraPos),
           false,
           false, // moons don't flow
-          true, // use the coarse moon mesh
         );
       }
     }
@@ -2178,7 +2175,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform3fv(this.clouds.uniforms.uLight!, frame.keyLightDir);
       gl.uniform1f(this.clouds.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
       this.bindShadowUniforms(this.clouds, frame);
-      gl.bindVertexArray(this.sphereVao);
       for (const p of frame.planets) {
         if (!p.clouds) continue;
         const vis = p.visibility;
@@ -2193,9 +2189,16 @@ export class WebGL2Renderer implements SceneRenderer {
         gl.uniform1f(this.clouds.uniforms.uVisibility!, vis);
         // Per-planet cloud time so drift halts with the planet's spin.
         gl.uniform1f(this.clouds.uniforms.uTime!, p.cloudTime);
-        gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
+        const mesh = this.sphereLods[selectSphereLod(p.center, er, frame.cameraPos)]!;
+        gl.bindVertexArray(mesh.vao);
+        gl.drawElements(
+          gl.TRIANGLES,
+          mesh.count,
+          mesh.u32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+          0,
+        );
         this.stats.drawCalls++;
-        this.stats.triangles += this.sphereCount / 3;
+        this.stats.triangles += mesh.count / 3;
       }
       gl.disable(gl.CULL_FACE);
       gl.frontFace(gl.CCW);
@@ -2214,7 +2217,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform3fv(this.atmosphere.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.atmosphere.uniforms.uLight!, frame.keyLightDir);
     this.bindShadowUniforms(this.atmosphere, frame);
-    gl.bindVertexArray(this.sphereVao);
     for (const p of frame.planets) {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
@@ -2228,7 +2230,14 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform1f(this.atmosphere.uniforms.uOuter!, outerR);
       gl.uniform1f(this.atmosphere.uniforms.uFocus!, p.focus);
       gl.uniform1f(this.atmosphere.uniforms.uIntensity!, 0.9 * vis);
-      gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
+      const mesh = this.sphereLods[selectSphereLod(p.center, er, frame.cameraPos)]!;
+      gl.bindVertexArray(mesh.vao);
+      gl.drawElements(
+        gl.TRIANGLES,
+        mesh.count,
+        mesh.u32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+        0,
+      );
       this.stats.drawCalls++;
     }
     gl.disable(gl.CULL_FACE);
@@ -2252,7 +2261,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform3fv(this.aurora.uniforms.uLight!, frame.keyLightDir);
       gl.uniform1f(this.aurora.uniforms.uTime!, frame.time);
       gl.uniform1f(this.aurora.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
-      gl.bindVertexArray(this.sphereVao);
       for (const p of frame.planets) {
         if (!p.aurora) continue;
         const vis = p.visibility;
@@ -2266,7 +2274,14 @@ export class WebGL2Renderer implements SceneRenderer {
         gl.uniform1f(this.aurora.uniforms.uOuter!, auroraR);
         gl.uniform1f(this.aurora.uniforms.uFocus!, p.focus);
         gl.uniform1f(this.aurora.uniforms.uIntensity!, vis);
-        gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
+        const mesh = this.sphereLods[selectSphereLod(p.center, er, frame.cameraPos)]!;
+        gl.bindVertexArray(mesh.vao);
+        gl.drawElements(
+          gl.TRIANGLES,
+          mesh.count,
+          mesh.u32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+          0,
+        );
         this.stats.drawCalls++;
       }
       gl.disable(gl.CULL_FACE);
@@ -2531,10 +2546,9 @@ export class WebGL2Renderer implements SceneRenderer {
     oceans: boolean,
     cloudShadow: number,
     model: Float32Array,
-    idxType: number,
+    lod: number,
     cityLights: boolean = false,
     flow: boolean = false,
-    moonMesh: boolean = false,
   ): void {
     const gl = this.gl;
     mat4.fromRotationTranslationScale(model, rotation, center, radius);
@@ -2548,40 +2562,36 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.planet.uniforms.uCityLights!, cityLights ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uFlow!, flow ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCloudShadow!, cloudShadow);
-    if (moonMesh) {
-      gl.bindVertexArray(this.moonSphereVao);
-      gl.drawElements(
-        gl.TRIANGLES,
-        this.moonSphereCount,
-        this.moonSphereU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
-        0,
-      );
-      // Restore the full-res sphere VAO for the next planet in the loop.
-      gl.bindVertexArray(this.sphereVao);
-      this.stats.drawCalls++;
-      this.stats.triangles += this.moonSphereCount / 3;
-      return;
-    }
-    gl.drawElements(gl.TRIANGLES, this.sphereCount, idxType, 0);
+    const mesh = this.sphereLods[lod]!;
+    gl.bindVertexArray(mesh.vao);
+    gl.drawElements(
+      gl.TRIANGLES,
+      mesh.count,
+      mesh.u32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+      0,
+    );
     this.stats.drawCalls++;
-    this.stats.triangles += this.sphereCount / 3;
+    this.stats.triangles += mesh.count / 3;
   }
 
-  // Draws the sphere mesh as wireframe edges with the active wire program.
-  // Assumes the wire program and sphereWireVao are already bound.
+  // Draws the sphere mesh as wireframe edges with the active wire program at
+  // the given LOD level. Binds the matching wireframe VAO itself.
   private drawWire(
     center: [number, number, number],
     radius: number,
     rotation: Quat,
     model: Float32Array,
+    lod: number,
   ): void {
     const gl = this.gl;
     mat4.fromRotationTranslationScale(model, rotation, center, radius);
     gl.uniformMatrix4fv(this.wire.uniforms.uModel!, false, model);
+    const mesh = this.sphereLods[lod]!;
+    gl.bindVertexArray(mesh.wireVao);
     gl.drawElements(
       gl.LINES,
-      this.sphereLineCount,
-      this.sphereLineU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+      mesh.lineCount,
+      mesh.lineU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
       0,
     );
     this.stats.drawCalls++;

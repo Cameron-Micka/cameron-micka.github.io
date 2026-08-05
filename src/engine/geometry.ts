@@ -56,6 +56,54 @@ export function createSphere(
   };
 }
 
+// Level-of-detail tessellations for the sphere mesh, ordered finest first.
+// Index 0 is the full-detail mesh used for bodies that fill a large part of
+// the screen (the focused planet, the sun); the coarser levels are swapped in
+// as a body shrinks with distance, where the extra vertices are invisible.
+export type SphereLod = readonly [latBands: number, lonBands: number];
+
+export const SPHERE_LODS: readonly SphereLod[] = [
+  [48, 64],
+  [32, 40],
+  [20, 26],
+  [12, 16],
+];
+
+// WebGL2 runs a slightly cheaper base tessellation than WebGPU (it targets
+// weaker hardware), so it has its own ladder with the same number of levels.
+export const SPHERE_LODS_WEBGL2: readonly SphereLod[] = [
+  [40, 56],
+  [28, 36],
+  [18, 24],
+  [12, 16],
+];
+
+// Angular-size (radius / distance) thresholds, one per LOD boundary. A body
+// whose apparent size is at least ANGULAR[i] uses LOD i. Distance-based rather
+// than pixel-based so it stays independent of viewport size and FOV, which is
+// good enough here: the camera FOV never changes.
+const LOD_ANGULAR_THRESHOLDS = [0.06, 0.025, 0.012];
+
+// Pick a LOD index (0 = finest) for a body of the given world radius, seen
+// from `cameraPos`. Returns an index into SPHERE_LODS / SPHERE_LODS_WEBGL2.
+export function selectSphereLod(
+  center: readonly [number, number, number] | Float32Array | number[],
+  radius: number,
+  cameraPos: readonly [number, number, number] | Float32Array | number[],
+): number {
+  const dx = center[0]! - cameraPos[0]!;
+  const dy = center[1]! - cameraPos[1]!;
+  const dz = center[2]! - cameraPos[2]!;
+  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  const angular = radius / Math.max(dist, 1e-4);
+  for (let i = 0; i < LOD_ANGULAR_THRESHOLDS.length; i++) {
+    if (angular >= LOD_ANGULAR_THRESHOLDS[i]!) return i;
+  }
+  // Clamped so the ladder stays in bounds if either array gains a level
+  // without the other.
+  return Math.min(LOD_ANGULAR_THRESHOLDS.length, SPHERE_LODS.length - 1);
+}
+
 // Flat annulus in the XZ plane. uv.x = radial fraction (0 inner .. 1 outer),
 // uv.y = angle fraction (0..1 around the ring). Used as the planetary ring mesh.
 export function createRingGeometry(

@@ -415,6 +415,10 @@ User can override via the settings panel; the override is persisted to `localSto
 
 Under Auto, the engine ramps quality **upward** only — it never silently drops a tier mid-session (avoids jarring quality flips). If frame time degrades sustainedly (>25ms over 3 seconds), the debug HUD (if visible) flags it; otherwise no action.
 
+### 7.8b Geometry LOD
+
+Every spherical body (planet, moon, sun, and the atmosphere / cloud / aurora shells) shares a small ladder of pre-built UV-sphere meshes defined in `geometry.ts` (`SPHERE_LODS` for WebGPU, `SPHERE_LODS_WEBGL2` for the fallback). Each frame, `selectSphereLod()` picks a level from the body's **angular size** (world radius ÷ distance to camera): close-up bodies keep the original full tessellation, distant ones drop to progressively coarser meshes. A planet's shells reuse the planet's LOD so their silhouettes stay aligned with the surface. Meshes are built once at init and simply rebound at draw time, so the LOD system costs no per-frame allocation.
+
 ### 7.9 Frame loop
 
 - `requestAnimationFrame` driven.
