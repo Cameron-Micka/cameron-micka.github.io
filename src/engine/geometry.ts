@@ -99,7 +99,9 @@ export function selectSphereLod(
   for (let i = 0; i < LOD_ANGULAR_THRESHOLDS.length; i++) {
     if (angular >= LOD_ANGULAR_THRESHOLDS[i]!) return i;
   }
-  return LOD_ANGULAR_THRESHOLDS.length;
+  // Clamped so the ladder stays in bounds if either array gains a level
+  // without the other.
+  return Math.min(LOD_ANGULAR_THRESHOLDS.length, SPHERE_LODS.length - 1);
 }
 
 // Flat annulus in the XZ plane. uv.x = radial fraction (0 inner .. 1 outer),
