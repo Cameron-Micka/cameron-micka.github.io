@@ -1110,7 +1110,7 @@ export class WebGPURenderer implements SceneRenderer {
     objIndex++;
 
     for (const p of frame.planets) {
-      // Budget: planet + atmosphere + clouds = up to 3 shells + ring + moons.
+      // Budget: planet + atmosphere + clouds = up to 3 shells + rings + moons.
       if (objIndex >= MAX_OBJECTS - 8) break;
       const vis = p.visibility;
       if (vis <= 0.02) continue; // fully hidden — skip planet, POIs, moons
@@ -1214,31 +1214,45 @@ export class WebGPURenderer implements SceneRenderer {
         objIndex++;
       }
 
-      if (p.hasRing && objIndex < MAX_OBJECTS) {
+      if (p.hasRing) {
         // Compose the ring tilt with the planet's orientation so rings stay
         // locked to the planet's equator when the user drags/spins the planet.
         const ringRot = quat.multiply(
           rot,
           quat.fromAxisAngle([1, 0, 0.2], p.ringTilt),
         );
-        mat4.fromRotationTranslationScale(model, ringRot, p.center, er);
-        this.writeObject(
-          objIndex,
-          model,
-          p.radius,
-          p.seed % 100000,
-          frame.time,
-          2,
-          p.paletteLow,
-          p.paletteMid,
-          p.paletteHigh,
-          p.focus,
-          0,
-          0,
-          p.thinRing ? 1 : 0,
-        );
-        objects.push({ kind: 2, index: objIndex, lod: planetLod });
-        objIndex++;
+        // Optional second ring: the primary ring plane rotated about a
+        // perpendicular axis so the two rings cross at an angle.
+        const ringRots = p.secondRing
+          ? [
+              ringRot,
+              quat.multiply(
+                ringRot,
+                quat.fromAxisAngle([0, 0, 1], p.secondRingTilt),
+              ),
+            ]
+          : [ringRot];
+        for (const [r, rr] of ringRots.entries()) {
+          if (objIndex >= MAX_OBJECTS) break;
+          mat4.fromRotationTranslationScale(model, rr, p.center, er);
+          this.writeObject(
+            objIndex,
+            model,
+            p.radius,
+            (p.seed + r * 7919) % 100000,
+            frame.time,
+            2,
+            p.paletteLow,
+            p.paletteMid,
+            p.paletteHigh,
+            p.focus,
+            0,
+            0,
+            p.thinRing ? 1 : 0,
+          );
+          objects.push({ kind: 2, index: objIndex, lod: planetLod });
+          objIndex++;
+        }
       }
 
       for (const m of p.moons) {

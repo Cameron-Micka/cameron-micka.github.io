@@ -41,6 +41,10 @@ export interface PlanetInstance {
   hasRing: boolean;
   ringTilt: number;
   thinRing: boolean;
+  // When true, a second ring is drawn on a different plane from the primary
+  // ring, rotated by `secondRingTilt` radians about a perpendicular axis.
+  secondRing: boolean;
+  secondRingTilt: number;
   oceans: boolean;
   clouds: boolean;
   cityLights: boolean;
