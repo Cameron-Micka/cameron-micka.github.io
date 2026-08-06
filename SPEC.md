@@ -407,13 +407,32 @@ Because backside POIs are visible (just dimmed), users may try to click them. **
 
 > MSAA applies to the WebGPU scene pass only. WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x.
 
-**Selection:** Under Auto on WebGPU, the engine starts at the `Low` tier and ramps **up** one tier at a time (`Low` → `Med` → `High`). It steps up only after frame time stays good (≤ 18ms, ~55 FPS) and stable for 3+ continuous seconds; a janky frame resets the stability window, and the ramp stops once `High` is reached. Mobile (coarse-pointer) devices stay on `Low`.
+**Selection:** Under Auto on WebGPU, the engine starts at the `Low` tier and ramps **up** one tier at a time (`Low` → `Med` → `High`). It steps up only after frame time stays good (≤ 18ms, ~55 FPS) and stable for 3+ continuous seconds; a janky frame resets the stability window, and the ramp stops once `High` is reached. It also steps back **down** one tier if frame time stays bad (≥ 28ms, ~36 FPS) for 1.5+ continuous seconds — see §7.8. Frames between the two thresholds neither earn a step up nor force a step down. Mobile (coarse-pointer) devices stay on `Low`.
 
 User can override via the settings panel; the override is persisted to `localStorage` and stops the Auto ramp on future loads.
 
 ### 7.8 Adaptive quality
 
-Under Auto, the engine ramps quality **upward** only — it never silently drops a tier mid-session (avoids jarring quality flips). If frame time degrades sustainedly (>25ms over 3 seconds), the debug HUD (if visible) flags it; otherwise no action.
+Under Auto, the ramp is **biased upward but not one-way**. The step-up decision can only measure whatever happens to be on screen at that moment, and the scene's per-pixel cost varies enormously with the camera — a large planet filling the viewport is several times more expensive than a distant one, because the planet/cloud shaders are procedural and fragment-bound. A tier that looked affordable while flying between planets can therefore turn out to be unaffordable once a big planet is focused.
+
+To keep that from stranding the user at an unusable frame rate, the ramp steps **down** one tier when frame time stays at or above 28ms (~36 FPS) for 1.5+ continuous seconds. Two guards keep this from turning into a quality flip-flop:
+
+- **Ratchet.** A tier that failed is removed from the ramp for the rest of the session — the ramp will never climb back into it, so a downgrade happens at most once per tier.
+- **Settle window.** Samples in the first second after any tier change are ignored, since applying a tier resizes render targets and rebuilds pipelines and those frames say nothing about the new tier's steady-state cost.
+
+Explicit (non-Auto) tier choices are never overridden.
+
+### 7.8a Per-tier shader cost
+
+The dominant cost when a large planet fills the viewport is **fragment work**, not draw calls or geometry: the planet, cloud and nebula shaders are fully procedural and evaluate dozens of value-noise fBm octaves per pixel. Quality tiers therefore scale shader *work*, not just resolution. The active tier index reaches the shaders through `Frame.shadowMisc.y` (`0 = high, 1 = med, 2 = low`); every gate on it is uniform across the draw, so the branches are coherent and divergence-free.
+
+| Shader        | High                                              | Med / Low                                        |
+| ------------- | ------------------------------------------------- | ------------------------------------------------ |
+| `planet.wgsl` | Flow-field planets take two `surfaceMarble` samples (14 fBm) and cross-fade them | One static `surfaceMarble` sample (7 fBm)        |
+| `clouds.wgsl` | Cloud self-shadow marches three sun taps plus a grain octave (10 fBm) | One tap (3 fBm)                                  |
+| `nebula.wgsl` | 28 raymarch steps, 4 octaves                       | 20/14 steps, 3 octaves, with brightness compensation |
+
+Independent of tier, the planet shader skips its entire polar ice-cap block (8 fBm) on worlds whose `oceans` feature is off — every ice term is multiplied by the `oceans` flag, so on a dry world that work was previously computed only to be scaled to zero. The WebGL2 mirror carries the same gate.
 
 ### 7.8b Geometry LOD
 
@@ -586,7 +605,7 @@ PRs run steps 1–6 (no deploy). Branch protection: green CI required.
   - Desktop, discrete GPU: 60 FPS sustained.
   - Mid-range laptop iGPU: 30 FPS minimum.
   - Modern mobile (iPhone 13+, Pixel 7+): 30 FPS minimum.
-  - Below floor: Auto never auto-downgrades mid-session; the user can pick a lower preset manually.
+  - Below floor: Auto steps down one tier (ratcheted, once per tier) after 1.5s of sustained sub-36-FPS frames; the user can also pick a lower preset manually.
 
 ---
 
@@ -646,7 +665,6 @@ Explicitly **not** included in the first release:
 - Per-route or per-planet dynamic OG images.
 - Custom domain (file is committed when the domain is ready; nothing else changes).
 - Visual regression / snapshot testing.
-- Adaptive quality *downgrades* during a session (Auto only ramps up, never auto-drops a tier).
 - Screen reader narration of timeline scrubbing / planet orbit (chrome + modal + print resume only).
 
 ---
@@ -657,7 +675,7 @@ Explicitly **not** included in the first release:
 2. **No runtime tests.** Trades safety net for development velocity. Mitigated by strict TS, zod validation of content, and the error boundary catching live failures with full stack traces.
 3. **Hard reload on GPU device loss.** Trades graceful recovery for simplicity. Acceptable because device loss is rare on modern hardware.
 4. **No screen-reader mirror of 3D scrubbing.** Trades full a11y for engineering scope. Hidden print-resume DOM provides full content access; documented as a known limitation.
-5. **Upward-only adaptive quality.** Auto starts at Low and ramps up when performance is good and stable for 3+ seconds; it never drops a tier mid-session, avoiding the bad UX of mid-session quality drops. Override via settings panel for users who disagree.
+5. **Ratcheted adaptive quality.** Auto starts at Low and ramps up when performance is good and stable for 3+ seconds, and steps back down after 1.5s of sustained bad frames. A tier that fails is never retried, so the ramp settles after at most one downgrade per tier rather than oscillating. Trades a single visible quality drop for not stranding the user below the FPS floor. Override via settings panel for users who disagree.
 6. **Bundled videos in the repo.** Trades repo size for asset reliability. Re-evaluate if the repo crosses ~500MB.
 7. **Pause-and-snapshot blur instead of real-time backdrop blur.** Trades the "living" backdrop behind modals for guaranteed cross-browser correctness and lower GPU load while the modal is open.
 8. **No mid-scene WebGPU↔WebGL2 swap.** The backend is chosen once at boot and stuck with for the session.

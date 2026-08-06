@@ -151,11 +151,22 @@ fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf
     dot(r2, worldSun),
   ));
   let d1 = cloudDensity(normalize(localDir + localSun * 0.045), time, seedf, reducedMotion);
-  let d2 = cloudDensity(normalize(localDir + localSun * 0.090), time, seedf, reducedMotion);
-  let d3 = cloudDensity(normalize(localDir + localSun * 0.160), time, seedf, reducedMotion);
-  let occ = clamp(0.55 * d1 + 0.30 * d2 + 0.15 * d3, 0.0, 1.0);
-  let grain = cFbm(localDir * 14.0 + vec3<f32>(seedf * 0.011, seedf * 0.013, seedf * 0.017));
-  let occDetail = clamp(occ * mix(0.75, 1.20, grain), 0.0, 1.0);
+  // Below the high tier, collapse the three-tap sun march (and the grain
+  // modulation) to the single nearest tap. Each tap is a full domain-warped
+  // cloudDensity — three fBm evaluations — so this drops ~7 of the 10 fBm
+  // calls the cloud shell costs per pixel. The 0.85 factor approximates the
+  // magnitude of the weighted three-tap blend it replaces. `shadowMisc.y` is
+  // uniform across the draw, so the branch is divergence-free.
+  var occDetail = 0.0;
+  if (frame.shadowMisc.y > 0.5) {
+    occDetail = clamp(d1 * 0.85, 0.0, 1.0);
+  } else {
+    let d2 = cloudDensity(normalize(localDir + localSun * 0.090), time, seedf, reducedMotion);
+    let d3 = cloudDensity(normalize(localDir + localSun * 0.160), time, seedf, reducedMotion);
+    let occ = clamp(0.55 * d1 + 0.30 * d2 + 0.15 * d3, 0.0, 1.0);
+    let grain = cFbm(localDir * 14.0 + vec3<f32>(seedf * 0.011, seedf * 0.013, seedf * 0.017));
+    occDetail = clamp(occ * mix(0.75, 1.20, grain), 0.0, 1.0);
+  }
   return 1.0 - occDetail * 0.70;
 }
 

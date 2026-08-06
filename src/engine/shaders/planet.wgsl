@@ -375,12 +375,15 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // unboundedly past a half cycle. Disabled under reduced motion.
   var land : vec3<f32>;
   var height : f32;
-  // On the low tier, skip the two-sample flow-field advection and render the
-  // static marble with a single surfaceMarble call. surfaceMarble is the
-  // heaviest per-pixel function on the planet, so halving it is a sizeable
-  // low-tier win on macOS; the streaming motion it drops is subtle on low.
-  let lowTier = frame.shadowMisc.y > 1.5;
-  if (obj.p2.y > 0.5 && !lowTier) {
+  // Below the high tier, skip the two-sample flow-field advection and render
+  // the static marble with a single surfaceMarble call. surfaceMarble is by
+  // far the heaviest per-pixel function on the planet (7 fBm evaluations), so
+  // halving it is the single biggest win when a large planet fills the screen
+  // — the case that used to tank Med on macOS (Metal/Dawn), where fragment
+  // throughput is the bottleneck. The streaming motion it drops is subtle.
+  // The branch is uniform across the draw, so it's divergence-free.
+  let cheapTier = frame.shadowMisc.y > 0.5;
+  if (obj.p2.y > 0.5 && !cheapTier) {
     let rm = frame.misc.y;
     let speed = select(0.16, 0.0, rm > 0.5);
     let mag = 1.0;
@@ -423,39 +426,48 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Two offset fbm passes form a domain-warp vector that distorts the edge
   // sampling position, producing wispy, tendril-like fronds at the boundary.
   // Mirror of PLANET_FRAG.
+  //
+  // The whole block is gated on the per-draw `oceans` flag: every ice term is
+  // multiplied by `oceans`, so on a dry world the eight fBm evaluations below
+  // were computed only to be scaled to zero. `oceans` is uniform across the
+  // draw, so the branch is coherent and derivative-free.
   let localPos = normalize(in.localPos);
   let r0 = normalize(obj.model[0].xyz);
   let r1 = normalize(obj.model[1].xyz);
   let r2 = normalize(obj.model[2].xyz);
   let localLightDir = normalize(vec3<f32>(dot(r0, lightDir), dot(r1, lightDir), dot(r2, lightDir)));
-  let lat = abs(localPos.y);
-  let iceWarpPos = localPos * 3.8 + vec3<f32>(seed * 0.0019, seed * 0.0023, seed * 0.0017);
-  let iceWarpA = fbm(iceWarpPos) - 0.5;
-  let iceWarpB = fbm(iceWarpPos + vec3<f32>(3.7, 1.8, 5.2)) - 0.5;
-  // A second, higher-frequency domain-warp pass distorts the edge sampling
-  // position at a finer scale, adding crinkly, small-scale detail to the
-  // boundary on top of the broad warp.
-  let iceWarpHiPos = localPos * 11.0 + vec3<f32>(seed * 0.0026, seed * 0.0034, seed * 0.0022);
-  let iceWarpHiA = fbm(iceWarpHiPos) - 0.5;
-  let iceWarpHiB = fbm(iceWarpHiPos + vec3<f32>(2.3, 6.1, 4.4)) - 0.5;
-  let iceWarpedPos = localPos
-    + vec3<f32>(iceWarpA, iceWarpA * iceWarpB, iceWarpB) * 0.34
-    + vec3<f32>(iceWarpHiA, iceWarpHiA * iceWarpHiB, iceWarpHiB) * 0.11;
-  let iceNoise = fbm(iceWarpedPos * 2.6 + vec3<f32>(seed * 0.0015, seed * 0.0021, seed * 0.0018));
-  // A finer, higher-frequency octave adds small jagged fronds on top of the
-  // broad domain-warped boundary so the cap edge reads more ragged.
-  let iceEdgeFine = fbm(iceWarpedPos * 6.4 + vec3<f32>(seed * 0.0024, seed * 0.0033, seed * 0.0029)) - 0.5;
-  let iceEdge = 0.87 + (iceNoise - 0.5) * 0.26 + iceEdgeFine * 0.08;
-  let iceMask = oceans * smoothstep(iceEdge - 0.04, iceEdge + 0.03, lat);
-  let iceDetailPos = localPos * 8.0 + vec3<f32>(seed * 0.0031, seed * 0.0027, seed * 0.0037);
-  let iceDetail = fbm(iceDetailPos);
-  let iceRidgePhase = vec3<f32>(4.2, 1.7, 8.4);
-  let iceRidges = ridgedFbm(iceDetailPos * 0.8 + iceRidgePhase);
-  let iceBlue = smoothstep(0.44, 0.78, iceDetail) * smoothstep(0.12, 0.7, iceMask);
-  let iceCrease = smoothstep(0.34, 0.72, iceRidges);
-  let iceSelfShadow = 1.0 - iceCrease * smoothstep(0.0, 0.75, dot(localPos, localLightDir)) * 0.28;
-  let iceColor = mix(vec3<f32>(0.88, 0.93, 0.98), vec3<f32>(0.48, 0.70, 0.92), iceBlue * 0.85);
-  let base2 = mix(base, iceColor * iceSelfShadow, iceMask);
+  var iceMask = 0.0;
+  var base2 = base;
+  if (oceans > 0.5) {
+    let lat = abs(localPos.y);
+    let iceWarpPos = localPos * 3.8 + vec3<f32>(seed * 0.0019, seed * 0.0023, seed * 0.0017);
+    let iceWarpA = fbm(iceWarpPos) - 0.5;
+    let iceWarpB = fbm(iceWarpPos + vec3<f32>(3.7, 1.8, 5.2)) - 0.5;
+    // A second, higher-frequency domain-warp pass distorts the edge sampling
+    // position at a finer scale, adding crinkly, small-scale detail to the
+    // boundary on top of the broad warp.
+    let iceWarpHiPos = localPos * 11.0 + vec3<f32>(seed * 0.0026, seed * 0.0034, seed * 0.0022);
+    let iceWarpHiA = fbm(iceWarpHiPos) - 0.5;
+    let iceWarpHiB = fbm(iceWarpHiPos + vec3<f32>(2.3, 6.1, 4.4)) - 0.5;
+    let iceWarpedPos = localPos
+      + vec3<f32>(iceWarpA, iceWarpA * iceWarpB, iceWarpB) * 0.34
+      + vec3<f32>(iceWarpHiA, iceWarpHiA * iceWarpHiB, iceWarpHiB) * 0.11;
+    let iceNoise = fbm(iceWarpedPos * 2.6 + vec3<f32>(seed * 0.0015, seed * 0.0021, seed * 0.0018));
+    // A finer, higher-frequency octave adds small jagged fronds on top of the
+    // broad domain-warped boundary so the cap edge reads more ragged.
+    let iceEdgeFine = fbm(iceWarpedPos * 6.4 + vec3<f32>(seed * 0.0024, seed * 0.0033, seed * 0.0029)) - 0.5;
+    let iceEdge = 0.87 + (iceNoise - 0.5) * 0.26 + iceEdgeFine * 0.08;
+    iceMask = oceans * smoothstep(iceEdge - 0.04, iceEdge + 0.03, lat);
+    let iceDetailPos = localPos * 8.0 + vec3<f32>(seed * 0.0031, seed * 0.0027, seed * 0.0037);
+    let iceDetail = fbm(iceDetailPos);
+    let iceRidgePhase = vec3<f32>(4.2, 1.7, 8.4);
+    let iceRidges = ridgedFbm(iceDetailPos * 0.8 + iceRidgePhase);
+    let iceBlue = smoothstep(0.44, 0.78, iceDetail) * smoothstep(0.12, 0.7, iceMask);
+    let iceCrease = smoothstep(0.34, 0.72, iceRidges);
+    let iceSelfShadow = 1.0 - iceCrease * smoothstep(0.0, 0.75, dot(localPos, localLightDir)) * 0.28;
+    let iceColor = mix(vec3<f32>(0.88, 0.93, 0.98), vec3<f32>(0.48, 0.70, 0.92), iceBlue * 0.85);
+    base2 = mix(base, iceColor * iceSelfShadow, iceMask);
+  }
 
   // --- Cook-Torrance PBR direct lighting from the key sun ---
   // Per-pixel material: water is a smooth-ish dielectric (moderate roughness,
