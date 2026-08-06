@@ -12,7 +12,7 @@ const LINKS = [
 export default function Contact() {
   return (
     <>
-      <TopNav />
+      <TopNav solid />
       <article className="page">
         <h1>Contact</h1>
         <p className="lede">

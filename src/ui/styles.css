@@ -173,6 +173,11 @@ a:hover {
   z-index: 20;
   background: linear-gradient(180deg, rgba(8, 6, 4, 0.9), rgba(8, 6, 4, 0));
 }
+/* Static content pages scroll, so the bar needs to be opaque to hide the text
+   passing beneath it. */
+.topnav.solid {
+  background: var(--bg);
+}
 /* Drafted double rule beneath the bar. */
 .topnav::after {
   content: '';
@@ -278,7 +283,6 @@ a:hover {
   border: 1px solid var(--glass-border);
   color: var(--accent-2);
   cursor: pointer;
-  backdrop-filter: blur(8px);
   transition:
     color 0.14s linear,
     border-color 0.14s linear,
@@ -324,7 +328,6 @@ a:hover {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
-  backdrop-filter: blur(8px);
   white-space: nowrap;
 }
 .freecam-hint::before {
@@ -531,7 +534,6 @@ a:hover {
   border: 1px solid var(--glass-border);
   border-radius: 0;
   padding: 6px 10px;
-  backdrop-filter: blur(8px);
 }
 .ribbon .hint::before {
   content: '> ';
@@ -1013,6 +1015,18 @@ a:hover {
   letter-spacing: 0.2em;
   color: var(--accent);
   text-shadow: var(--text-glow);
+}
+.profile-photo {
+  margin: 0 0 28px;
+}
+.profile-photo img {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  filter: sepia(0.35) saturate(1.1);
 }
 .social-list {
   list-style: none;
