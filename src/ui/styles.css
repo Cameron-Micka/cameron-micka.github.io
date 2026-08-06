@@ -502,6 +502,10 @@ a:hover {
   border-radius: 0;
   padding: 6px 10px;
 }
+/* Free-fly mode keeps only the controls tip, so drop the company rule. */
+.ribbon.hint-only::before {
+  display: none;
+}
 .ribbon .hint::before {
   content: '> ';
   color: var(--accent);
