@@ -1186,6 +1186,12 @@ a:hover {
     height: 34px;
     flex: none;
   }
+  /* Mobile browsers use overlay scrollbars, which are painted on top of the
+     content instead of reserving space. Give the expanded modal's scroll
+     container its own gutter so the bar never covers text or media. */
+  .modal.expanded .modal-content {
+    padding-right: 12px;
+  }
 }
 
 /* Portrait phones: links hug the left edge, settings stays on the right. */
