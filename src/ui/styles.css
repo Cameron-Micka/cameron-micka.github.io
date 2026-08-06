@@ -197,19 +197,10 @@ a:hover {
   flex-direction: column;
   justify-content: center;
   line-height: 1.15;
-  padding-left: 16px;
 }
-.topnav .brand::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  transform: translateY(-50%);
-  background: var(--accent);
-  box-shadow: var(--glow);
-  animation: brand-blink 3.2s ease-in-out infinite;
+.topnav .brand .brand-mark {
+  color: var(--accent);
+  margin-right: 6px;
 }
 .topnav .brand .name {
   font-family: var(--font-display);
@@ -998,6 +989,8 @@ a:hover {
 .page h1::before {
   content: '// ';
   color: var(--accent);
+  display: inline-block;
+  animation: glitch-jitter var(--glitch-duration, 3.6s) steps(1, end) infinite;
 }
 .page .lede {
   color: var(--muted);
@@ -1143,14 +1136,52 @@ a:hover {
     opacity: 0;
   }
 }
-@keyframes brand-blink {
+/* ---- Reusable glitch effect ----
+   Add `.glitch` to any element (or apply `animation: glitch-jitter ...` to a
+   pseudo-element) for an occasional chromatic-aberration stutter. Tune with
+   --glitch-duration, --glitch-a and --glitch-b. */
+.glitch {
+  display: inline-block;
+  animation: glitch-jitter var(--glitch-duration, 3.6s) steps(1, end) infinite;
+}
+@keyframes glitch-jitter {
   0%,
-  62%,
+  86%,
   100% {
-    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    text-shadow: none;
+    clip-path: none;
   }
-  80% {
-    opacity: 0.12;
+  87% {
+    transform: translate3d(-1px, 1px, 0);
+    text-shadow:
+      1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8)),
+      -1px 0 var(--glitch-b, rgba(0, 224, 255, 0.8));
+  }
+  89% {
+    transform: translate3d(1px, -1px, 0);
+    text-shadow:
+      -1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8)),
+      1px 0 var(--glitch-b, rgba(0, 224, 255, 0.8));
+    clip-path: inset(20% 0 30% 0);
+  }
+  91% {
+    transform: translate3d(-2px, 0, 0);
+    text-shadow:
+      2px 0 var(--glitch-b, rgba(0, 224, 255, 0.8)),
+      -1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8));
+    clip-path: inset(55% 0 10% 0);
+  }
+  93% {
+    transform: translate3d(1px, 1px, 0);
+    text-shadow:
+      -1px 0 var(--glitch-b, rgba(0, 224, 255, 0.8)),
+      1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8));
+  }
+  95% {
+    transform: translate3d(0, 0, 0);
+    text-shadow: none;
+    clip-path: none;
   }
 }
 
@@ -1171,7 +1202,8 @@ a:hover {
   .loading-title::after {
     animation: none;
   }
-  .topnav .brand::before {
+  .glitch,
+  .page h1::before {
     animation: none;
   }
 }

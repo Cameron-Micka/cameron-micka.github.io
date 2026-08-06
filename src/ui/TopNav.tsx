@@ -12,7 +12,12 @@ export function TopNav({
   return (
     <header className={`topnav${solid ? ' solid' : ''}`}>
       <div className="brand">
-        <span className="name">{SITE.name}</span>
+        <span className="name">
+          <span className="brand-mark glitch" aria-hidden="true">
+            //
+          </span>
+          {SITE.name}
+        </span>
       </div>
       <nav aria-label="Primary">
         <NavLink
