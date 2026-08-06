@@ -8,7 +8,7 @@ function formatDates(c: Company): string {
 }
 
 export function BottomRibbon({ companies }: { companies: Company[] }) {
-  const { focusedIndex, openPoi } = useEngineSnapshot();
+  const { focusedIndex, openPoi, freeCamera } = useEngineSnapshot();
   if (openPoi) return null;
   const company = companies[focusedIndex];
   if (!company) return null;
@@ -37,7 +37,15 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
         {formatDates(company)}
         {company.location ? ` · ${company.location}` : ''}
       </div>
-      <div className="hint">{touch ? HINTS.scrubTouch : HINTS.scrubDesktop}</div>
+      <div className="hint">
+        {freeCamera
+          ? touch
+            ? HINTS.freeCameraTouch
+            : HINTS.freeCameraDesktop
+          : touch
+            ? HINTS.scrubTouch
+            : HINTS.scrubDesktop}
+      </div>
     </div>
   );
 }

@@ -308,30 +308,6 @@ a:hover {
 .freecam-btn {
   pointer-events: auto;
 }
-.freecam-hint {
-  pointer-events: none;
-  max-width: 70vw;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  border-radius: 0;
-  padding: 6px 10px;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.freecam-hint::before {
-  content: '> ';
-  color: var(--accent);
-}
-/* The hint references keyboard controls (WASD), so hide it in portrait
-   orientation where touch controls are used instead. */
-@media (orientation: portrait) {
-  .freecam-hint {
-    display: none;
-  }
-}
 
 /* ---- Side ruler ---- */
 .ruler {

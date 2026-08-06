@@ -22,6 +22,8 @@ export const SOCIAL = {
 export const HINTS = {
   scrubDesktop: 'Scroll to travel through time · drag a planet to spin it · click a glowing point',
   scrubTouch: 'Two fingers to travel · drag to spin · tap a glowing point',
+  freeCameraDesktop: 'WASD to fly · Shift to boost · Space to creep · drag to look',
+  freeCameraTouch: 'Drag the left half to fly · drag the right half to look',
 };
 
 export const UI = {
