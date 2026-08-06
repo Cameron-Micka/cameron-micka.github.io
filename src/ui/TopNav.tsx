@@ -3,11 +3,14 @@ import { NAV, SITE, UI } from './strings';
 
 export function TopNav({
   onToggleSettings,
+  solid = false,
 }: {
   onToggleSettings?: () => void;
+  /** Opaque bar for static content pages, so scrolled text passes behind it. */
+  solid?: boolean;
 }) {
   return (
-    <header className="topnav">
+    <header className={`topnav${solid ? ' solid' : ''}`}>
       <div className="brand">
         <span className="name">{SITE.name}</span>
       </div>

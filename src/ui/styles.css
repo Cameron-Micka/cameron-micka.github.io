@@ -173,6 +173,12 @@ a:hover {
   z-index: 20;
   background: linear-gradient(180deg, rgba(8, 6, 4, 0.9), rgba(8, 6, 4, 0));
 }
+/* Static content pages scroll, so the bar needs to be opaque to hide the text
+   passing beneath it. */
+.topnav.solid {
+  background: var(--bg);
+  backdrop-filter: blur(8px);
+}
 /* Drafted double rule beneath the bar. */
 .topnav::after {
   content: '';
@@ -1013,6 +1019,18 @@ a:hover {
   letter-spacing: 0.2em;
   color: var(--accent);
   text-shadow: var(--text-glow);
+}
+.profile-photo {
+  margin: 0 0 28px;
+}
+.profile-photo img {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  filter: sepia(0.35) saturate(1.1);
 }
 .social-list {
   list-style: none;

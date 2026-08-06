@@ -5,10 +5,19 @@ import { companies } from '@/content/companies';
 export default function About() {
   return (
     <>
-      <TopNav />
+      <TopNav solid />
       <article className="page">
         <h1>About</h1>
         <p className="lede">{SITE.tagline}</p>
+        <figure className="profile-photo">
+          <img
+            src="https://avatars.githubusercontent.com/Cameron-Micka"
+            alt={`Portrait of ${SITE.name}`}
+            width={160}
+            height={160}
+            loading="lazy"
+          />
+        </figure>
         <p>
           I'm {SITE.name}, a {SITE.role.toLowerCase()} with a career spent close
           to the metal — building real-time rendering systems, engine tools, and
@@ -20,8 +29,8 @@ export default function About() {
         <p>
           This site is itself a small engine: the landing page renders a 3D
           "time machine" of my career with WebGPU (falling back to WebGL2),
-          where each planet is a place I've worked and each glowing point opens a
-          story.
+          where each planet is a place I've worked and each glowing point opens
+          a story.
         </p>
         <p>
           You can also find my credits on{' '}

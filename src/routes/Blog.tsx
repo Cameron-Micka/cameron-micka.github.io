@@ -4,7 +4,7 @@ import { UI } from '@/ui/strings';
 export default function Blog() {
   return (
     <>
-      <TopNav />
+      <TopNav solid />
       <article className="page">
         <h1>Blog</h1>
         <p className="lede">{UI.blogSoon}</p>
