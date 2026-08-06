@@ -107,7 +107,7 @@ Each planet is fully deterministic from a per-company **seed** (string → 32-bi
 
 **Rings:** Optional per-planet — flat ring mesh, single texture with alpha falloff. Authored on/off + tilt angle per company.
 
-**Moons:** Optional per-planet — N small spheres orbiting at fixed radii and periods. Moons use a rocky grayscale palette (lower saturation, stone-biased tones) over the procedural terrain pattern so they read more lunar/rocky than planets. Authored count + orbital params per company.
+**Moons:** Optional per-planet — N small spheres orbiting at fixed radii and periods. Moons use a rocky grayscale palette (lower saturation, stone-biased tones) over the procedural terrain pattern so they read more lunar/rocky than planets. They also get **meteorite impact craters**: a Worley-style field where only cells passing a hash threshold spawn a crater, each one a radial height profile (bowl, raised rim, ejecta apron) in two size classes. Bowls darken and rims brighten the albedo, and the profile's analytic radial gradient perturbs the shading normal so the relief is lit by the real sun direction. A per-layer screen-space LOD fade dissolves the field before it can alias. Authored count + orbital params per company.
 
 > Final per-company "feature set" (rings y/n, moon count) lives in the MDX frontmatter.
 

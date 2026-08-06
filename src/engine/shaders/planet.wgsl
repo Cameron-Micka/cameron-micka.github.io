@@ -18,7 +18,7 @@ struct Obj {
   palMid : vec4<f32>,
   palHigh : vec4<f32>,
   p1 : vec4<f32>, // x=focus, y=hasAtmosphere, z=cloudShadow, w=oceans flag
-  p2 : vec4<f32>, // x=cityLights flag, y=flowMap flag, zw=unused
+  p2 : vec4<f32>, // x=cityLights flag, y=flowMap flag, z=craters flag, w=unused
 };
 
 @group(0) @binding(0) var<uniform> frame : Frame;
@@ -356,8 +356,77 @@ fn flowDir(local : vec3<f32>, n : vec3<f32>, seed : f32) -> vec3<f32> {
   return v / l;
 }
 
+// ---- meteorite impact craters --------------------------------------------
+// Worley-style crater field, used on moons. Feature points sit on a jittered
+// 3D cell grid, but only cells whose hash clears a threshold spawn a crater,
+// so the surface reads as scattered impacts instead of a packed honeycomb.
+// Each crater is a radial height profile — a depressed bowl ringed by a
+// raised rim that decays into an ejecta apron — evaluated at the fragment's
+// distance from the feature point. The profile's radial derivative gives an
+// analytic surface gradient which perturbs the shading normal, so bowls and
+// rims are lit by the real sun direction (dark inner wall on the sun-facing
+// side, bright far wall) rather than faked with a flat albedo ring.
+// Mirror of CRATER_* / craterLayer in PLANET_FRAG.
+struct Crater {
+  height : f32,     // signed elevation: negative in bowls, positive on rims
+  grad : vec3<f32>, // surface-tangent gradient of `height`, local sphere space
+};
+
+// Radial crater profile in units of crater radii (t = distance / radius).
+// t < ~0.55 is the flat floor, 0.55..1.0 the steep inner wall climbing to the
+// rim crest at t = 1, then the ejecta apron decays out to t = 1.6.
+fn craterProfile(t : f32) -> f32 {
+  let bowl = smoothstep(1.0, 0.55, t);
+  let rim = smoothstep(0.62, 0.98, t) * smoothstep(1.6, 1.0, t);
+  return rim * 0.45 - bowl;
+}
+
+const CRATER_REACH : f32 = 1.6; // profile support, in crater radii
+const CRATER_DT : f32 = 0.04;   // finite-difference step for the radial slope
+
+// One size class of craters. `p` is the unit-sphere local position, `n` the
+// unit surface normal used to project the gradient into the tangent plane.
+fn craterLayer(p : vec3<f32>, n : vec3<f32>, freq : f32, threshold : f32, amp : f32) -> Crater {
+  let q = p * freq;
+  let cellId = floor(q);
+  let sub = fract(q);
+  var height = 0.0;
+  var grad = vec3<f32>(0.0);
+  // 3x3x3 neighborhood so craters straddling a cell wall are not clipped.
+  for (var dx : i32 = -1; dx <= 1; dx = dx + 1) {
+    for (var dy : i32 = -1; dy <= 1; dy = dy + 1) {
+      for (var dz : i32 = -1; dz <= 1; dz = dz + 1) {
+        let off = vec3<f32>(f32(dx), f32(dy), f32(dz));
+        let h = hash3(cellId + off);
+        if (h < threshold) { continue; }
+        let center = off + vec3<f32>(fract(h * 1.7), fract(h * 7.3), fract(h * 13.1));
+        let delta = sub - center;
+        // Radius in cell units; the same hash drives size so a cell's crater
+        // is stable frame to frame.
+        let radius = mix(0.22, 0.48, fract(h * 23.7));
+        let d = length(delta);
+        let t = d / radius;
+        if (t > CRATER_REACH) { continue; }
+        // Depth scales with radius (real craters keep a roughly constant
+        // depth-to-diameter ratio).
+        let scale = amp * radius;
+        height = height + scale * craterProfile(t);
+        if (d > 1e-4) {
+          let slope = (craterProfile(t + CRATER_DT) - craterProfile(t - CRATER_DT))
+            / (2.0 * CRATER_DT);
+          // d(height)/d(p) = scale * dProfile/dt * (1/radius) * freq
+          grad = grad + (delta / d) * slope * amp * freq;
+        }
+      }
+    }
+  }
+  grad = grad - n * dot(grad, n);
+  return Crater(height, grad);
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
+
   let seed = obj.p0.y;
   let n = normalize(in.nrm);
   let viewDir = normalize(frame.cameraPos.xyz - in.worldPos);
@@ -469,6 +538,47 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     base2 = mix(base, iceColor * iceSelfShadow, iceMask);
   }
 
+  // Meteorite impact craters (moons). Two size classes — a sparse field of
+  // large basins plus a denser field of small pits — pockmark the surface.
+  // Bowls darken toward shadowed regolith, rims and ejecta brighten with
+  // freshly excavated material, and the analytic profile gradient perturbs
+  // the shading normal so the relief responds to the sun direction.
+  var shadeN = n;
+  if (obj.p2.z > 0.5) {
+    // fwidth needs uniform control flow; the crater flag is uniform per draw.
+    // Cell footprint per layer drives an LOD fade so the crater grid dissolves
+    // instead of aliasing into sparkle once a cell shrinks toward pixel size.
+    let fw = fwidth(localPos);
+    let fp = max(fw.x, max(fw.y, fw.z));
+    let cp = localPos + vec3<f32>(seed * 0.0013, seed * 0.0021, seed * 0.0007);
+    let bigFade = 1.0 - smoothstep(0.25, 0.60, fp * 5.5);
+    let smallFade = 1.0 - smoothstep(0.25, 0.60, fp * 13.0);
+    var craterH = 0.0;
+    var craterG = vec3<f32>(0.0);
+    if (bigFade > 0.002) {
+      let big = craterLayer(cp, localPos, 5.5, 0.55, 0.055 * bigFade);
+      craterH = craterH + big.height;
+      craterG = craterG + big.grad;
+    }
+    if (smallFade > 0.002) {
+      let small = craterLayer(
+        cp + vec3<f32>(3.1, 7.9, 1.3),
+        localPos,
+        13.0,
+        0.66,
+        0.022 * smallFade,
+      );
+      craterH = craterH + small.height;
+      craterG = craterG + small.grad;
+    }
+    let floorMask = clamp(-craterH * 32.0, 0.0, 1.0);
+    let rimMask = clamp(craterH * 55.0, 0.0, 1.0);
+    base2 = mix(base2, base2 * 0.62, floorMask * 0.7);
+    base2 = mix(base2, min(base2 * 1.45 + vec3<f32>(0.02), vec3<f32>(1.0)), rimMask * 0.55);
+    let gradWorld = r0 * craterG.x + r1 * craterG.y + r2 * craterG.z;
+    shadeN = normalize(n - gradWorld);
+  }
+
   // --- Cook-Torrance PBR direct lighting from the key sun ---
   // Per-pixel material: water is a smooth-ish dielectric (moderate roughness,
   // low F0 ~ water IOR 1.33 -> F0 0.02); land is a rough dielectric (high
@@ -492,9 +602,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let L = lightDir;
   let V = viewDir;
   let H = normalize(L + V);
-  let NdL = clamp(dot(n, L), 0.0, 1.0);
-  let NdV = max(dot(n, V), 1e-4);
-  let NdH = clamp(dot(n, H), 0.0, 1.0);
+  let NdL = clamp(dot(shadeN, L), 0.0, 1.0);
+  let NdV = max(dot(shadeN, V), 1e-4);
+  let NdH = clamp(dot(shadeN, H), 0.0, 1.0);
   let VdH = clamp(dot(V, H), 0.0, 1.0);
 
   let D = dGGX(NdH, roughness);
