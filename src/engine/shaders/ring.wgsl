@@ -142,15 +142,45 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let edge = aaStep(innerStart, innerStart + 0.06, radial, rw) *
              aaStep(outerFadeStart, outerEnd, radial, rw);
 
+  // Saturn's macro structure: the disk is not a uniform sheet but a small
+  // number of distinct radial zones — a faint inner C ring, the bright dense
+  // B ring, the near-empty Cassini Division, then the medium A ring with the
+  // narrow Encke gap cut near its outer edge. `t` is the position across the
+  // visible span so the layout scales with each planet's inner/outer width,
+  // and each boundary is jittered by the seed so no two rings match exactly.
+  let span = max(outerEnd - innerStart, 1e-3);
+  let t = clamp((radial - innerStart) / span, 0.0, 1.0);
+  let tw = rw / span;
+  let cEnd = 0.24 + h1 * 0.06;                 // C ring -> B ring
+  let bEnd = 0.54 + h2 * 0.05;                 // B ring -> Cassini Division
+  let divEnd = bEnd + 0.05 + h3 * 0.03;        // Division -> A ring
+  let aEnd = 0.96;                             // outer edge of the A ring
+  var st = 0.30;                               // faint, translucent C ring
+  st = mix(st, 1.00, aaStep(cEnd, cEnd + 0.03, t, tw));       // dense B ring
+  st = mix(st, 0.08, aaStep(bEnd, bEnd + 0.012, t, tw));      // Cassini Division
+  st = mix(st, 0.72, aaStep(divEnd, divEnd + 0.012, t, tw));  // A ring
+  st = mix(st, 0.00, aaStep(aEnd, aEnd + 0.02, t, tw));       // beyond A: empty
+  // Encke gap: a single hairline slot inside the outer third of the A ring.
+  let encke = divEnd + (aEnd - divEnd) * (0.68 + h4 * 0.10);
+  let enckeSlot = clamp(
+    aaStep(encke - 0.012, encke - 0.004, t, tw) -
+      aaStep(encke + 0.004, encke + 0.012, t, tw),
+    0.0,
+    1.0,
+  );
+  st = st * (1.0 - 0.85 * enckeSlot);
+  // Thin rings keep their clean uniform look, so bypass the structure.
+  let structure = mix(st, 1.0, isThin);
+
   // Curved bands: cosine in radial with a very small angular sine offset so
   // the rings stay essentially concentric, just enough imperfection to avoid
   // looking machined.
-  let broadBands = 0.5 + 0.5 * cos(radial * bandFreq - 0.6 * sin(angle * 7.0 + time * 0.03));
+  let broadBands = 0.5 + 0.5 * cos(radial * bandFreq - 0.25 * sin(angle * 7.0 + time * 0.03));
   // Fine Saturn-style sub-striations: a higher-frequency band set carved into
   // the broad bands so the disk reads as hundreds of thin concentric ringlets
   // instead of a few wide stripes. Faded out for thin rings (isThin) so those
   // keep their clean ~3-stripe look.
-  let fineBands = 0.5 + 0.5 * cos(radial * bandFreq * 2.6 + 0.25 * sin(angle * 11.0));
+  let fineBands = 0.5 + 0.5 * cos(radial * bandFreq * 2.6 + 0.10 * sin(angle * 11.0));
   // Frequency-aware contrast attenuation (analytic AA, after iq's "filtering
   // procedural textures"). A band set's on-screen rate in cycles/pixel is
   // freq/(2π)·fwidth(radial); once it nears the Nyquist limit (~0.5) the bands
@@ -191,7 +221,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let gap = clamp(g1 + g2 * 0.7, 0.0, 1.0);
   let opaq = max(0.0, density - gap * 0.85);
 
-  let a = edge * (0.18 + 0.55 * opaq) * (0.5 + 0.5 * obj.p1.x);
+  let a = edge * structure * (0.18 + 0.55 * opaq) * (0.5 + 0.5 * obj.p1.x);
 
   // Broad colour zones: low-frequency fBm in both radial AND angular axes
   // picks a position across the planet's 3-colour palette (low/mid/high).
@@ -205,7 +235,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let ang2 = vec2<f32>(cos(angle), sin(angle));
   let zoneR = fbm2(vec2<f32>(radial * 4.5, 1.7 + h1 * 6.28));
   let zoneA = fbm2(ang2 * 1.7 + vec2<f32>(h4 * 5.0, radial * 2.1));
-  let palT = clamp(zoneR * 0.75 + zoneA * 0.55 - 0.10, 0.0, 1.0);
+  let palT = clamp(zoneR * 1.05 + zoneA * 0.18 - 0.10, 0.0, 1.0);
   let pal01 = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.0, 0.55, palT));
   let paletteCol = mix(pal01, obj.palHigh.rgb, smoothstep(0.50, 1.0, palT));
   // The densest sub-bands lean slightly further toward palHigh, as if the
@@ -218,7 +248,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // distinct particle compositions clumping together. Seamless via ang2.
   let chroma = vnoise2(ang2 * 7.3 + vec2<f32>(radial * 9.0, h2 * 5.0));
   let chromaCol = mix(obj.palLow.rgb, obj.palHigh.rgb, chroma);
-  let variedCol = mix(zonedCol, chromaCol, 0.18);
+  let variedCol = mix(zonedCol, chromaCol, 0.07);
   // Fine high-frequency grain modulates brightness +/-15% so bands have a
   // dusty, granular texture instead of reading as flat fills. Sampled on
   // ang2 * frequency so it stays seamless around the loop.
@@ -228,8 +258,11 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Density-driven luminance keeps the sparse outer dust readably dimmer
   // than the bright core bands (matches the pre-refactor look).
   let densityShade = mix(0.70, 1.05, smoothstep(0.20, 0.85, density));
+  // The dense B/A zones catch more light than the wispy C ring, so tie
+  // brightness to the macro structure as well as the local band density.
+  let structShade = 0.72 + 0.38 * structure;
 
-  let baseCol = variedCol * densityShade * grainBright;
+  let baseCol = variedCol * densityShade * structShade * grainBright;
   // Planet shadow on the ring: dim the colour (keep alpha so the silhouette
   // stays the same). Sun direction (L) points from receiver toward the sun.
   let L = normalize(frame.keyLightDir.xyz);

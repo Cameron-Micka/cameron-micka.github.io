@@ -837,10 +837,28 @@ void main(){
   float rw=fwidth(radial);
   float edge=aaStep(innerStart,innerStart+0.06,radial,rw)*
              aaStep(outerFadeStart,outerEnd,radial,rw);
-  float broadBands=0.5+0.5*cos(radial*bandFreq-0.6*sin(angle*7.0+time*0.03));
+  // Saturn macro structure: faint C ring, dense B ring, near-empty Cassini
+  // Division, medium A ring with the narrow Encke gap. Mirror of ring.wgsl.
+  float span=max(outerEnd-innerStart,1e-3);
+  float t=clamp((radial-innerStart)/span,0.0,1.0);
+  float tw=rw/span;
+  float cEnd=0.24+h1*0.06;
+  float bEnd=0.54+h2*0.05;
+  float divEnd=bEnd+0.05+h3*0.03;
+  float aEnd=0.96;
+  float st=0.30;
+  st=mix(st,1.00,aaStep(cEnd,cEnd+0.03,t,tw));
+  st=mix(st,0.08,aaStep(bEnd,bEnd+0.012,t,tw));
+  st=mix(st,0.72,aaStep(divEnd,divEnd+0.012,t,tw));
+  st=mix(st,0.00,aaStep(aEnd,aEnd+0.02,t,tw));
+  float encke=divEnd+(aEnd-divEnd)*(0.68+h4*0.10);
+  float enckeSlot=clamp(aaStep(encke-0.012,encke-0.004,t,tw)-aaStep(encke+0.004,encke+0.012,t,tw),0.0,1.0);
+  st*=1.0-0.85*enckeSlot;
+  float structure=mix(st,1.0,isThin);
+  float broadBands=0.5+0.5*cos(radial*bandFreq-0.25*sin(angle*7.0+time*0.03));
   // Fine Saturn-style sub-striations carved into the broad bands; faded out for
   // thin rings. Mirror of ring.wgsl.
-  float fineBands=0.5+0.5*cos(radial*bandFreq*2.6+0.25*sin(angle*11.0));
+  float fineBands=0.5+0.5*cos(radial*bandFreq*2.6+0.10*sin(angle*11.0));
   // Frequency-aware contrast attenuation (analytic AA): fade each band set to
   // its mean as its on-screen rate (freq/(2pi)*fwidth) approaches the Nyquist
   // limit so undersampled rings stop shimmering / moiré. Mirror of ring.wgsl.
@@ -865,23 +883,24 @@ void main(){
   float g2=aaStep(0.92,0.97,s2,fwidth(s2));
   float gap=clamp(g1+g2*0.7,0.0,1.0);
   float opaq=max(0.0,density-gap*0.85);
-  float a=edge*(0.18+0.55*opaq)*(0.5+0.5*uFocus);
+  float a=edge*structure*(0.18+0.55*opaq)*(0.5+0.5*uFocus);
   vec2 ang2=vec2(cos(angle),sin(angle));
   float zoneR=fbm2(vec2(radial*4.5,1.7+h1*6.28));
   float zoneA=fbm2(ang2*1.7+vec2(h4*5.0,radial*2.1));
-  float palT=clamp(zoneR*0.75+zoneA*0.55-0.10,0.0,1.0);
+  float palT=clamp(zoneR*1.05+zoneA*0.18-0.10,0.0,1.0);
   vec3 pal01=mix(uLow,uMid,smoothstep(0.0,0.55,palT));
   vec3 paletteCol=mix(pal01,uHigh,smoothstep(0.50,1.0,palT));
   float densityWarm=smoothstep(0.55,0.92,density);
   vec3 zonedCol=mix(paletteCol,uHigh,densityWarm*0.30);
   float chroma=vnoise2(ang2*7.3+vec2(radial*9.0,h2*5.0));
   vec3 chromaCol=mix(uLow,uHigh,chroma);
-  vec3 variedCol=mix(zonedCol,chromaCol,0.18);
+  vec3 variedCol=mix(zonedCol,chromaCol,0.07);
   vec2 grainP=vec2(radial*22.0,0.0)+ang2*8.5;
   float grain=vnoise2(grainP+vec2(33.0,17.0));
   float grainBright=0.85+0.30*(grain-0.5);
   float densityShade=mix(0.70,1.05,smoothstep(0.20,0.85,density));
-  vec3 baseCol=variedCol*densityShade*grainBright;
+  float structShade=0.72+0.38*structure;
+  vec3 baseCol=variedCol*densityShade*structShade*grainBright;
   vec3 L=normalize(uLight);
   float shadow=shadowFactor(vWorld,L);
   vec3 V=normalize(uCamera-vWorld);
