@@ -109,7 +109,7 @@ out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
-uniform float uCityLights;uniform float uFlow;
+uniform float uCityLights;uniform float uFlow;uniform float uCraters;
 uniform float uTime;uniform float uReducedMotion;
 uniform float uCloudShadow; // 0 = clouds off, >0 = shadow strength multiplier
 uniform mat4 uModel;
@@ -262,6 +262,53 @@ vec3 flowDir(vec3 local,vec3 n,float seed){
   if(l<1e-4)return vec3(0.0);
   return v/l;
 }
+// ---- meteorite impact craters (moons) — mirror of planet.wgsl -------------
+// Worley-style field: only cells whose hash clears a threshold spawn a
+// crater, so impacts read as scattered rather than a packed honeycomb. Each
+// crater is a radial height profile (bowl, raised rim, ejecta apron); its
+// radial derivative gives an analytic gradient that perturbs the shading
+// normal so the relief is lit by the real sun direction.
+struct Crater{float height;vec3 grad;};
+// t = distance / crater radius. <0.55 floor, 0.55..1.0 inner wall up to the
+// rim crest at t=1, then the ejecta apron decays out to t=1.6.
+float craterProfile(float t){
+  float bowl=smoothstep(1.0,0.55,t);
+  float rim=smoothstep(0.62,0.98,t)*smoothstep(1.6,1.0,t);
+  return rim*0.45-bowl;
+}
+const float CRATER_REACH=1.6;
+const float CRATER_DT=0.04;
+Crater craterLayer(vec3 p,vec3 n,float freq,float threshold,float amp){
+  vec3 q=p*freq;
+  vec3 cellId=floor(q);
+  vec3 sub=fract(q);
+  float height=0.0;
+  vec3 grad=vec3(0.0);
+  // 3x3x3 neighborhood so craters straddling a cell wall are not clipped.
+  for(int dx=-1;dx<=1;dx++){
+    for(int dy=-1;dy<=1;dy++){
+      for(int dz=-1;dz<=1;dz++){
+        vec3 off=vec3(float(dx),float(dy),float(dz));
+        float h=hash3(cellId+off);
+        if(h<threshold)continue;
+        vec3 center=off+vec3(fract(h*1.7),fract(h*7.3),fract(h*13.1));
+        vec3 delta=sub-center;
+        float radius=mix(0.22,0.48,fract(h*23.7));
+        float d=length(delta);
+        float t=d/radius;
+        if(t>CRATER_REACH)continue;
+        // Depth scales with radius (constant depth-to-diameter ratio).
+        height+=amp*radius*craterProfile(t);
+        if(d>1e-4){
+          float slope=(craterProfile(t+CRATER_DT)-craterProfile(t-CRATER_DT))/(2.0*CRATER_DT);
+          grad+=(delta/d)*slope*amp*freq;
+        }
+      }
+    }
+  }
+  grad-=n*dot(grad,n);
+  return Crater(height,grad);
+}
 void main(){
   vec3 n=normalize(vNrm);
   vec3 viewDir=normalize(uCamera-vWorld);
@@ -337,6 +384,37 @@ void main(){
   vec3 iceColor=mix(vec3(0.88,0.93,0.98),vec3(0.48,0.70,0.92),iceBlue*0.85);
   base=mix(base,iceColor*iceSelfShadow,iceMask);
   }
+  // Meteorite impact craters (moons). Two size classes — sparse large basins
+  // plus a denser field of small pits. Bowls darken toward shadowed regolith,
+  // rims and ejecta brighten with freshly excavated material, and the profile
+  // gradient perturbs the shading normal so relief tracks the sun direction.
+  vec3 shadeN=n;
+  if(uCraters>0.5){
+    // fwidth needs uniform control flow; uCraters is uniform per draw. The
+    // per-layer cell footprint drives an LOD fade so the grid dissolves
+    // instead of aliasing into sparkle once a cell nears pixel size.
+    vec3 fwl=fwidth(localPos);
+    float fp=max(fwl.x,max(fwl.y,fwl.z));
+    vec3 cp=localPos+vec3(uSeed*0.0013,uSeed*0.0021,uSeed*0.0007);
+    float bigFade=1.0-smoothstep(0.25,0.60,fp*5.5);
+    float smallFade=1.0-smoothstep(0.25,0.60,fp*13.0);
+    float craterH=0.0;
+    vec3 craterG=vec3(0.0);
+    if(bigFade>0.002){
+      Crater big=craterLayer(cp,localPos,5.5,0.55,0.055*bigFade);
+      craterH+=big.height;craterG+=big.grad;
+    }
+    if(smallFade>0.002){
+      Crater small=craterLayer(cp+vec3(3.1,7.9,1.3),localPos,13.0,0.66,0.022*smallFade);
+      craterH+=small.height;craterG+=small.grad;
+    }
+    float floorMask=clamp(-craterH*32.0,0.0,1.0);
+    float rimMask=clamp(craterH*55.0,0.0,1.0);
+    base=mix(base,base*0.62,floorMask*0.7);
+    base=mix(base,min(base*1.45+vec3(0.02),vec3(1.0)),rimMask*0.55);
+    vec3 gradWorld=r0*craterG.x+r1*craterG.y+r2*craterG.z;
+    shadeN=normalize(n-gradWorld);
+  }
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
   // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere
   // triangle face, see planet.wgsl for the FWHM derivation); land = rough.
@@ -346,9 +424,9 @@ void main(){
   vec3 F0base=mix(mix(vec3(0.04),vec3(0.02),waterMask),vec3(0.05,0.055,0.06),iceMask);
   vec3 F0=mix(F0base,albedo,metallic);
   vec3 L=lightDir;vec3 V=viewDir;vec3 H=normalize(L+V);
-  float NdL=clamp(dot(n,L),0.0,1.0);
-  float NdV=max(dot(n,V),1e-4);
-  float NdH=clamp(dot(n,H),0.0,1.0);
+  float NdL=clamp(dot(shadeN,L),0.0,1.0);
+  float NdV=max(dot(shadeN,V),1e-4);
+  float NdH=clamp(dot(shadeN,H),0.0,1.0);
   float VdH=clamp(dot(V,H),0.0,1.0);
   float D=dGGX(NdH,roughness);
   float G=gSmith(NdV,NdL,roughness);
@@ -1586,7 +1664,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
-      'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow',
+      'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow', 'uCraters',
       'uTime', 'uReducedMotion', 'uCloudShadow',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
@@ -2145,6 +2223,7 @@ export class WebGL2Renderer implements SceneRenderer {
           selectSphereLod(moonCenter, m.size * vis, frame.cameraPos),
           false,
           false, // moons don't flow
+          true, // meteorite impact craters
         );
       }
     }
@@ -2586,6 +2665,7 @@ export class WebGL2Renderer implements SceneRenderer {
     lod: number,
     cityLights: boolean = false,
     flow: boolean = false,
+    craters: boolean = false,
   ): void {
     const gl = this.gl;
     mat4.fromRotationTranslationScale(model, rotation, center, radius);
@@ -2598,6 +2678,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.planet.uniforms.uOceans!, oceans ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCityLights!, cityLights ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uFlow!, flow ? 1 : 0);
+    gl.uniform1f(this.planet.uniforms.uCraters!, craters ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCloudShadow!, cloudShadow);
     const mesh = this.sphereLods[lod]!;
     gl.bindVertexArray(mesh.vao);
