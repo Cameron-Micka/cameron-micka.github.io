@@ -30,9 +30,11 @@ function NavArrow({ direction }: { direction: 'up' | 'down' }) {
 
 export function SideRuler({ companies }: { companies: Company[] }) {
   const engine = useEngine();
-  const { focusedIndex } = useEngineSnapshot();
+  const { focusedIndex, freeCamera } = useEngineSnapshot();
   const canGoUp = focusedIndex > 0;
   const canGoDown = focusedIndex < companies.length - 1;
+  // The scrubber drives the timeline camera, which free-fly mode overrides.
+  if (freeCamera) return null;
   return (
     <div className="ruler" role="tablist" aria-label="Career timeline">
       <button
