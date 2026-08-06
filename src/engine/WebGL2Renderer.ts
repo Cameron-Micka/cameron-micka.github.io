@@ -2349,17 +2349,30 @@ export class WebGL2Renderer implements SceneRenderer {
           p.orientation,
           quat.fromAxisAngle([1, 0, 0.2], p.ringTilt),
         );
-        mat4.fromRotationTranslationScale(model, ringRot, p.center, er);
-        gl.uniformMatrix4fv(this.ring.uniforms.uModel!, false, model);
-        gl.uniform3fv(this.ring.uniforms.uLow!, p.paletteLow);
-        gl.uniform3fv(this.ring.uniforms.uMid!, p.paletteMid);
-        gl.uniform3fv(this.ring.uniforms.uHigh!, p.paletteHigh);
-        gl.uniform1f(this.ring.uniforms.uSeed!, p.seed % 100000);
-        gl.uniform1f(this.ring.uniforms.uThin!, p.thinRing ? 1 : 0);
-        gl.uniform1f(this.ring.uniforms.uFocus!, p.focus);
-        gl.drawElements(gl.TRIANGLES, this.ringCount, ringIdxType, 0);
-        this.stats.drawCalls++;
-        this.stats.triangles += this.ringCount / 3;
+        // Optional second ring on a different plane: rotate the primary ring
+        // about a perpendicular axis so the two rings cross at an angle.
+        const ringRots = p.secondRing
+          ? [
+              ringRot,
+              quat.multiply(
+                ringRot,
+                quat.fromAxisAngle([0, 0, 1], p.secondRingTilt),
+              ),
+            ]
+          : [ringRot];
+        for (const [r, rr] of ringRots.entries()) {
+          mat4.fromRotationTranslationScale(model, rr, p.center, er);
+          gl.uniformMatrix4fv(this.ring.uniforms.uModel!, false, model);
+          gl.uniform3fv(this.ring.uniforms.uLow!, p.paletteLow);
+          gl.uniform3fv(this.ring.uniforms.uMid!, p.paletteMid);
+          gl.uniform3fv(this.ring.uniforms.uHigh!, p.paletteHigh);
+          gl.uniform1f(this.ring.uniforms.uSeed!, (p.seed + r * 7919) % 100000);
+          gl.uniform1f(this.ring.uniforms.uThin!, p.thinRing ? 1 : 0);
+          gl.uniform1f(this.ring.uniforms.uFocus!, p.focus);
+          gl.drawElements(gl.TRIANGLES, this.ringCount, ringIdxType, 0);
+          this.stats.drawCalls++;
+          this.stats.triangles += this.ringCount / 3;
+        }
       }
       gl.depthMask(true);
       gl.disable(gl.BLEND);

@@ -46,6 +46,13 @@ export const companySchema = z.object({
     // When true, the planet's ring is rendered as a narrow band with only a
     // few visible stripes instead of the broader many-band default.
     thinRing: z.boolean().default(false),
+    // When true, a second ring is drawn around the planet on a different
+    // plane from the primary ring (rotated by `secondRingTilt` about a
+    // perpendicular axis), giving a crossed double-ring silhouette.
+    secondRing: z.boolean().default(false),
+    // Extra tilt (radians) applied to the second ring, relative to the
+    // primary ring's plane. Only used when `secondRing` is true.
+    secondRingTilt: z.number().default(1.1),
     // When true, low-elevation terrain is rendered as smooth water with
     // depth-graded blue and a tight specular highlight, instead of the
     // textured land used everywhere else on the planet.
