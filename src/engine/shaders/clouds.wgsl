@@ -256,7 +256,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // slightly by the planet's atmosphere color so clouds feel cohesive.
   let NdL = clamp(dot(n, sun), 0.0, 1.0);
   let albedo = mix(vec3<f32>(1.0), obj.palHigh.rgb, 0.08);
-  var col = albedo * (0.05 + 0.95 * NdL) * selfShadow;
+  var col = albedo * (0.02 + 0.98 * NdL) * selfShadow;
 
   // Per-planet analytic shadow from other planets (no self-exclude needed:
   // the parent planet's surface is behind every cloud fragment along L).

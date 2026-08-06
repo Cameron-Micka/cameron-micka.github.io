@@ -369,7 +369,7 @@ void main(){
   float cloudShadowMul=cloudShadow(vLocal,L,uTime,uSeed,uReducedMotion,uCloudShadow);
   vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL*shadow*cloudShadowMul;
   float ambientShadowMul=0.10+0.90*cloudShadowMul;
-  vec3 ambient=albedo*0.01*ambientShadowMul;
+  vec3 ambient=albedo*0.004*ambientShadowMul;
   vec3 col=ambient+direct;
   // City lights on the night side of land masses (planet-feature gated).
   // Population proxy: low-freq continent fbm + coastline boost. Lights are
@@ -1192,7 +1192,7 @@ void main(){
   float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed,uReducedMotion);
   float NdL=clamp(dot(n,sun),0.0,1.0);
   vec3 albedo=mix(vec3(1.0),uTint,0.08);
-  vec3 col=albedo*(0.05+0.95*NdL)*selfShadow;
+  vec3 col=albedo*(0.02+0.98*NdL)*selfShadow;
   // Other-planet shadows (no self-exclude: parent surface is along L past
   // the cloud fragment).
   float s=1.0;

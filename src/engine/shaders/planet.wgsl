@@ -534,7 +534,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Very faint ambient so the unlit hemisphere reads as deep shadow without
   // being pitch black — surface noise stays just barely legible.
   let ambientShadowMul = 0.10 + 0.90 * cloudShadowMul;
-  let ambient = albedo * 0.01 * ambientShadowMul;
+  let ambient = albedo * 0.004 * ambientShadowMul;
   var color = ambient + direct;
 
   // City lights on the night side of land masses. Gated by p2.x (planet
