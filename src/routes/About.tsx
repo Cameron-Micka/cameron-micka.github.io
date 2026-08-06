@@ -11,7 +11,7 @@ export default function About() {
         <p className="lede">{SITE.tagline}</p>
         <figure className="profile-photo">
           <img
-            src="https://avatars.githubusercontent.com/Cameron-Micka"
+            src="https://avatars.githubusercontent.com/Cameron-Micka?s=320"
             alt={`Portrait of ${SITE.name}`}
             width={160}
             height={160}

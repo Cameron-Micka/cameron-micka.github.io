@@ -177,7 +177,6 @@ a:hover {
    passing beneath it. */
 .topnav.solid {
   background: var(--bg);
-  backdrop-filter: blur(8px);
 }
 /* Drafted double rule beneath the bar. */
 .topnav::after {
@@ -284,7 +283,6 @@ a:hover {
   border: 1px solid var(--glass-border);
   color: var(--accent-2);
   cursor: pointer;
-  backdrop-filter: blur(8px);
   transition:
     color 0.14s linear,
     border-color 0.14s linear,
@@ -330,7 +328,6 @@ a:hover {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
-  backdrop-filter: blur(8px);
   white-space: nowrap;
 }
 .freecam-hint::before {
@@ -537,7 +534,6 @@ a:hover {
   border: 1px solid var(--glass-border);
   border-radius: 0;
   padding: 6px 10px;
-  backdrop-filter: blur(8px);
 }
 .ribbon .hint::before {
   content: '> ';
