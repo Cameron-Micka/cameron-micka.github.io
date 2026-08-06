@@ -8,12 +8,23 @@ function formatDates(c: Company): string {
 }
 
 export function BottomRibbon({ companies }: { companies: Company[] }) {
-  const { focusedIndex, openPoi } = useEngineSnapshot();
+  const { focusedIndex, openPoi, freeCamera } = useEngineSnapshot();
   if (openPoi) return null;
-  const company = companies[focusedIndex];
-  if (!company) return null;
   const touch =
     typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+  // Free-fly mode detaches the camera from the timeline, so the focused
+  // company is no longer meaningful — keep only the controls tip.
+  if (freeCamera) {
+    return (
+      <div className="ribbon hint-only" aria-live="polite">
+        <div className="hint">
+          {touch ? HINTS.freeCameraTouch : HINTS.freeCameraDesktop}
+        </div>
+      </div>
+    );
+  }
+  const company = companies[focusedIndex];
+  if (!company) return null;
   const logoSrc = company.logo
     ? `${import.meta.env.BASE_URL}${company.logo.replace(/^\/+/, '')}`
     : null;

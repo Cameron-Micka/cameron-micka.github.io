@@ -165,17 +165,12 @@ function Backend() {
 }
 
 // Round toggle (bottom-right, mirrors the settings button) for the free-fly
-// camera. Shows a controls hint while active.
+// camera. The controls hint lives in the bottom ribbon while active.
 function FreeCameraButton() {
   const engine = useEngine();
   const { freeCamera } = useEngineSnapshot();
   return (
     <div className="freecam">
-      {freeCamera && (
-        <div className="freecam-hint">
-          WASD to fly · Shift to boost · Space to creep · drag to look
-        </div>
-      )}
       <button
         type="button"
         className={`icon-btn freecam-btn${freeCamera ? ' active' : ''}`}
