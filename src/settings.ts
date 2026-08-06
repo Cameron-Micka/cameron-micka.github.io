@@ -25,7 +25,7 @@ const DEFAULTS: PersistedSettings = {
   forceBackend: 'auto',
   freeCamera: false,
   flightPath: true,
-  crt: true,
+  crt: false,
 };
 
 function isValidQuality(q: unknown): q is QualityPreference {
