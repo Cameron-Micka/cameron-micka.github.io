@@ -1174,6 +1174,7 @@ a:hover {
   }
   93% {
     transform: translate3d(1px, 1px, 0);
+    clip-path: none;
     text-shadow:
       -1px 0 var(--glitch-b, rgba(0, 224, 255, 0.8)),
       1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8));
