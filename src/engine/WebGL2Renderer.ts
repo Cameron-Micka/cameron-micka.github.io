@@ -278,6 +278,11 @@ float craterProfile(float t){
 }
 const float CRATER_REACH=1.6;
 const float CRATER_DT=0.04;
+// Size range in cell units; the upper bound keeps the widest crater (plus
+// edge wobble) inside the 3x3x3 neighborhood.
+const float CRATER_MIN_R=0.10;
+const float CRATER_MAX_R=0.52;
+const float CRATER_WOBBLE=0.11;
 Crater craterLayer(vec3 p,vec3 n,float freq,float threshold,float amp){
   vec3 q=p*freq;
   vec3 cellId=floor(q);
@@ -293,15 +298,21 @@ Crater craterLayer(vec3 p,vec3 n,float freq,float threshold,float amp){
         if(h<threshold)continue;
         vec3 center=off+vec3(fract(h*1.7),fract(h*7.3),fract(h*13.1));
         vec3 delta=sub-center;
-        float radius=mix(0.22,0.48,fract(h*23.7));
+        // Cubed hash biases sizes toward small pits with the odd wide basin.
+        float hr=fract(h*23.7);
+        float radius=mix(CRATER_MIN_R,CRATER_MAX_R,hr*hr*hr);
         float d=length(delta);
-        float t=d/radius;
+        // Value-noise radius modulation so rims are ragged, not perfect
+        // circles; lobe size tracks the crater radius.
+        float wob=vnoise((cellId+off+sub)*(1.6/radius)+vec3(h*31.0))-0.5;
+        float rEff=radius*(1.0+CRATER_WOBBLE*2.0*wob);
+        float t=d/rEff;
         if(t>CRATER_REACH)continue;
         // Depth scales with radius (constant depth-to-diameter ratio).
         height+=amp*radius*craterProfile(t);
         if(d>1e-4){
           float slope=(craterProfile(t+CRATER_DT)-craterProfile(t-CRATER_DT))/(2.0*CRATER_DT);
-          grad+=(delta/d)*slope*amp*freq;
+          grad+=(delta/d)*slope*amp*(radius/rEff)*freq;
         }
       }
     }
@@ -401,17 +412,18 @@ void main(){
     float craterH=0.0;
     vec3 craterG=vec3(0.0);
     if(bigFade>0.002){
-      Crater big=craterLayer(cp,localPos,5.5,0.55,0.055*bigFade);
+      Crater big=craterLayer(cp,localPos,5.5,0.55,0.040*bigFade);
       craterH+=big.height;craterG+=big.grad;
     }
     if(smallFade>0.002){
-      Crater small=craterLayer(cp+vec3(3.1,7.9,1.3),localPos,13.0,0.66,0.022*smallFade);
+      Crater small=craterLayer(cp+vec3(3.1,7.9,1.3),localPos,13.0,0.66,0.016*smallFade);
       craterH+=small.height;craterG+=small.grad;
     }
-    float floorMask=clamp(-craterH*32.0,0.0,1.0);
-    float rimMask=clamp(craterH*55.0,0.0,1.0);
-    base=mix(base,base*0.62,floorMask*0.7);
-    base=mix(base,min(base*1.45+vec3(0.02),vec3(1.0)),rimMask*0.55);
+    // Soft, low-contrast masks so craters read as gentle regolith mottling.
+    float floorMask=clamp(-craterH*22.0,0.0,1.0);
+    float rimMask=clamp(craterH*38.0,0.0,1.0);
+    base=mix(base,base*0.80,floorMask*0.45);
+    base=mix(base,min(base*1.18+vec3(0.01),vec3(1.0)),rimMask*0.30);
     vec3 gradWorld=r0*craterG.x+r1*craterG.y+r2*craterG.z;
     shadeN=normalize(n-gradWorld);
   }
