@@ -388,7 +388,7 @@ const CRATER_DT : f32 = 0.04;   // finite-difference step for the radial slope
 // (CRATER_MAX_R * (1 + CRATER_WOBBLE) * CRATER_REACH < 1).
 const CRATER_MIN_R : f32 = 0.10;
 const CRATER_MAX_R : f32 = 0.52;
-const CRATER_WOBBLE : f32 = 0.11; // fractional radius jitter around the rim
+const CRATER_WOBBLE : f32 = 0.11; // peak fractional radius jitter (wob is +-0.5, hence the 2x)
 
 // One size class of craters. `p` is the unit-sphere local position, `n` the
 // unit surface normal used to project the gradient into the tangent plane.

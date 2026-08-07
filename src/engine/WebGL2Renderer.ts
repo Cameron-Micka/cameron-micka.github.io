@@ -282,7 +282,7 @@ const float CRATER_DT=0.04;
 // edge wobble) inside the 3x3x3 neighborhood.
 const float CRATER_MIN_R=0.10;
 const float CRATER_MAX_R=0.52;
-const float CRATER_WOBBLE=0.11;
+const float CRATER_WOBBLE=0.11; // peak fractional radius jitter (wob is +-0.5, hence the 2x)
 Crater craterLayer(vec3 p,vec3 n,float freq,float threshold,float amp){
   vec3 q=p*freq;
   vec3 cellId=floor(q);
