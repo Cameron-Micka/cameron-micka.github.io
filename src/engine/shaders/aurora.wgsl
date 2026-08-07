@@ -137,7 +137,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Orthonormal basis spanning the plane perpendicular to the pole axis. The
   // noise is sampled on this plane so curtains are seamless around the pole.
 
-  let at = frame.misc.x * 0.5;
+  // Animation clock. Real auroras drift slowly, so the noise field is advanced
+  // at a fraction of wall-clock time.
+  let at = frame.misc.x * 0.15;
 
   // Curtains rise radially from innerA; cap their top at half the shell
   // thickness so they read as shorter curtains.
@@ -160,10 +162,6 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let dir = rel / r;
     let ld = vec3<f32>(dot(bx, dir), dot(by, dir), dot(bz, dir)); // local direction
 
-    // Auroral oval: a soft band around each pole.
-    let lat = abs(ld.y);
-    let band = smoothstep(0.42, 0.60, lat) * (1.0 - smoothstep(0.86, 0.98, lat));
-
     // Altitude within the shell drives both the curtain colour and a base->top
     // density falloff (curtains are densest near the base).
     let h = clamp((r - innerA) / thickness, 0.0, 1.0);
@@ -174,14 +172,25 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let pc = vec2<f32>(ld.x, ld.z);
     let coarse = triNoise2d(pc * 1.4, 0.025, at);
     let group = smoothstep(0.08, 0.50, coarse);
+
+    // Auroral oval: a soft band around each pole. The real oval is never a
+    // clean circle, so the coarse field nudges the band's latitude limits,
+    // making it wander, pinch and widen around the pole. Wide, soft edges keep
+    // the transition diffuse rather than stencil-sharp.
+    let wob = (coarse - 0.275) * 0.55;
+    let lat = clamp(abs(ld.y) + wob, 0.0, 1.0);
+    let band = smoothstep(0.38, 0.64, lat) * (1.0 - smoothstep(0.82, 1.00, lat));
     // Lateral wiggle: sway the filaments side-to-side along the band as they
     // rise. The displacement runs tangent to the pole and varies with altitude
     // and time, so each strand snakes and ripples like a real auroral curtain.
     let radial = pc / max(length(pc), 1e-3);
     let tangent = vec2<f32>(-radial.y, radial.x);
-    let wiggle = (sin(h * 11.0 + at * 2.2 + length(pc) * 6.0)
-                + 0.5 * sin(h * 6.0 - at * 1.7 + ld.y * 8.0)) * 0.04;
-    let pcw = pc + vec2<f32>(coarse - 0.275, coarse - 0.275) * 0.8 + tangent * wiggle;
+    let wiggle = (sin(h * 9.0 + at * 1.3 + length(pc) * 6.0)
+                + 0.5 * sin(h * 5.0 - at * 0.9 + ld.y * 8.0)) * 0.05;
+    // Curtains drape and lean instead of rising perfectly radially: shear the
+    // sample sideways with altitude by a per-strand amount.
+    let shear = (coarse - 0.275) * h * 0.35;
+    let pcw = pc + vec2<f32>(coarse - 0.275, coarse - 0.275) * 0.8 + tangent * (wiggle + shear);
     let fil = triNoise2d(pcw * 2.6, 0.06, at);
     let strings = pow(clamp(fil * 1.7, 0.0, 1.0), 0.8);
     let rzt = strings * group * band;
@@ -195,11 +204,16 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let nightAmt = 1.0 - smoothstep(-0.2, 0.3, dot(dir, sun));
     let nightFloor = mix(0.08, 1.0, nightAmt);
 
-    col = col + avg * exp(-h * 1.6) * nightFloor * (dt / thickness);
+    // Curtains do not all reach the same altitude: dense strands tower while
+    // sparse ones stay low. The extra fade keeps the tops feathered rather
+    // than clipped at the shell boundary.
+    let reach = 2.6 - 1.4 * group;
+    let topFade = 1.0 - smoothstep(0.55, 1.0, h);
+    col = col + avg * exp(-h * reach) * topFade * nightFloor * (dt / thickness);
   }
 
   let intensity = obj.p1.y * (0.85 + 0.3 * obj.p1.x);
-  col = col * intensity * 3.0;
+  col = col * intensity * 3.4; // compensates the softer height falloff above
 
   // Distance fog (matches the other additive shells: attenuate the glow).
   let dist = distance(in.worldPos, ro);
