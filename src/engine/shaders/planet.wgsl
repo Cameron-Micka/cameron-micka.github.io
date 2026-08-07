@@ -383,6 +383,12 @@ fn craterProfile(t : f32) -> f32 {
 
 const CRATER_REACH : f32 = 1.6; // profile support, in crater radii
 const CRATER_DT : f32 = 0.04;   // finite-difference step for the radial slope
+// Size range in cell units. The upper bound is capped so the widest crater,
+// including edge wobble, still fits inside the 3x3x3 neighborhood
+// (CRATER_MAX_R * (1 + CRATER_WOBBLE) * CRATER_REACH < 1).
+const CRATER_MIN_R : f32 = 0.10;
+const CRATER_MAX_R : f32 = 0.52;
+const CRATER_WOBBLE : f32 = 0.11; // peak fractional radius jitter (wob is +-0.5, hence the 2x)
 
 // One size class of craters. `p` is the unit-sphere local position, `n` the
 // unit surface normal used to project the gradient into the tangent plane.
@@ -402,10 +408,18 @@ fn craterLayer(p : vec3<f32>, n : vec3<f32>, freq : f32, threshold : f32, amp : 
         let center = off + vec3<f32>(fract(h * 1.7), fract(h * 7.3), fract(h * 13.1));
         let delta = sub - center;
         // Radius in cell units; the same hash drives size so a cell's crater
-        // is stable frame to frame.
-        let radius = mix(0.22, 0.48, fract(h * 23.7));
+        // is stable frame to frame. The cubed hash biases the distribution
+        // toward small pits with the occasional wide basin, widening the size
+        // spread without letting the largest crater outgrow its cell.
+        let hr = fract(h * 23.7);
+        let radius = mix(CRATER_MIN_R, CRATER_MAX_R, hr * hr * hr);
         let d = length(delta);
-        let t = d / radius;
+        // Perfect circles read as machine-made, so the effective radius is
+        // modulated by value noise: lobe size tracks the crater radius, so
+        // every crater gets a similar number of ragged bites out of its rim.
+        let wob = vnoise((cellId + off + sub) * (1.6 / radius) + vec3<f32>(h * 31.0)) - 0.5;
+        let rEff = radius * (1.0 + CRATER_WOBBLE * 2.0 * wob);
+        let t = d / rEff;
         if (t > CRATER_REACH) { continue; }
         // Depth scales with radius (real craters keep a roughly constant
         // depth-to-diameter ratio).
@@ -414,8 +428,8 @@ fn craterLayer(p : vec3<f32>, n : vec3<f32>, freq : f32, threshold : f32, amp : 
         if (d > 1e-4) {
           let slope = (craterProfile(t + CRATER_DT) - craterProfile(t - CRATER_DT))
             / (2.0 * CRATER_DT);
-          // d(height)/d(p) = scale * dProfile/dt * (1/radius) * freq
-          grad = grad + (delta / d) * slope * amp * freq;
+          // d(height)/d(p) = scale * dProfile/dt * (1/rEff) * freq
+          grad = grad + (delta / d) * slope * amp * (radius / rEff) * freq;
         }
       }
     }
@@ -556,7 +570,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     var craterH = 0.0;
     var craterG = vec3<f32>(0.0);
     if (bigFade > 0.002) {
-      let big = craterLayer(cp, localPos, 5.5, 0.55, 0.055 * bigFade);
+      let big = craterLayer(cp, localPos, 5.5, 0.55, 0.040 * bigFade);
       craterH = craterH + big.height;
       craterG = craterG + big.grad;
     }
@@ -566,15 +580,17 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
         localPos,
         13.0,
         0.66,
-        0.022 * smallFade,
+        0.016 * smallFade,
       );
       craterH = craterH + small.height;
       craterG = craterG + small.grad;
     }
-    let floorMask = clamp(-craterH * 32.0, 0.0, 1.0);
-    let rimMask = clamp(craterH * 55.0, 0.0, 1.0);
-    base2 = mix(base2, base2 * 0.62, floorMask * 0.7);
-    base2 = mix(base2, min(base2 * 1.45 + vec3<f32>(0.02), vec3<f32>(1.0)), rimMask * 0.55);
+    // Soft, low-contrast masks: craters should read as gentle regolith
+    // mottling under grazing light rather than painted-on rings.
+    let floorMask = clamp(-craterH * 22.0, 0.0, 1.0);
+    let rimMask = clamp(craterH * 38.0, 0.0, 1.0);
+    base2 = mix(base2, base2 * 0.80, floorMask * 0.45);
+    base2 = mix(base2, min(base2 * 1.18 + vec3<f32>(0.01), vec3<f32>(1.0)), rimMask * 0.30);
     let gradWorld = r0 * craterG.x + r1 * craterG.y + r2 * craterG.z;
     shadeN = normalize(n - gradWorld);
   }
