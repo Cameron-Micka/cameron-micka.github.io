@@ -1391,7 +1391,8 @@ void main(){
   vec2 inner=raySphere(ro,rd,center,planetR);
   if(inner.x>0.0&&inner.x<inner.y)tFar=min(tFar,inner.x);
   if(tFar<=tNear){frag=vec4(0.0);return;}
-  float at=uTime*0.5;
+  // Real auroras drift slowly, so advance the field at a fraction of wall time.
+  float at=uTime*0.15;
   float curtainTop=innerA+(outerR-innerA)*0.25;
   float thickness=max(curtainTop-innerA,1e-4);
   const int STEPS=24;
@@ -1407,18 +1408,23 @@ void main(){
     if(r>curtainTop)continue;
     vec3 dir=rel/r;
     vec3 ld=vec3(dot(bx,dir),dot(by,dir),dot(bz,dir));
-    float lat=abs(ld.y);
-    float band=smoothstep(0.42,0.60,lat)*(1.0-smoothstep(0.86,0.98,lat));
     float h=clamp((r-innerA)/thickness,0.0,1.0);
     vec2 pc=vec2(ld.x,ld.z);
     float coarse=triNoise2d(pc*1.4,0.025,at);
     float group=smoothstep(0.08,0.50,coarse);
+    // The oval is never a clean circle: the coarse field nudges its latitude
+    // limits so the band wanders, pinches and widens around the pole.
+    float wob=(coarse-0.275)*0.55;
+    float lat=clamp(abs(ld.y)+wob,0.0,1.0);
+    float band=smoothstep(0.38,0.64,lat)*(1.0-smoothstep(0.82,1.00,lat));
     // Lateral wiggle: sway filaments side-to-side along the band as they rise so
     // each strand snakes and ripples like a real auroral curtain.
     vec2 radial=pc/max(length(pc),1e-3);
     vec2 tangent=vec2(-radial.y,radial.x);
-    float wiggle=(sin(h*11.0+at*2.2+length(pc)*6.0)+0.5*sin(h*6.0-at*1.7+ld.y*8.0))*0.04;
-    vec2 pcw=pc+vec2(coarse-0.275)*0.8+tangent*wiggle;
+    float wiggle=(sin(h*9.0+at*1.3+length(pc)*6.0)+0.5*sin(h*5.0-at*0.9+ld.y*8.0))*0.05;
+    // Curtains drape and lean instead of rising perfectly radially.
+    float shear=(coarse-0.275)*h*0.35;
+    vec2 pcw=pc+vec2(coarse-0.275)*0.8+tangent*(wiggle+shear);
     float fil=triNoise2d(pcw*2.6,0.06,at);
     float strings=pow(clamp(fil*1.7,0.0,1.0),0.8);
     float rzt=strings*group*band;
@@ -1427,10 +1433,14 @@ void main(){
     avg=mix(avg,samp,0.5);
     float nightAmt=1.0-smoothstep(-0.2,0.3,dot(dir,sun));
     float nightFloor=mix(0.08,1.0,nightAmt);
-    col+=avg*exp(-h*1.6)*nightFloor*(dt/thickness);
+    // Dense strands tower while sparse ones stay low; the extra fade feathers
+    // the tops instead of clipping them at the shell boundary.
+    float reach=2.6-1.4*group;
+    float topFade=1.0-smoothstep(0.55,1.0,h);
+    col+=avg*exp(-h*reach)*topFade*nightFloor*(dt/thickness);
   }
   float intensity=uIntensity*(0.85+0.3*uFocus);
-  col*=intensity*3.0;
+  col*=intensity*3.4; // compensates the softer height falloff above
   float dist=distance(vWorld,ro);float fs=dist*0.018;
   col*=exp(-fs*fs);
   frag=vec4(col,1.0);
