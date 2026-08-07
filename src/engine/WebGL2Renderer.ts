@@ -410,18 +410,18 @@ void main(){
     float craterH=0.0;
     vec3 craterG=vec3(0.0);
     if(bigFade>0.002){
-      Crater big=craterLayer(cp,localPos,5.5,0.55,0.040*bigFade);
+      Crater big=craterLayer(cp,localPos,5.5,0.55,0.024*bigFade);
       craterH+=big.height;craterG+=big.grad;
     }
     if(smallFade>0.002){
-      Crater small=craterLayer(cp+vec3(3.1,7.9,1.3),localPos,13.0,0.66,0.016*smallFade);
+      Crater small=craterLayer(cp+vec3(3.1,7.9,1.3),localPos,13.0,0.66,0.009*smallFade);
       craterH+=small.height;craterG+=small.grad;
     }
     // Soft, low-contrast masks so craters read as gentle regolith mottling.
     float floorMask=clamp(-craterH*22.0,0.0,1.0);
     float rimMask=clamp(craterH*38.0,0.0,1.0);
-    base=mix(base,base*0.80,floorMask*0.45);
-    base=mix(base,min(base*1.18+vec3(0.01),vec3(1.0)),rimMask*0.30);
+    base=mix(base,base*0.90,floorMask*0.25);
+    base=mix(base,min(base*1.08+vec3(0.005),vec3(1.0)),rimMask*0.16);
     vec3 gradWorld=r0*craterG.x+r1*craterG.y+r2*craterG.z;
     shadeN=normalize(n-gradWorld);
   }
