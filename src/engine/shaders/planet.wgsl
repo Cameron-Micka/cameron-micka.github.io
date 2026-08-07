@@ -6,7 +6,7 @@ struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
-  misc : vec4<f32>, // x=time, y=reducedMotion, z=qualityScale, w=unused
+  misc : vec4<f32>, // x=time, y=unused, z=qualityScale, w=unused
   shadowSpheres : array<vec4<f32>, 8>, // xyz=center, w=radius
   shadowMisc : vec4<f32>, // x=active sphere count, y=lowTier flag, zw unused
 };
@@ -227,20 +227,19 @@ fn cFbm(p : vec3<f32>) -> f32 {
   return v;
 }
 
-fn cloudRotation(time : f32, seedf : f32, reducedMotion : f32) -> f32 {
+fn cloudRotation(time : f32, seedf : f32) -> f32 {
   let baseSpeed = 0.015;
   let jitter = fract(seedf * 0.000371) * 0.025;
   let dir = select(1.0, -1.0, fract(seedf * 0.0007) < 0.30);
-  let mult = select(1.0, 0.10, reducedMotion > 0.5);
-  return time * (baseSpeed + jitter) * dir * mult;
+  return time * (baseSpeed + jitter) * dir;
 }
 
 fn cloudCoverage(seedf : f32) -> f32 {
   return 0.40 + 0.30 * fract(seedf * 0.00091);
 }
 
-fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32, reducedMotion : f32) -> f32 {
-  let rot = cloudRotation(time, seedf, reducedMotion);
+fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
+  let rot = cloudRotation(time, seedf);
   let cs = cos(rot);
   let sn = sin(rot);
   let rp = vec3<f32>(
@@ -281,7 +280,7 @@ const CLOUD_SHADOW_SHELL : f32 = 1.06;
 // the planet's rotation basis for ice shading) so this avoids recomputing the
 // basis and the two normalizes here. Returns a multiplier in [1 - STRENGTH, 1]
 // for the direct term, or 1.0 on the night side where NdL already kills it.
-fn cloudShadow(vn : vec3<f32>, localL : vec3<f32>, time : f32, seedf : f32, reducedMotion : f32, enabled : f32) -> f32 {
+fn cloudShadow(vn : vec3<f32>, localL : vec3<f32>, time : f32, seedf : f32, enabled : f32) -> f32 {
   if (enabled < 0.001) { return 1.0; }
   let nL = dot(vn, localL);
   if (nL <= 0.0) { return 1.0; }
@@ -292,7 +291,7 @@ fn cloudShadow(vn : vec3<f32>, localL : vec3<f32>, time : f32, seedf : f32, redu
   let R2m1 = CLOUD_SHADOW_SHELL * CLOUD_SHADOW_SHELL - 1.0;
   let t = -nL + sqrt(nL * nL + R2m1);
   let cloudDir = normalize(vn + localL * t);
-  let density = cloudDensity(cloudDir, time, seedf, reducedMotion);
+  let density = cloudDensity(cloudDir, time, seedf);
   return 1.0 - density * CLOUD_SHADOW_STRENGTH * enabled;
 }
 
@@ -467,8 +466,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // The branch is uniform across the draw, so it's divergence-free.
   let cheapTier = frame.shadowMisc.y > 0.5;
   if (obj.p2.y > 0.5 && !cheapTier) {
-    let rm = frame.misc.y;
-    let speed = select(0.16, 0.0, rm > 0.5);
+    let speed = 0.16;
     let mag = 1.0;
     let flow = flowDir(in.localPos, n, seed);
     let t = obj.p0.z * speed;
@@ -652,7 +650,6 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     localLightDir,
     obj.p0.z,
     obj.p0.y,
-    frame.misc.y,
     obj.p1.z,
   );
   let direct = (kD * albedo / PI + specular) * sunRadiance * NdL * shadow * cloudShadowMul;

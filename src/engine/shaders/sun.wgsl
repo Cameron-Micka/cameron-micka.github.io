@@ -7,7 +7,7 @@ struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
-  misc : vec4<f32>, // x=time, y=reducedMotion, z=wireframe, w=aspect
+  misc : vec4<f32>, // x=time, y=unused, z=wireframe, w=aspect
 };
 
 struct Obj {
@@ -134,9 +134,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // plasma detail streams along a coherent tangent flow field. Two samples
   // offset by half a cycle are cross-faded with a triangle weight so the field
   // flows continuously without stretching unboundedly past a half cycle.
-  // Frozen under reduced motion.
-  let rm = frame.misc.y;
-  let speed = select(0.12, 0.0, rm > 0.5);
+  let speed = 0.12;
   let mag = 0.22;
   let flow = flowDir(n, n, seed);
   let t = frame.misc.x * speed;
@@ -196,7 +194,7 @@ fn fs_corona(in : CoronaOut) -> @location(0) vec4<f32> {
   if (r > 1.0) {
     discard;
   }
-  let t = frame.misc.x * select(1.0, 0.0, frame.misc.y > 0.5);
+  let t = frame.misc.x;
   let ang = atan2(in.uv.y, in.uv.x);
 
   // Polar-anchored sample coordinate so the warp field rotates with the disc

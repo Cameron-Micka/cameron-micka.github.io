@@ -128,7 +128,7 @@ POIs are positioned on each planet's sphere using **Poisson-disk sampling on the
 
 ### 3.5 Planet rotation
 
-- **Ambient rotation:** Slow auto-rotation around each planet's local Y axis (~1 rev / 90 seconds). Disabled when `prefers-reduced-motion: reduce` is set.
+- **Ambient rotation:** Slow auto-rotation around each planet's local Y axis (~1 rev / 90 seconds). Frozen while motion is paused (`prefers-reduced-motion: reduce` or the Paused motion setting).
 - **Manual orbit:** Click-and-drag (desktop) or one-finger-drag (mobile) on the focused planet rotates it. Manual interaction temporarily suspends ambient rotation; it resumes after a few seconds of idle.
 
 ### 3.6 Lighting
@@ -185,7 +185,7 @@ On the **first** mount of the landing route:
 - Camera starts far back in the void (deep `−Z`, beyond the oldest planet's depth).
 - Dolly forward over ~2 seconds (cubic ease-out) and settle at "Now" (Microsoft).
 - **Skippable** via any user input (click, key, scroll, touch). Skip immediately cuts to the rest state.
-- **`prefers-reduced-motion: reduce`** skips the cinematic entirely.
+- **Paused motion** (`prefers-reduced-motion: reduce` or the Paused motion setting) skips the cinematic entirely.
 
 ---
 
@@ -464,7 +464,7 @@ Boot sequence:
 
 ## 8. Accessibility
 
-- **`prefers-reduced-motion: reduce`**: kills all *idle* motion — auto-rotation, star twinkle, ambient camera drift, intro cinematic, modal mount/unmount easing. User-initiated motion (scrubbing, dragging to orbit) still happens but with instant transitions (no eased snap).
+- **`prefers-reduced-motion: reduce`** (and the Paused motion setting): freezes the scene clock, so all *idle* motion stops exactly where it stands — auto-rotation, cloud drift, moon orbits, star twinkle, solar/aurora animation, intro cinematic, modal mount/unmount easing. User-initiated motion (scrubbing, dragging to orbit, free camera) still happens.
 - **Keyboard nav (chrome / modal / nav only):**
   - Tab order: top nav → settings → bottom ribbon chevrons → side ruler → POI close button (when modal open).
   - Modal: ESC closes; focus trap inside modal while open; restore focus to the triggering POI's logical DOM target on close.
@@ -501,7 +501,7 @@ Triggered by the gear icon top-right. Modal-style panel (smaller than POI modal,
 | ---------------- | ------------------------------------------------------ | -------------- |
 | Quality          | Auto (ramp), High, Med, Low, WebGL2 (force)            | Auto           |
 | Sound            | On / Off                                               | Off            |
-| Reduced motion   | Auto (follow OS), Force on, Force off                  | Auto           |
+| Motion           | System (follow OS), Full motion, Paused                | System         |
 | Debug HUD        | On / Off                                               | Off            |
 | Wireframe        | On / Off (debug: renders scene meshes as wireframe)   | Off            |
 

@@ -9,7 +9,7 @@ struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
-  misc : vec4<f32>,    // x=time y=reducedMotion z=unused w=aspect(width/height)
+  misc : vec4<f32>,    // x=time y=unused z=unused w=aspect(width/height)
 };
 @group(0) @binding(0) var<uniform> frame : Frame;
 

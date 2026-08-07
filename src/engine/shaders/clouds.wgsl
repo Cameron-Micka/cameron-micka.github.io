@@ -13,7 +13,7 @@ struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
-  misc : vec4<f32>, // x=time, y=reducedMotion, z=qualityScale, w=aspect
+  misc : vec4<f32>, // x=time, y=unused, z=qualityScale, w=aspect
   shadowSpheres : array<vec4<f32>, 8>,
   shadowMisc : vec4<f32>,
 };
@@ -93,15 +93,12 @@ fn cFbm(p : vec3<f32>) -> f32 {
 }
 
 // Per-planet cloud rotation about local Y, varied by seed so different planets
-// have visibly different drift rates and a minority spin the other way. The
-// rate is scaled down (not zeroed) under reduced motion so the field still
-// drifts subtly without becoming a static texture.
-fn cloudRotation(time : f32, seedf : f32, reducedMotion : f32) -> f32 {
+// have visibly different drift rates and a minority spin the other way.
+fn cloudRotation(time : f32, seedf : f32) -> f32 {
   let baseSpeed = 0.015;
   let jitter = fract(seedf * 0.000371) * 0.025;
   let dir = select(1.0, -1.0, fract(seedf * 0.0007) < 0.30);
-  let mult = select(1.0, 0.10, reducedMotion > 0.5);
-  return time * (baseSpeed + jitter) * dir * mult;
+  return time * (baseSpeed + jitter) * dir;
 }
 
 // Coverage varies per-planet: some worlds are mostly cloudy, others sparse.
@@ -112,8 +109,8 @@ fn cloudCoverage(seedf : f32) -> f32 {
 // Sample cloud density at a unit direction in the planet's local rotation
 // frame. `localDir` must be normalized. The same function lives in
 // planet.wgsl so cast shadows register with rendered cloud puffs.
-fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32, reducedMotion : f32) -> f32 {
-  let rot = cloudRotation(time, seedf, reducedMotion);
+fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
+  let rot = cloudRotation(time, seedf);
   let cs = cos(rot);
   let sn = sin(rot);
   let rp = vec3<f32>(
@@ -141,7 +138,7 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32, reducedMotion : f
 // few short steps toward the sun in cloud-local space and darken where upstream
 // density is high. A tiny high-frequency modulation keeps the shadow break-up
 // organic instead of uniformly soft.
-fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf : f32, reducedMotion : f32) -> f32 {
+fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf : f32) -> f32 {
   let r0 = normalize(obj.model[0].xyz);
   let r1 = normalize(obj.model[1].xyz);
   let r2 = normalize(obj.model[2].xyz);
@@ -150,7 +147,7 @@ fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf
     dot(r1, worldSun),
     dot(r2, worldSun),
   ));
-  let d1 = cloudDensity(normalize(localDir + localSun * 0.045), time, seedf, reducedMotion);
+  let d1 = cloudDensity(normalize(localDir + localSun * 0.045), time, seedf);
   // Below the high tier, collapse the three-tap sun march (and the grain
   // modulation) to the single nearest tap. Each tap is a full domain-warped
   // cloudDensity — three fBm evaluations — so this drops ~7 of the 10 fBm
@@ -161,8 +158,8 @@ fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf
   if (frame.shadowMisc.y > 0.5) {
     occDetail = clamp(d1 * 0.85, 0.0, 1.0);
   } else {
-    let d2 = cloudDensity(normalize(localDir + localSun * 0.090), time, seedf, reducedMotion);
-    let d3 = cloudDensity(normalize(localDir + localSun * 0.160), time, seedf, reducedMotion);
+    let d2 = cloudDensity(normalize(localDir + localSun * 0.090), time, seedf);
+    let d3 = cloudDensity(normalize(localDir + localSun * 0.160), time, seedf);
     let occ = clamp(0.55 * d1 + 0.30 * d2 + 0.15 * d3, 0.0, 1.0);
     let grain = cFbm(localDir * 14.0 + vec3<f32>(seedf * 0.011, seedf * 0.013, seedf * 0.017));
     occDetail = clamp(occ * mix(0.75, 1.20, grain), 0.0, 1.0);
@@ -195,10 +192,7 @@ fn stormFlicker(x : f32) -> f32 {
        + 0.30 * exp(-abs(x - 0.09) * 70.0);
 }
 
-fn cloudStorm(localDir : vec3<f32>, time : f32, seedf : f32, density : f32, reducedMotion : f32) -> f32 {
-  // Reduced motion disables the flashing entirely (no strobing for users who
-  // asked to limit motion).
-  if (reducedMotion > 0.5) { return 0.0; }
+fn cloudStorm(localDir : vec3<f32>, time : f32, seedf : f32, density : f32) -> f32 {
   let freq = 5.0;
   let sOff = vec3<f32>(seedf * 0.00061, seedf * 0.00043, seedf * 0.00077);
   let p = localDir * freq + sOff;
@@ -247,9 +241,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let localDir = normalize(in.localPos);
   let seedf = obj.p1.y;
   let time = obj.p0.z;
-  let reducedMotion = frame.misc.y;
-  let density = cloudDensity(localDir, time, seedf, reducedMotion);
-  let selfShadow = cloudSelfShadow(localDir, sun, time, seedf, reducedMotion);
+  let density = cloudDensity(localDir, time, seedf);
+  let selfShadow = cloudSelfShadow(localDir, sun, time, seedf);
 
   // Lighting: diffuse-only white dielectric with a small ambient floor so the
   // unlit side reads as deep grey without a hard terminator. Tinted very
@@ -293,7 +286,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // from within. Brightest on the night side, faint on the day side. stormA
   // rises with the flash so the emissive color survives the alpha blend even
   // where the night-side cloud alpha is otherwise near zero.
-  let storm = cloudStorm(localDir, time, seedf, density, reducedMotion);
+  let storm = cloudStorm(localDir, time, seedf, density);
   let nightBoost = mix(0.55, 1.0, 1.0 - dayMask);
   col = col + stormColor(storm) * nightBoost;
   let stormA = clamp(storm, 0.0, 1.0) * edgeFade * vis;

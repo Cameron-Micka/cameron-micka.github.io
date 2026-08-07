@@ -28,9 +28,7 @@ fn vs(
   out.pos = clip + vec4<f32>(corner * size * clip.w, 0.0, 0.0);
   out.uv = corner;
   let tw = 0.6 + 0.4 * sin(frame.misc.x * 2.0 + attribs.y * 6.2831);
-  let reduced = frame.misc.y;
-  let twinkle = mix(tw, 1.0, reduced);
-  out.intensity = twinkle;
+  out.intensity = tw;
   out.tint = vec3<f32>(attribs.z, 1.0, attribs.w);
   return out;
 }

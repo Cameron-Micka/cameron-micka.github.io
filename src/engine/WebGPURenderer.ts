@@ -1028,7 +1028,9 @@ export class WebGPURenderer implements SceneRenderer {
     f[22] = frame.keyLightDir[2];
     f[23] = 0;
     f[24] = frame.time;
-    f[25] = frame.reducedMotion ? 1 : 0;
+    // misc.y: unused. Motion pausing freezes the engine clock (frame.time)
+    // rather than switching the shaders to slowed-down variants.
+    f[25] = 0;
     // misc.z: wireframe debug-view flag. POI marker / connector shaders
     // sample this to switch to a wireframe-styled rendering (cyan tint,
     // outline only) so the overlay matches the wireframe planet body.

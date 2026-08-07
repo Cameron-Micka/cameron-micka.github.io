@@ -260,10 +260,7 @@ export class Engine {
       if (typeof location !== 'undefined') location.reload();
     });
 
-    if (this.settings.reducedMotion === 'on' || resolveReducedMotion('auto')) {
-      // honored per-frame; cinematic disabled below if reduced motion
-    }
-    if (this.reducedMotion()) {
+    if (this.motionPaused()) {
       this.cinematicActive = false;
       this.camera.setExtraDistance(0);
     }
@@ -371,11 +368,9 @@ export class Engine {
       }
 
       if (!modalOpen) {
-        this.time += dt;
-        this.moonTime += dt * (this.reducedMotion() ? 0.0 : 1.0);
+        this.advanceClocks(dt, ts);
         this.scrubCurrent = damp(this.scrubCurrent, this.scrubTarget, 8, dt);
         this.zoomCurrent = damp(this.zoomCurrent, this.zoomTarget, 9, dt);
-        this.updateRotations(dt, ts);
         this.updateFocus();
       }
 
@@ -399,9 +394,7 @@ export class Engine {
   // so the rendered viewpoint stays put instead of snapping behind the modal.
   private updateFreeCamera(dt: number, ts: number, modalOpen: boolean): void {
     if (!modalOpen) {
-      this.time += dt;
-      this.moonTime += dt * (this.reducedMotion() ? 0.0 : 1.0);
-      this.updateRotations(dt, ts);
+      this.advanceClocks(dt, ts);
     }
 
     let fAx = 0;
@@ -478,25 +471,31 @@ export class Engine {
     this.input.setFreeMode(true);
   }
 
+  // Advance every scene clock by `dt`. When motion is paused all of them are
+  // left untouched, so the shaders keep receiving the exact time they were
+  // given on the last unpaused frame and the scene freezes where it stands.
+  private advanceClocks(dt: number, ts: number): void {
+    if (this.motionPaused()) return;
+    this.time += dt;
+    this.moonTime += dt;
+    this.updateRotations(dt, ts);
+  }
+
   private updateRotations(dt: number, ts: number): void {
-    const reduced = this.reducedMotion();
     const recentlyOrbited = ts / 1000 - this.lastInteract < 2.5;
 
     // Per-planet cloud pacing: ease the drift toward a slow crawl when the
     // planet's spin is paused so clouds visibly decelerate with the surface
     // but never fully stop (a frozen cloud layer reads as a broken render).
-    // Under reduced motion the cloud shader already applies its own slowdown
-    // multiplier, so keep pace at 1 there and let the shader handle it.
     const PAUSED_CLOUD_PACE = 0.3;
     const k = 1 - Math.exp(-dt * 3);
     for (let i = 0; i < this.cloudPace.length; i++) {
-      const paused = !reduced && recentlyOrbited && i === this.lastOrbitIndex;
+      const paused = recentlyOrbited && i === this.lastOrbitIndex;
       const target = paused ? PAUSED_CLOUD_PACE : 1;
       this.cloudPace[i] = this.cloudPace[i]! + (target - this.cloudPace[i]!) * k;
       this.cloudTimes[i] = this.cloudTimes[i]! + dt * this.cloudPace[i]!;
     }
 
-    if (reduced) return;
     for (let i = 0; i < this.orientations.length; i++) {
       if (recentlyOrbited && i === this.lastOrbitIndex) continue;
       const focusDist = Math.abs(i - this.scrubCurrent);
@@ -571,7 +570,6 @@ export class Engine {
             .slice(0, 8)
         : [],
       blur: this.blurCurrent,
-      reducedMotion: this.reducedMotion(),
       wireframe: this.settings.wireframe,
       crtBarrel: this.settings.crt ? CRT_BARREL : 0,
       flightPath: this.settings.flightPath ? this.flightPath : new Float32Array(0),
@@ -782,7 +780,7 @@ export class Engine {
   setReducedMotion(pref: ReducedMotionPref): void {
     this.settings.reducedMotion = pref;
     saveSettings(this.settings);
-    if (this.reducedMotion()) {
+    if (this.motionPaused()) {
       this.cinematicActive = false;
       this.camera.setExtraDistance(0);
     }
@@ -842,7 +840,9 @@ export class Engine {
 
   // ---- helpers ----
 
-  private reducedMotion(): boolean {
+  // True when the "Paused" motion preference is active (either chosen
+  // explicitly or inherited from the OS `prefers-reduced-motion` setting).
+  private motionPaused(): boolean {
     return resolveReducedMotion(this.settings.reducedMotion);
   }
 

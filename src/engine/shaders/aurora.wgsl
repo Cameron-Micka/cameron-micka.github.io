@@ -11,7 +11,7 @@ struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
-  misc : vec4<f32>, // x=time y=reducedMotion z=wireframe w=aspect
+  misc : vec4<f32>, // x=time y=unused z=wireframe w=aspect
 };
 
 struct Obj {
@@ -137,8 +137,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Orthonormal basis spanning the plane perpendicular to the pole axis. The
   // noise is sampled on this plane so curtains are seamless around the pole.
 
-  let motion = select(1.0, 0.0, frame.misc.y > 0.5);
-  let at = frame.misc.x * motion * 0.5;
+  let at = frame.misc.x * 0.5;
 
   // Curtains rise radially from innerA; cap their top at half the shell
   // thickness so they read as shorter curtains.
