@@ -38,7 +38,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         >
           <option value="auto">System</option>
           <option value="off">Full motion</option>
-          <option value="on">Reduced</option>
+          <option value="on">Paused</option>
         </select>
       </div>
 

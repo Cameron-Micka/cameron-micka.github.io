@@ -8,7 +8,7 @@ struct Frame {
   viewProj : mat4x4<f32>,
   cameraPos : vec4<f32>,
   keyLightDir : vec4<f32>,
-  misc : vec4<f32>,    // x=time(s), y=reducedMotion, z=wireframe, w=aspect(width/height)
+  misc : vec4<f32>,    // x=time(s), y=unused, z=wireframe, w=aspect(width/height)
 };
 @group(0) @binding(0) var<uniform> frame : Frame;
 
@@ -133,10 +133,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let arrowA = 0.95 * fogA;
   let a = select(ribbonA, arrowA, in.shape > 0.5);
   // Traveling pulse: brightens a short stretch of the ribbon that sweeps from
-  // the end of the path back to the start. Frozen at the end when the user
-  // prefers reduced motion.
-  let reduced = frame.misc.y;
-  let head = select(1.0 - fract(frame.misc.x * PULSE_SPEED), 1.0, reduced > 0.5);
+  // the end of the path back to the start.
+  let head = 1.0 - fract(frame.misc.x * PULSE_SPEED);
   let pulse = 1.0 - smoothstep(0.0, PULSE_LEN, abs(in.arc - head));
   let glow = select(pulse * fogA, 0.0, in.shape > 0.5);
   let rgb = vec3<f32>(0.75) * a + vec3<f32>(1.0, 0.95, 0.85) * glow * 1.6;

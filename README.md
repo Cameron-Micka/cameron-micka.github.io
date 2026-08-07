@@ -59,7 +59,8 @@ sound, and a debug HUD from the settings panel; preferences persist in
 - A semantic, crawlable résumé (`ui/ResumeContent.tsx`) mirrors all scene
   content. It's visually hidden on screen but exposed to search engines, screen
   readers, and **printing** (print styles hide the canvas and show the résumé).
-- `prefers-reduced-motion` disables the cinematic and ambient spin.
+- `prefers-reduced-motion` (and the Paused motion setting) freezes the scene
+  clock, so the cinematic is skipped and all idle animation stands still.
 - The POI modal traps focus, restores it on close, and closes on
   Esc / click-outside / ✕.
 - POIs are deep-linkable via `#/{company}/{poi}`.

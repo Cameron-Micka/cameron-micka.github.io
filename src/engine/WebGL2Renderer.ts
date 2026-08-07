@@ -110,7 +110,7 @@ uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
 uniform float uCityLights;uniform float uFlow;uniform float uCraters;
-uniform float uTime;uniform float uReducedMotion;
+uniform float uTime;
 uniform float uCloudShadow; // 0 = clouds off, >0 = shadow strength multiplier
 uniform mat4 uModel;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
@@ -172,16 +172,15 @@ float cVnoise(vec3 x){
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
 float cFbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*cVnoise(p);p*=2.03;a*=.5;}return v;}
-float cloudRotation(float time,float seedf,float reducedMotion){
+float cloudRotation(float time,float seedf){
   float baseSpeed=0.015;
   float jitter=fract(seedf*0.000371)*0.025;
   float dir=fract(seedf*0.0007)<0.30?-1.0:1.0;
-  float mult=reducedMotion>0.5?0.10:1.0;
-  return time*(baseSpeed+jitter)*dir*mult;
+  return time*(baseSpeed+jitter)*dir;
 }
 float cloudCoverage(float seedf){return 0.40+0.30*fract(seedf*0.00091);}
-float cloudDensity(vec3 localDir,float time,float seedf,float reducedMotion){
-  float rot=cloudRotation(time,seedf,reducedMotion);
+float cloudDensity(vec3 localDir,float time,float seedf){
+  float rot=cloudRotation(time,seedf);
   float cs=cos(rot),sn=sin(rot);
   vec3 rp=vec3(cs*localDir.x+sn*localDir.z,localDir.y,-sn*localDir.x+cs*localDir.z);
   vec3 seedShift=vec3(seedf*0.0017,seedf*0.0023,seedf*0.0029);
@@ -208,7 +207,7 @@ const float CLOUD_SHADOW_STRENGTH=1.0;
 // clears the opaque puff instead of hiding directly beneath it. See the
 // matching note in planet.wgsl.
 const float CLOUD_SHADOW_SHELL=1.06;
-float cloudShadow(vec3 vLocal,vec3 worldL,float time,float seedf,float reducedMotion,float enabled){
+float cloudShadow(vec3 vLocal,vec3 worldL,float time,float seedf,float enabled){
   if(enabled<0.001)return 1.0;
   vec3 r0=normalize(uModel[0].xyz);
   vec3 r1=normalize(uModel[1].xyz);
@@ -220,7 +219,7 @@ float cloudShadow(vec3 vLocal,vec3 worldL,float time,float seedf,float reducedMo
   float R2m1=CLOUD_SHADOW_SHELL*CLOUD_SHADOW_SHELL-1.0;
   float t=-nL+sqrt(nL*nL+R2m1);
   vec3 cloudDir=normalize(vn+localL*t);
-  float density=cloudDensity(cloudDir,time,seedf,reducedMotion);
+  float density=cloudDensity(cloudDir,time,seedf);
   return 1.0-density*CLOUD_SHADOW_STRENGTH*enabled;
 }
 // Marbled land color + height from domain-warped fBm at noise-domain position
@@ -330,10 +329,9 @@ void main(){
   // https://emildziewanowski.com/flowfields/): when uFlow is on, advect the
   // marbled surface detail along a tangent flow field, cross-fading two
   // half-cycle-offset samples so it streams without unbounded stretching.
-  // Disabled under reduced motion.
   vec3 land;float h;
   if(uFlow>0.5){
-    float speed=uReducedMotion>0.5?0.0:0.16;
+    float speed=0.16;
     float mag=1.0;
     vec3 flow=flowDir(vLocal,n,uSeed);
     float t=uTime*speed;
@@ -456,7 +454,7 @@ void main(){
   // Cloud shadow uses the same noise + rotation as CLOUDS_FRAG so the
   // shadow lands directly under the rendered puff (gated by uCloudShadow,
   // which the renderer sets to visibility when clouds are on, 0 otherwise).
-  float cloudShadowMul=cloudShadow(vLocal,L,uTime,uSeed,uReducedMotion,uCloudShadow);
+  float cloudShadowMul=cloudShadow(vLocal,L,uTime,uSeed,uCloudShadow);
   vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL*shadow*cloudShadowMul;
   float ambientShadowMul=0.10+0.90*cloudShadowMul;
   vec3 ambient=albedo*0.004*ambientShadowMul;
@@ -797,7 +795,6 @@ in float vArc;
 uniform vec3 uCamera;
 uniform float uWireframe;
 uniform float uTime;
-uniform float uReducedMotion;
 out vec4 frag;
 const float FOG_DENSITY=0.018;
 // Traveling light pulse: half-length in normalized arc length, loops/second.
@@ -827,8 +824,8 @@ void main(){
   float fogA=exp(-s*s);
   // Ribbon fades with edge AA; the arrowhead fills solid.
   float a = vShape>0.5 ? 0.95*fogA : 0.85*cov*fogA;
-  // Traveling pulse sweeping end -> start; frozen for reduced motion.
-  float head = uReducedMotion>0.5 ? 1.0 : 1.0-fract(uTime*PULSE_SPEED);
+  // Traveling pulse sweeping end -> start.
+  float head = 1.0-fract(uTime*PULSE_SPEED);
   float pulse = 1.0-smoothstep(0.0,PULSE_LEN,abs(vArc-head));
   float glow = vShape>0.5 ? 0.0 : pulse*fogA;
   vec3 rgb = vec3(0.75)*a + vec3(1.0,0.95,0.85)*glow*1.6;
@@ -1204,7 +1201,6 @@ uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uTint;uniform vec3 uCenter;
 uniform mat4 uModel;
 uniform float uTime;uniform float uSeed;uniform float uVisibility;
-uniform float uReducedMotion;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
 float cHash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float cVnoise(vec3 x){
@@ -1214,16 +1210,15 @@ float cVnoise(vec3 x){
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
 float cFbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*cVnoise(p);p*=2.03;a*=.5;}return v;}
-float cloudRotation(float time,float seedf,float reducedMotion){
+float cloudRotation(float time,float seedf){
   float baseSpeed=0.015;
   float jitter=fract(seedf*0.000371)*0.025;
   float dir=fract(seedf*0.0007)<0.30?-1.0:1.0;
-  float mult=reducedMotion>0.5?0.10:1.0;
-  return time*(baseSpeed+jitter)*dir*mult;
+  return time*(baseSpeed+jitter)*dir;
 }
 float cloudCoverage(float seedf){return 0.40+0.30*fract(seedf*0.00091);}
-float cloudDensity(vec3 localDir,float time,float seedf,float reducedMotion){
-  float rot=cloudRotation(time,seedf,reducedMotion);
+float cloudDensity(vec3 localDir,float time,float seedf){
+  float rot=cloudRotation(time,seedf);
   float cs=cos(rot),sn=sin(rot);
   vec3 rp=vec3(cs*localDir.x+sn*localDir.z,localDir.y,-sn*localDir.x+cs*localDir.z);
   vec3 seedShift=vec3(seedf*0.0017,seedf*0.0023,seedf*0.0029);
@@ -1235,14 +1230,14 @@ float cloudDensity(vec3 localDir,float time,float seedf,float reducedMotion){
   float lo=0.62-cov*0.30;float hi=lo+0.14;
   return smoothstep(lo,hi,n);
 }
-float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf,float reducedMotion){
+float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf){
   vec3 r0=normalize(uModel[0].xyz);
   vec3 r1=normalize(uModel[1].xyz);
   vec3 r2=normalize(uModel[2].xyz);
   vec3 localSun=normalize(vec3(dot(r0,worldSun),dot(r1,worldSun),dot(r2,worldSun)));
-  float d1=cloudDensity(normalize(localDir+localSun*0.045),time,seedf,reducedMotion);
-  float d2=cloudDensity(normalize(localDir+localSun*0.090),time,seedf,reducedMotion);
-  float d3=cloudDensity(normalize(localDir+localSun*0.160),time,seedf,reducedMotion);
+  float d1=cloudDensity(normalize(localDir+localSun*0.045),time,seedf);
+  float d2=cloudDensity(normalize(localDir+localSun*0.090),time,seedf);
+  float d3=cloudDensity(normalize(localDir+localSun*0.160),time,seedf);
   float occ=clamp(0.55*d1+0.30*d2+0.15*d3,0.0,1.0);
   float grain=cFbm(localDir*14.0+vec3(seedf*0.011,seedf*0.013,seedf*0.017));
   float occDetail=clamp(occ*mix(0.75,1.20,grain),0.0,1.0);
@@ -1257,8 +1252,7 @@ vec3 cHash3v(vec3 p){
 float stormFlicker(float x){
   return exp(-x*20.0)+0.55*exp(-abs(x-0.05)*45.0)+0.30*exp(-abs(x-0.09)*70.0);
 }
-float cloudStorm(vec3 localDir,float time,float seedf,float density,float reducedMotion){
-  if(reducedMotion>0.5)return 0.0;
+float cloudStorm(vec3 localDir,float time,float seedf,float density){
   float freq=5.0;
   vec3 sOff=vec3(seedf*0.00061,seedf*0.00043,seedf*0.00077);
   vec3 p=localDir*freq+sOff;
@@ -1297,8 +1291,8 @@ void main(){
   // Interpolated vLocal isn't exactly unit length across triangle interiors;
   // normalize so the noise lookup lines up with the shadow projection.
   vec3 localDir=normalize(vLocal);
-  float density=cloudDensity(localDir,uTime,uSeed,uReducedMotion);
-  float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed,uReducedMotion);
+  float density=cloudDensity(localDir,uTime,uSeed);
+  float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed);
   float NdL=clamp(dot(n,sun),0.0,1.0);
   vec3 albedo=mix(vec3(1.0),uTint,0.08);
   vec3 col=albedo*(0.02+0.98*NdL)*selfShadow;
@@ -1328,7 +1322,7 @@ void main(){
   // from within. Brightest on the night side, faint on the day side; stormA
   // rises with the flash so the emissive survives the alpha blend where the
   // night-side cloud alpha is otherwise near zero.
-  float storm=cloudStorm(localDir,uTime,uSeed,density,uReducedMotion);
+  float storm=cloudStorm(localDir,uTime,uSeed,density);
   float nightBoost=mix(0.55,1.0,1.0-dayMask);
   col+=stormColor(storm)*nightBoost;
   float stormA=clamp(storm,0.0,1.0)*edgeFade*uVisibility;
@@ -1351,7 +1345,7 @@ out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;uniform vec3 uCenter;
 uniform mat4 uModel;
 uniform float uInner;uniform float uOuter;uniform float uFocus;uniform float uIntensity;
-uniform float uTime;uniform float uReducedMotion;
+uniform float uTime;
 const mat2 aM2=mat2(0.95534,0.29552,-0.29552,0.95534);
 mat2 aMM2(float a){float c=cos(a),s=sin(a);return mat2(c,s,-s,c);}
 float aTri(float x){return clamp(abs(fract(x)-0.5),0.01,0.49);}
@@ -1397,8 +1391,7 @@ void main(){
   vec2 inner=raySphere(ro,rd,center,planetR);
   if(inner.x>0.0&&inner.x<inner.y)tFar=min(tFar,inner.x);
   if(tFar<=tNear){frag=vec4(0.0);return;}
-  float motion=uReducedMotion>0.5?0.0:1.0;
-  float at=uTime*motion*0.5;
+  float at=uTime*0.5;
   float curtainTop=innerA+(outerR-innerA)*0.25;
   float thickness=max(curtainTop-innerA,1e-4);
   const int STEPS=24;
@@ -1452,7 +1445,7 @@ const SUN_FRAG = `#version 300 es
 precision highp float;
 in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
 out vec4 frag;
-uniform vec3 uCamera;uniform float uTime;uniform float uReducedMotion;uniform float uSeed;
+uniform vec3 uCamera;uniform float uTime;uniform float uSeed;
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
   vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
@@ -1488,8 +1481,8 @@ void main(){
   vec3 n=normalize(vLocal);
   vec3 nb=n+vec3(uSeed*0.013,0.0,uSeed*0.021);
   // Flow-field advection: plasma detail streams along a tangent flow field,
-  // cross-fading two half-cycle-offset samples. Frozen under reduced motion.
-  float speed=mix(0.12,0.0,uReducedMotion);
+  // cross-fading two half-cycle-offset samples.
+  float speed=0.12;
   float mag=0.22;
   vec3 flow=flowDir(n,n,uSeed);
   float t=uTime*speed;
@@ -1528,7 +1521,7 @@ const CORONA_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
 out vec4 frag;
-uniform float uTime;uniform float uReducedMotion;
+uniform float uTime;
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
   vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
@@ -1541,7 +1534,7 @@ float fbm2(vec2 p,float t){return fbm(vec3(p,t));}
 void main(){
   float r=length(vUv);
   if(r>1.0){discard;}
-  float t=uTime*mix(1.0,0.0,uReducedMotion);
+  float t=uTime;
   float ang=atan(vUv.y,vUv.x);
   // Polar-anchored sample coord; higher freq = tighter wisps.
   vec2 sp=vec2(cos(ang),sin(ang))*(r*5.5);
@@ -1677,7 +1670,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow', 'uCraters',
-      'uTime', 'uReducedMotion', 'uCloudShadow',
+      'uTime', 'uCloudShadow',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
@@ -1694,12 +1687,12 @@ export class WebGL2Renderer implements SceneRenderer {
     ]);
     this.clouds = this.makeProgram(PLANET_VERT, CLOUDS_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uTint', 'uCenter',
-      'uTime', 'uSeed', 'uVisibility', 'uReducedMotion',
+      'uTime', 'uSeed', 'uVisibility',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.aurora = this.makeProgram(PLANET_VERT, AURORA_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uCenter',
-      'uInner', 'uOuter', 'uFocus', 'uIntensity', 'uTime', 'uReducedMotion',
+      'uInner', 'uOuter', 'uFocus', 'uIntensity', 'uTime',
     ]);
     this.ring = this.makeProgram(RING_VERT, RING_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
@@ -1708,13 +1701,12 @@ export class WebGL2Renderer implements SceneRenderer {
     ]);
     this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
       'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe', 'uTime',
-      'uReducedMotion',
     ]);
     this.sun = this.makeProgram(PLANET_VERT, SUN_FRAG, [
-      'uViewProj', 'uModel', 'uCamera', 'uTime', 'uReducedMotion', 'uSeed',
+      'uViewProj', 'uModel', 'uCamera', 'uTime', 'uSeed',
     ]);
     this.corona = this.makeProgram(CORONA_VERT, CORONA_FRAG, [
-      'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime', 'uReducedMotion',
+      'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime',
     ]);
     this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene', 'uFlare', 'uAspect', 'uBarrel']);
 
@@ -2164,7 +2156,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.sun.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.sun.uniforms.uCamera!, frame.cameraPos);
     gl.uniform1f(this.sun.uniforms.uTime!, frame.time);
-    gl.uniform1f(this.sun.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
     gl.uniform1f(this.sun.uniforms.uSeed!, 1234);
     mat4.fromRotationTranslationScale(model, [0, 0, 0, 1], frame.sun.center, frame.sun.radius);
     gl.uniformMatrix4fv(this.sun.uniforms.uModel!, false, model);
@@ -2184,7 +2175,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
-    gl.uniform1f(this.planet.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
     this.bindShadowUniforms(this.planet, frame);
     for (const p of frame.planets) {
       const vis = p.visibility;
@@ -2288,7 +2278,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.clouds.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform3fv(this.clouds.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.clouds.uniforms.uLight!, frame.keyLightDir);
-      gl.uniform1f(this.clouds.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
       this.bindShadowUniforms(this.clouds, frame);
       for (const p of frame.planets) {
         if (!p.clouds) continue;
@@ -2375,7 +2364,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform3fv(this.aurora.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.aurora.uniforms.uLight!, frame.keyLightDir);
       gl.uniform1f(this.aurora.uniforms.uTime!, frame.time);
-      gl.uniform1f(this.aurora.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
       for (const p of frame.planets) {
         if (!p.aurora) continue;
         const vis = p.visibility;
@@ -2419,7 +2407,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform3fv(this.corona.uniforms.uCenter!, frame.sun.center);
     gl.uniform1f(this.corona.uniforms.uRadius!, frame.sun.radius);
     gl.uniform1f(this.corona.uniforms.uTime!, frame.time);
-    gl.uniform1f(this.corona.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
     gl.bindVertexArray(this.coronaVao);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     this.stats.drawCalls++;
@@ -2543,7 +2530,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform3fv(this.flight.uniforms.uCamera!, frame.cameraPos);
       gl.uniform1f(this.flight.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.uniform1f(this.flight.uniforms.uTime!, frame.time);
-      gl.uniform1f(this.flight.uniforms.uReducedMotion!, frame.reducedMotion ? 1 : 0);
       gl.bindVertexArray(this.flightVao);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.flightSegments + 1);
       gl.depthMask(true);

@@ -114,7 +114,6 @@ export interface FrameState {
   shadowCasters: { center: Vec3; radius: number }[];
   // 0 = live scene, 1 = fully blurred frozen snapshot (modal open).
   blur: number;
-  reducedMotion: boolean;
   wireframe: boolean;
   // CRT lens curvature applied by the final present pass. 0 = flat.
   crtBarrel: number;
