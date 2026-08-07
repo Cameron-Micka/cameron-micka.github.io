@@ -568,7 +568,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     var craterH = 0.0;
     var craterG = vec3<f32>(0.0);
     if (bigFade > 0.002) {
-      let big = craterLayer(cp, localPos, 5.5, 0.55, 0.040 * bigFade);
+      let big = craterLayer(cp, localPos, 5.5, 0.55, 0.024 * bigFade);
       craterH = craterH + big.height;
       craterG = craterG + big.grad;
     }
@@ -578,7 +578,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
         localPos,
         13.0,
         0.66,
-        0.016 * smallFade,
+        0.009 * smallFade,
       );
       craterH = craterH + small.height;
       craterG = craterG + small.grad;
@@ -587,8 +587,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     // mottling under grazing light rather than painted-on rings.
     let floorMask = clamp(-craterH * 22.0, 0.0, 1.0);
     let rimMask = clamp(craterH * 38.0, 0.0, 1.0);
-    base2 = mix(base2, base2 * 0.80, floorMask * 0.45);
-    base2 = mix(base2, min(base2 * 1.18 + vec3<f32>(0.01), vec3<f32>(1.0)), rimMask * 0.30);
+    base2 = mix(base2, base2 * 0.90, floorMask * 0.25);
+    base2 = mix(base2, min(base2 * 1.08 + vec3<f32>(0.005), vec3<f32>(1.0)), rimMask * 0.16);
     let gradWorld = r0 * craterG.x + r1 * craterG.y + r2 * craterG.z;
     shadeN = normalize(n - gradWorld);
   }
