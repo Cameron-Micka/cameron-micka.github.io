@@ -109,3 +109,10 @@ export function tenureYears(start: string, end: string | null): number {
   const e = end ? parse(end) : new Date().getFullYear() + new Date().getMonth() / 12;
   return Math.max(0.5, e - parse(start));
 }
+
+// Human-readable tenure range. Collapses to a single year when a stint starts
+// and ends in the same year (end null = present).
+export function tenureLabel(start: string, end: string | null): string {
+  if (!end) return `${start} – Present`;
+  return start === end ? start : `${start} – ${end}`;
+}

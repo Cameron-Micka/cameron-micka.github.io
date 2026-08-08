@@ -1,7 +1,8 @@
 export const SITE = {
   name: 'Cameron Micka',
   role: 'Principal Software Engineer',
-  tagline: 'Graphics & engine programmer building real-time worlds.',
+  tagline:
+    'Engineer who loves bridging the gap between design and engineering.',
 };
 
 export const NAV = {
