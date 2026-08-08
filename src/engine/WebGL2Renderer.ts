@@ -552,6 +552,7 @@ const POINT_FRAG = `#version 300 es
 precision highp float;
 in vec4 vAttr;in vec3 vColor;in float vDigit;
 uniform float uWireframe;
+uniform float uTime;
 out vec4 frag;
 // Arabic numerals 0..9 rendered as a seven-segment union of line-segment SDFs
 // in a normalized glyph-local box [-1,1]x[-1,1]. Each digit lights a subset of
@@ -606,7 +607,17 @@ void main(){
       frag=vec4(vec3(0.25,1.0,0.85)*a,a);
       return;
     }
-    float radius=0.85;
+    // Subtle pulse travelling around the circumference: a narrow highlight
+    // that sweeps the ring, brightening it slightly and bulging the radius by
+    // a hair. Just enough motion to read as "tappable" without being
+    // distracting. The digit offsets the phase so neighbouring markers don't
+    // pulse in lockstep. gl_PointCoord's Y is flipped, so negate uv.y to match
+    // the WebGPU sweep direction.
+    float ang=atan(-uv.y,uv.x);
+    float delta=ang-(uTime*1.1+vDigit*0.7);
+    delta=delta-6.2831853*floor(delta/6.2831853+0.5);
+    float pulse=exp(-delta*delta*8.0);
+    float radius=0.85+0.02*pulse;
     // Isotropic AA: use the L2 norm of (dFdx, dFdy) instead of fwidth()
     // (which is L1 and gives a slightly wider band at the diagonals,
     // making the ring read as bulgier at corners than at cardinals).
@@ -614,7 +625,7 @@ void main(){
     // Thin ring: AA-only smoothstep from peak (d=radius) out to 1.5*aa.
     // No solid core so the line reads ~1.5px wide regardless of marker
     // size.
-    float outline=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y;
+    float outline=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y*(1.0+0.9*pulse);
     // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH
     // size the digit so it sits comfortably inside the ring at radius 0.85.
     // gl_PointCoord origin is upper-left, so we flip Y here to match the

@@ -120,14 +120,22 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // (which is the L1 norm). Because d = length(uv) has unit gradient, this
   // keeps the AA band the same width in every direction; otherwise the ring
   // reads as slightly fatter at the diagonals than at the cardinals.
-  let radius = 0.85;
+  // Subtle pulse travelling around the circumference: a narrow highlight that
+  // sweeps the ring, brightening it slightly and bulging the radius by a hair.
+  // Just enough motion to read as "tappable" without being distracting. The
+  // digit offsets the phase so neighbouring markers don't pulse in lockstep.
+  let ang = atan2(in.uv.y, in.uv.x);
+  var delta = ang - (frame.misc.x * 1.1 + in.digit * 0.7);
+  delta = delta - 6.2831853 * floor(delta / 6.2831853 + 0.5);
+  let pulse = exp(-delta * delta * 8.0);
+  let radius = 0.85 + 0.02 * pulse;
   let dx = dpdx(d);
   let dy = dpdy(d);
   let aa = length(vec2<f32>(dx, dy));
   // Thin ring: pure AA-only smoothstep from peak (at d=radius) out to
   // 1.5*aa. No solid core, so the line stays roughly 1.5px wide regardless
   // of marker size.
-  let outline = (1.0 - smoothstep(0.0, 1.5 * aa, abs(d - radius))) * in.dim;
+  let outline = (1.0 - smoothstep(0.0, 1.5 * aa, abs(d - radius))) * in.dim * (1.0 + 0.9 * pulse);
   let digit = i32(in.digit + 0.5);
   // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH
   // size the digit so it sits comfortably inside the ring at radius 0.85.
