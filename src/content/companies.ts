@@ -334,8 +334,8 @@ const raw: CompanyInput[] = [
     name: 'iD Tech Camps',
     role: 'Game Creation Extreme Instructor',
     logo: 'logos/id-tech.svg',
-    start: '2007-07',
-    end: '2007-08',
+    start: '2007',
+    end: '2007',
     location: 'Philadelphia, PA',
     summary:
       'Summer contract teaching "Video Game Creation Extreme" — the Torque game ' +

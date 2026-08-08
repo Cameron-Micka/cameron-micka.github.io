@@ -1,6 +1,8 @@
+import { Link } from 'react-router-dom';
 import { TopNav } from '@/ui/TopNav';
 import { SITE } from '@/ui/strings';
 import { companies } from '@/content/companies';
+import { tenureLabel } from '@/content/schema';
 
 export default function About() {
   return (
@@ -45,7 +47,8 @@ export default function About() {
           Microsoft, where I've been chasing mixed reality ever since.
         </p>
         <p>
-          This site is itself a small engine: the landing page renders a 3D
+          This site is itself a small engine: the{' '}
+          <Link to="/">landing page</Link> renders a 3D
           "time machine" of my career with WebGPU (falling back to WebGL2),
           where each planet is a place I've worked and each glowing point opens
           a story.
@@ -63,12 +66,12 @@ export default function About() {
         </p>
 
         <section>
-          <h2>Where I've worked</h2>
+          <h2>Where I've worked &amp; studied</h2>
           <ul>
             {companies.map((c) => (
               <li key={c.slug}>
-                <strong>{c.name}</strong> — {c.role} ({c.start}–
-                {c.end ?? 'Present'})
+                <strong>{c.name}</strong> — {c.role} (
+                {tenureLabel(c.start, c.end)})
               </li>
             ))}
           </ul>

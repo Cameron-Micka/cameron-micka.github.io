@@ -1,10 +1,9 @@
-import type { Company } from '@/content/schema';
+import { tenureLabel, type Company } from '@/content/schema';
 import { useEngineSnapshot } from './EngineContext';
 import { HINTS } from './strings';
 
 function formatDates(c: Company): string {
-  const end = c.end ?? 'Present';
-  return `${c.start} — ${end}`;
+  return tenureLabel(c.start, c.end);
 }
 
 export function BottomRibbon({ companies }: { companies: Company[] }) {

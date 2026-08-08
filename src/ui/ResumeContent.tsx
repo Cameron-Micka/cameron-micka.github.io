@@ -1,4 +1,4 @@
-import type { Company } from '@/content/schema';
+import { tenureLabel, type Company } from '@/content/schema';
 import { SITE, SOCIAL } from './strings';
 
 // Semantic, crawlable representation of the same content the 3D scene shows.
@@ -28,7 +28,7 @@ export function ResumeContent({ companies }: { companies: Company[] }) {
             {c.name} — {c.role}
           </h3>
           <p>
-            {c.start} – {c.end ?? 'Present'}
+            {tenureLabel(c.start, c.end)}
             {c.location ? ` · ${c.location}` : ''}
           </p>
           <p>{c.summary}</p>
