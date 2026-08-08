@@ -9,9 +9,9 @@ export default function Blog() {
         <h1>Blog</h1>
         <p className="lede">{UI.blogSoon}</p>
         <p>
-          I plan to write about real-time rendering, shader craft, and the
-          engineering behind this site. Subscribe via the social links on the{' '}
-          <a href="/contact">contact page</a>.
+          I plan to write about engineering, real-time rendering, bridging
+          design to code and other nonsense on this site. For now please stay in
+          touch via the social links on the <a href="/contact">contact page</a>.
         </p>
       </article>
     </>
