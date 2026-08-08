@@ -19,12 +19,30 @@ export default function About() {
           />
         </figure>
         <p>
-          I'm {SITE.name}, a {SITE.role.toLowerCase()} with a career spent close
-          to the metal — building real-time rendering systems, engine tools, and
-          the shaders that make virtual worlds feel alive. My work spans mixed
-          reality at Microsoft and console game development at studios like Fun
-          Bits Interactive and LucasArts, all rooted in a real-time graphics
-          education at DigiPen.
+          I'm {SITE.name}, a {SITE.role.toLowerCase()} who takes pride in
+          handing other creative people superpowers. Fifteen-plus years, a
+          drawer full of shipped titles, and a stubborn love for the layer
+          right above the silicon: custom engines, renderers, gameplay and AI
+          systems, physics, and the design tools that turn "what if" into
+          "ship it." My work spans mixed reality at Microsoft and console game
+          development at studios like Fun Bits Interactive and LucasArts, all
+          rooted in a real-time interactive simulation education at DigiPen.
+        </p>
+        <p>
+          It started with one of the very first games submitted to the iTunes
+          App Store — a scrappy little thing Microsoft liked enough to buy for
+          the Zune HD. That got me a seat at LucasArts as a gameplay engineer
+          on the Star Wars: The Force Unleashed series for Xbox 360 and
+          PlayStation 3, where I learned that lightsabers are mostly physics
+          problems wearing a great costume.
+        </p>
+        <p>
+          Next came Fun Bits Interactive and Escape Plan, a bestselling
+          PlayStation Vita title built on a custom port of Unity. I was
+          promoted to Technical Director and led a team of 12 engineers through
+          Fat Princess Adventures, a cooperative online multiplayer RPG — while
+          building the PlayStation 4 engine underneath it. In 2016 I joined
+          Microsoft, where I've been chasing mixed reality ever since.
         </p>
         <p>
           This site is itself a small engine: the landing page renders a 3D
