@@ -524,7 +524,7 @@ void main(){
 
 const POINT_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
-layout(location=1) in vec4 aAttr; // x size, y phase/dim, z digit (Arabic numeral, POIs only), w unused
+layout(location=1) in vec4 aAttr; // x size, y phase/dim, z digit (Arabic numeral, POIs only), w POI count on planet
 layout(location=2) in vec3 aColor;
 uniform mat4 uViewProj;
 uniform float uTime;
@@ -533,6 +533,7 @@ uniform float uHeight; // viewport height in pixels (POI fixed-screen sizing)
 out vec4 vAttr;
 out vec3 vColor;
 out float vDigit;
+out float vCount;
 void main(){
   vec4 clip=uViewProj*vec4(aPos,1.0);
   gl_Position=clip;
@@ -546,11 +547,12 @@ void main(){
   vAttr=vec4(twinkle,aAttr.y,uMode,aAttr.x);
   vColor=aColor;
   vDigit=aAttr.z;
+  vCount=aAttr.w;
 }`;
 
 const POINT_FRAG = `#version 300 es
 precision highp float;
-in vec4 vAttr;in vec3 vColor;in float vDigit;
+in vec4 vAttr;in vec3 vColor;in float vDigit;in float vCount;
 uniform float uWireframe;
 uniform float uTime;
 out vec4 frag;
@@ -591,6 +593,32 @@ float digitDist(vec2 p,int d){
   if(d==0||d==2||d==3||d==5||d==6||d==8||d==9){dm=min(dm,segDist(p,bl,br));}
   return dm;
 }
+
+// One shimmer "slot" per POI: SHIMMER_SLOT seconds each, of which the first
+// SHIMMER_SWEEP fraction is the highlight travelling a full turn around the
+// ring and the remainder is a short rest before the next marker takes over.
+// Mirrors shimmer() in poi.wgsl.
+const float SHIMMER_SLOT=1.6;
+const float SHIMMER_SWEEP=0.75;
+const float TAU=6.2831853;
+const float HALF_PI=1.5707963;
+float shimmer(vec2 uv,float digit,float count){
+  float total=max(count,1.0);
+  float slots=max(uTime,0.0)/SHIMMER_SLOT;
+  float whole=floor(slots);
+  // Index of the marker whose turn it is, cycling 0..total-1.
+  float active=whole-total*floor(whole/total);
+  if(abs(active-(digit-1.0))>0.5){return 0.0;}
+  float travel=fract(slots)/SHIMMER_SWEEP;
+  if(travel>1.0){return 0.0;}
+  // Fade the highlight in and out at the ends of its lap so it does not pop
+  // into (or out of) existence at the start angle.
+  float env=smoothstep(0.0,0.12,travel)*(1.0-smoothstep(0.88,1.0,travel));
+  float ang=atan(uv.y,uv.x);
+  float delta=ang-(HALF_PI+travel*TAU);
+  delta=delta-TAU*floor(delta/TAU+0.5);
+  return exp(-delta*delta*8.0)*env;
+}
 void main(){
   vec2 uv=gl_PointCoord*2.0-1.0;
   float d=length(uv);
@@ -607,16 +635,13 @@ void main(){
       frag=vec4(vec3(0.25,1.0,0.85)*a,a);
       return;
     }
-    // Subtle pulse travelling around the circumference: a narrow highlight
-    // that sweeps the ring, brightening it slightly and bulging the radius by
-    // a hair. Just enough motion to read as "tappable" without being
-    // distracting. The digit offsets the phase so neighbouring markers don't
-    // pulse in lockstep. gl_PointCoord's Y is flipped, so negate uv.y to match
-    // the WebGPU sweep direction.
-    float ang=atan(-uv.y,uv.x);
-    float delta=ang-(uTime*1.1+vDigit*0.7);
-    delta=delta-6.2831853*floor(delta/6.2831853+0.5);
-    float pulse=exp(-delta*delta*8.0);
+    // Shimmer: a narrow highlight that travels once around the circumference
+    // of a single marker, brightening the ring and bulging its radius by a
+    // hair. Markers take turns in POI order (digit 1, 2, 3, ...); when the
+    // last one finishes the sequence restarts at the first, so only one
+    // marker ever shimmers at a time. gl_PointCoord's Y is flipped, so negate
+    // uv.y to match the WebGPU sweep direction.
+    float pulse=shimmer(vec2(uv.x,-uv.y),vDigit,vCount);
     float radius=0.85+0.02*pulse;
     // Isotropic AA: use the L2 norm of (dFdx, dFdy) instead of fwidth()
     // (which is L1 and gives a slightly wider band at the diagonals,
@@ -2781,7 +2806,7 @@ export class WebGL2Renderer implements SceneRenderer {
         // are a fixed fraction of the viewport height regardless of distance.
         const sizePx = (0.027 + 0.021 * p.focus) * vis;
         pos.push(outer[0], outer[1], outer[2]);
-        attr.push(sizePx, dim, i + 1, 0);
+        attr.push(sizePx, dim, i + 1, p.pois.length);
         color.push(poi.accent[0], poi.accent[1], poi.accent[2]);
         // Connector quad: surface vertex (faint) -> rim vertex (bright).
         const ar = poi.accent[0];
