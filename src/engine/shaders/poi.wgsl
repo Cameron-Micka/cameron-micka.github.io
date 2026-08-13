@@ -129,7 +129,7 @@ fn shimmer(uv : vec2<f32>, digit : f32, count : f32) -> f32 {
   let ang = atan2(uv.y, uv.x);
   var delta = ang - (HALF_PI + travel * TAU);
   delta = delta - TAU * floor(delta / TAU + 0.5);
-  return exp(-delta * delta * 8.0) * env;
+  return exp(-delta * delta * 5.0) * env;
 }
 
 @fragment
@@ -166,7 +166,13 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Thin ring: pure AA-only smoothstep from peak (at d=radius) out to
   // 1.5*aa. No solid core, so the line stays roughly 1.5px wide regardless
   // of marker size.
-  let outline = (1.0 - smoothstep(0.0, 1.5 * aa, abs(d - radius))) * in.dim * (1.0 + 0.9 * pulse);
+  let outline = (1.0 - smoothstep(0.0, 1.5 * aa, abs(d - radius))) * in.dim;
+  // Bright warm highlight riding on top of the ring, matched to the flight
+  // path's travelling pulse (same 1.0/0.95/0.85 tint and 1.6 gain) so both
+  // effects read at the same intensity. Slightly wider than the ring line
+  // itself so the glow is visible even on small markers.
+  let halo = (1.0 - smoothstep(0.0, 4.0 * aa, abs(d - radius))) * in.dim;
+  let glow = halo * pulse;
   let digit = i32(in.digit + 0.5);
   // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH
   // size the digit so it sits comfortably inside the ring at radius 0.85.
@@ -182,5 +188,6 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let strokeW = 0.16;
   let glyphAlpha = (1.0 - smoothstep(strokeW - aaG, strokeW + aaG, glyphDist)) * in.dim;
   let alpha = max(outline, glyphAlpha);
-  return vec4<f32>(UI_ACCENT * alpha, alpha);
+  let rgb = UI_ACCENT * alpha + vec3<f32>(1.0, 0.95, 0.85) * glow * 1.6;
+  return vec4<f32>(rgb, min(1.0, alpha + glow * 0.8));
 }
