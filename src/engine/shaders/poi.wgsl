@@ -17,6 +17,7 @@ struct VSOut {
   @location(1) accent : vec3<f32>,
   @location(2) dim : f32,
   @location(3) digit : f32,
+  @location(4) count : f32,
 };
 
 @vertex
@@ -26,6 +27,7 @@ fn vs(
   @location(2) attribs : vec4<f32>,  // x=size y=dim z=accentR w=accentG
   @location(3) accentB : f32,        // accentB
   @location(4) digit : f32,          // 1..9 = Arabic numeral icon, 0 = none
+  @location(5) count : f32,          // number of POIs on this marker's planet
 ) -> VSOut {
   var out : VSOut;
   let clip = frame.viewProj * vec4<f32>(center, 1.0);
@@ -38,6 +40,7 @@ fn vs(
   out.accent = vec3<f32>(attribs.z, attribs.w, accentB);
   out.dim = attribs.y;
   out.digit = digit;
+  out.count = count;
   return out;
 }
 
@@ -99,6 +102,36 @@ fn digitDist(p : vec2<f32>, d : i32) -> f32 {
   return dm;
 }
 
+// One shimmer "slot" per POI: SHIMMER_SLOT seconds each, of which the first
+// SHIMMER_SWEEP fraction is the highlight travelling a full turn around the
+// ring and the remainder is a short rest before the next marker takes over.
+const SHIMMER_SLOT : f32 = 1.6;
+const SHIMMER_SWEEP : f32 = 0.75;
+const TAU : f32 = 6.2831853;
+const HALF_PI : f32 = 1.5707963;
+
+fn shimmer(uv : vec2<f32>, digit : f32, count : f32) -> f32 {
+  let total = max(count, 1.0);
+  let slots = max(frame.misc.x, 0.0) / SHIMMER_SLOT;
+  let whole = floor(slots);
+  // Index of the marker whose turn it is, cycling 0..total-1.
+  let active = whole - total * floor(whole / total);
+  if (abs(active - (digit - 1.0)) > 0.5) {
+    return 0.0;
+  }
+  let travel = fract(slots) / SHIMMER_SWEEP;
+  if (travel > 1.0) {
+    return 0.0;
+  }
+  // Fade the highlight in and out at the ends of its lap so it does not pop
+  // into (or out of) existence at the start angle.
+  let env = smoothstep(0.0, 0.12, travel) * (1.0 - smoothstep(0.88, 1.0, travel));
+  let ang = atan2(uv.y, uv.x);
+  var delta = ang - (HALF_PI + travel * TAU);
+  delta = delta - TAU * floor(delta / TAU + 0.5);
+  return exp(-delta * delta * 8.0) * env;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let wf = frame.misc.z;
@@ -120,14 +153,12 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // (which is the L1 norm). Because d = length(uv) has unit gradient, this
   // keeps the AA band the same width in every direction; otherwise the ring
   // reads as slightly fatter at the diagonals than at the cardinals.
-  // Subtle pulse travelling around the circumference: a narrow highlight that
-  // sweeps the ring, brightening it slightly and bulging the radius by a hair.
-  // Just enough motion to read as "tappable" without being distracting. The
-  // digit offsets the phase so neighbouring markers don't pulse in lockstep.
-  let ang = atan2(in.uv.y, in.uv.x);
-  var delta = ang - (frame.misc.x * 1.1 + in.digit * 0.7);
-  delta = delta - 6.2831853 * floor(delta / 6.2831853 + 0.5);
-  let pulse = exp(-delta * delta * 8.0);
+  // Shimmer: a narrow highlight that travels once around the circumference of
+  // a single marker, brightening the ring and bulging its radius by a hair.
+  // Markers take turns in POI order (digit 1, 2, 3, ...); when the last one
+  // finishes the sequence restarts at the first, so only one marker ever
+  // shimmers at a time and the eye is led through the POIs in order.
+  let pulse = shimmer(in.uv, in.digit, in.count);
   let radius = 0.85 + 0.02 * pulse;
   let dx = dpdx(d);
   let dy = dpdy(d);

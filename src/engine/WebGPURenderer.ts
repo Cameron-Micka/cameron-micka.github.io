@@ -52,6 +52,9 @@ const CLOUD_SHELL_SCALE = 1.006;
 const MAX_SATELLITES = 64;
 const SAT_FLOATS = 7;
 const SAT_STRIDE = SAT_FLOATS * 4;
+// Per-POI instance record shared by the marker and connector pipelines:
+// inner.xyz, outer.xyz, size, dim, accent.rgb, digit, planet POI count.
+const POI_INSTANCE_FLOATS = 13;
 
 export class WebGPURenderer implements SceneRenderer {
   readonly backend = 'webgpu' as const;
@@ -610,13 +613,14 @@ export class WebGPURenderer implements SceneRenderer {
     });
 
     const poiInstanceLayout: GPUVertexBufferLayout = {
-      arrayStride: 12 * 4,
+      arrayStride: POI_INSTANCE_FLOATS * 4,
       stepMode: 'instance',
       attributes: [
         { shaderLocation: 1, offset: 12, format: 'float32x3' }, // outer (marker)
         { shaderLocation: 2, offset: 24, format: 'float32x4' }, // size,dim,accentRG
         { shaderLocation: 3, offset: 40, format: 'float32' }, // accentB
         { shaderLocation: 4, offset: 44, format: 'float32' }, // digit (1..9 or 0)
+        { shaderLocation: 5, offset: 48, format: 'float32' }, // POI count on planet
       ],
     };
 
@@ -642,7 +646,7 @@ export class WebGPURenderer implements SceneRenderer {
     });
 
     const poiLineInstanceLayout: GPUVertexBufferLayout = {
-      arrayStride: 12 * 4,
+      arrayStride: POI_INSTANCE_FLOATS * 4,
       stepMode: 'instance',
       attributes: [
         { shaderLocation: 0, offset: 0, format: 'float32x3' }, // inner (surface)
@@ -1712,12 +1716,13 @@ export class WebGPURenderer implements SceneRenderer {
         poi.accent[1],
         poi.accent[2],
         i + 1,
+        p.pois.length,
       );
     }
   }
 
   private uploadPois(data: number[]): void {
-    const count = data.length / 12;
+    const count = data.length / POI_INSTANCE_FLOATS;
     this.poiCount = count;
     if (count === 0) return;
     const arr = new Float32Array(data);
@@ -1725,7 +1730,7 @@ export class WebGPURenderer implements SceneRenderer {
       this.poiBuf?.destroy();
       this.poiCapacity = Math.max(count, 32);
       this.poiBuf = this.device.createBuffer({
-        size: this.poiCapacity * 12 * 4,
+        size: this.poiCapacity * POI_INSTANCE_FLOATS * 4,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       });
     }
