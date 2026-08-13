@@ -650,7 +650,8 @@ void main(){
     // Thin ring: AA-only smoothstep from peak (d=radius) out to 1.5*aa.
     // No solid core so the line reads ~1.5px wide regardless of marker
     // size.
-    float outline=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y*(1.0+0.9*pulse);
+    float ring=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y;
+    float outline=ring*(1.0+0.9*pulse);
     // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH
     // size the digit so it sits comfortably inside the ring at radius 0.85.
     // gl_PointCoord origin is upper-left, so we flip Y here to match the
@@ -665,8 +666,13 @@ void main(){
     float strokeW=0.16;
     float glyphAlpha=(1.0-smoothstep(strokeW-aaG,strokeW+aaG,glyphDist))*vAttr.y;
     float a=max(outline,glyphAlpha);
-    // UI accent orange (--accent: #ff7a18) so markers match the interface.
-    frag=vec4(vec3(1.0,0.478,0.094)*a,a);
+    // UI accent orange (--accent: #ff7a18) so markers match the interface,
+    // plus a warm-white glow riding on the shimmer. Matches the flight path
+    // pulse (same 1.6x additive weight and alpha lift) so both shimmers read
+    // at the same intensity.
+    float glow=ring*pulse;
+    vec3 rgb=vec3(1.0,0.478,0.094)*a+vec3(1.0,0.95,0.85)*glow*1.6;
+    frag=vec4(rgb,min(1.0,a+glow*0.8));
   }else{
     if(uWireframe>0.5){
       // Wireframe debug: render the billboard quad as cyan edges + diagonal,
