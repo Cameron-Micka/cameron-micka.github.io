@@ -654,7 +654,8 @@ void main(){
     // Bright warm highlight riding on top of the ring, matched to the flight
     // path's travelling pulse (same tint and 1.6 gain) so both effects read at
     // the same intensity. Slightly wider than the ring line so the glow shows
-    // up even on small markers.
+    // up even on small markers. The POI pass is additive into the HDR target,
+    // so pushing RGB past 1.0 here is deliberate: bloom picks up the overshoot.
     float halo=(1.0-smoothstep(0.0,4.0*aa,abs(d-radius)))*vAttr.y;
     float glow=halo*pulse;
     // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH

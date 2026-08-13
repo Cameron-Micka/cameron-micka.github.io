@@ -170,7 +170,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Bright warm highlight riding on top of the ring, matched to the flight
   // path's travelling pulse (same 1.0/0.95/0.85 tint and 1.6 gain) so both
   // effects read at the same intensity. Slightly wider than the ring line
-  // itself so the glow is visible even on small markers.
+  // itself so the glow is visible even on small markers. The POI pass is
+  // additive into the HDR target, so letting the highlight push RGB past 1.0
+  // is deliberate — that overshoot is what the bloom pass picks up.
   let halo = (1.0 - smoothstep(0.0, 4.0 * aa, abs(d - radius))) * in.dim;
   let glow = halo * pulse;
   let digit = i32(in.digit + 0.5);
