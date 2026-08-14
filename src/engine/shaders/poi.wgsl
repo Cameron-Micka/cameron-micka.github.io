@@ -115,8 +115,9 @@ fn shimmer(uv : vec2<f32>, digit : f32, count : f32) -> f32 {
   let slots = max(frame.misc.x, 0.0) / SHIMMER_SLOT;
   let whole = floor(slots);
   // Index of the marker whose turn it is, cycling 0..total-1.
-  let active = whole - total * floor(whole / total);
-  if (abs(active - (digit - 1.0)) > 0.5) {
+  // NOTE: 'active' is a WGSL reserved word, hence activeIdx.
+  let activeIdx = whole - total * floor(whole / total);
+  if (abs(activeIdx - (digit - 1.0)) > 0.5) {
     return 0.0;
   }
   let travel = fract(slots) / SHIMMER_SWEEP;

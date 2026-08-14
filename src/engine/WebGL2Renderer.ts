@@ -607,8 +607,9 @@ float shimmer(vec2 uv,float digit,float count){
   float slots=max(uTime,0.0)/SHIMMER_SLOT;
   float whole=floor(slots);
   // Index of the marker whose turn it is, cycling 0..total-1.
-  float active=whole-total*floor(whole/total);
-  if(abs(active-(digit-1.0))>0.5){return 0.0;}
+  // NOTE: 'active' is a reserved word in GLSL ES, hence activeIdx.
+  float activeIdx=whole-total*floor(whole/total);
+  if(abs(activeIdx-(digit-1.0))>0.5){return 0.0;}
   float travel=fract(slots)/SHIMMER_SWEEP;
   if(travel>1.0){return 0.0;}
   // Fade the highlight in and out at the ends of its lap so it does not pop
