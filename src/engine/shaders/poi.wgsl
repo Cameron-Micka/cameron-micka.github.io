@@ -107,10 +107,17 @@ fn digitDist(p : vec2<f32>, d : i32) -> f32 {
 // ring and the remainder is a short rest before the next marker takes over.
 const SHIMMER_SLOT : f32 = 1.6;
 const SHIMMER_SWEEP : f32 = 0.75;
+// Overall strength of the highlight. Kept well under 1 so the sweep reads as a
+// gentle hint rather than a flash that pulls focus off the planet.
+const SHIMMER_GAIN : f32 = 0.5;
 const TAU : f32 = 6.2831853;
 const HALF_PI : f32 = 1.5707963;
 
 fn shimmer(uv : vec2<f32>, digit : f32, count : f32) -> f32 {
+  // frame.misc.y == 0 once the visitor has opened a POI this session.
+  if (frame.misc.y < 0.5) {
+    return 0.0;
+  }
   let total = max(count, 1.0);
   let slots = max(frame.misc.x, 0.0) / SHIMMER_SLOT;
   let whole = floor(slots);
@@ -130,7 +137,7 @@ fn shimmer(uv : vec2<f32>, digit : f32, count : f32) -> f32 {
   let ang = atan2(uv.y, uv.x);
   var delta = ang - (HALF_PI + travel * TAU);
   delta = delta - TAU * floor(delta / TAU + 0.5);
-  return exp(-delta * delta * 5.0) * env;
+  return exp(-delta * delta * 5.0) * env * SHIMMER_GAIN;
 }
 
 @fragment
