@@ -617,7 +617,7 @@ float shimmer(vec2 uv,float digit,float count){
   float ang=atan(uv.y,uv.x);
   float delta=ang-(HALF_PI+travel*TAU);
   delta=delta-TAU*floor(delta/TAU+0.5);
-  return exp(-delta*delta*8.0)*env;
+  return exp(-delta*delta*5.0)*env;
 }
 void main(){
   vec2 uv=gl_PointCoord*2.0-1.0;
@@ -650,7 +650,14 @@ void main(){
     // Thin ring: AA-only smoothstep from peak (d=radius) out to 1.5*aa.
     // No solid core so the line reads ~1.5px wide regardless of marker
     // size.
-    float outline=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y*(1.0+0.9*pulse);
+    float outline=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y;
+    // Bright warm highlight riding on top of the ring, matched to the flight
+    // path's travelling pulse (same tint and 1.6 gain) so both effects read at
+    // the same intensity. Slightly wider than the ring line so the glow shows
+    // up even on small markers. The POI pass is additive into the HDR target,
+    // so pushing RGB past 1.0 here is deliberate: bloom picks up the overshoot.
+    float halo=(1.0-smoothstep(0.0,4.0*aa,abs(d-radius)))*vAttr.y;
+    float glow=halo*pulse;
     // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH
     // size the digit so it sits comfortably inside the ring at radius 0.85.
     // gl_PointCoord origin is upper-left, so we flip Y here to match the
@@ -666,7 +673,8 @@ void main(){
     float glyphAlpha=(1.0-smoothstep(strokeW-aaG,strokeW+aaG,glyphDist))*vAttr.y;
     float a=max(outline,glyphAlpha);
     // UI accent orange (--accent: #ff7a18) so markers match the interface.
-    frag=vec4(vec3(1.0,0.478,0.094)*a,a);
+    vec3 rgb=vec3(1.0,0.478,0.094)*a+vec3(1.0,0.95,0.85)*glow*1.6;
+    frag=vec4(rgb,min(1.0,a+glow*0.8));
   }else{
     if(uWireframe>0.5){
       // Wireframe debug: render the billboard quad as cyan edges + diagonal,
