@@ -13,7 +13,6 @@ export const NAV = {
 };
 
 export const SOCIAL = {
-  email: 'mailto:hello@cameronmicka.com',
   github: 'https://github.com/Cameron-Micka',
   linkedin: 'https://www.linkedin.com/in/tcmicka/',
   bluesky: 'https://bsky.app/profile/tcmicka.bsky.social',
