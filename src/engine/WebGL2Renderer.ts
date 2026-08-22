@@ -555,6 +555,7 @@ precision highp float;
 in vec4 vAttr;in vec3 vColor;in float vDigit;in float vCount;
 uniform float uWireframe;
 uniform float uTime;
+uniform float uPoiShimmer;
 out vec4 frag;
 // Arabic numerals 0..9 rendered as a seven-segment union of line-segment SDFs
 // in a normalized glyph-local box [-1,1]x[-1,1]. Each digit lights a subset of
@@ -600,9 +601,14 @@ float digitDist(vec2 p,int d){
 // Mirrors shimmer() in poi.wgsl.
 const float SHIMMER_SLOT=1.6;
 const float SHIMMER_SWEEP=0.75;
+// Overall strength of the highlight; kept well under 1 so the sweep reads as a
+// gentle hint rather than a flash. Mirrors SHIMMER_GAIN in poi.wgsl.
+const float SHIMMER_GAIN=0.5;
 const float TAU=6.2831853;
 const float HALF_PI=1.5707963;
 float shimmer(vec2 uv,float digit,float count){
+  // uPoiShimmer is 0 once the visitor has opened a POI this session.
+  if(uPoiShimmer<0.5){return 0.0;}
   float total=max(count,1.0);
   float slots=max(uTime,0.0)/SHIMMER_SLOT;
   float whole=floor(slots);
@@ -618,7 +624,7 @@ float shimmer(vec2 uv,float digit,float count){
   float ang=atan(uv.y,uv.x);
   float delta=ang-(HALF_PI+travel*TAU);
   delta=delta-TAU*floor(delta/TAU+0.5);
-  return exp(-delta*delta*5.0)*env;
+  return exp(-delta*delta*5.0)*env*SHIMMER_GAIN;
 }
 void main(){
   vec2 uv=gl_PointCoord*2.0-1.0;
@@ -1729,7 +1735,7 @@ export class WebGL2Renderer implements SceneRenderer {
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
-      'uViewProj', 'uTime', 'uMode', 'uWireframe', 'uHeight',
+      'uViewProj', 'uTime', 'uMode', 'uWireframe', 'uHeight', 'uPoiShimmer',
     ]);
     this.line = this.makeProgram(LINE_VERT, LINE_FRAG, [
       'uViewProj', 'uAspect', 'uThick', 'uHeight', 'uWireframe',
@@ -2555,6 +2561,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 1);
       gl.uniform1f(this.point.uniforms.uHeight!, this.height);
+      gl.uniform1f(this.point.uniforms.uPoiShimmer!, frame.poiShimmer ? 1 : 0);
       gl.uniform1f(this.point.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.poiVao);
       gl.drawArrays(gl.POINTS, 0, this.poiCount);

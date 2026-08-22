@@ -115,6 +115,10 @@ export interface FrameState {
   // 0 = live scene, 1 = fully blurred frozen snapshot (modal open).
   blur: number;
   wireframe: boolean;
+  // Whether POI markers still play their attract-loop shimmer. Turns off for
+  // the rest of the page session once the visitor opens a POI (the hint has
+  // done its job); a fresh page load starts with it on again.
+  poiShimmer: boolean;
   // CRT lens curvature applied by the final present pass. 0 = flat.
   crtBarrel: number;
   // Flat XYZ samples of the rocket trajectory polyline drawn through every

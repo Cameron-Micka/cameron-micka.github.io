@@ -42,6 +42,14 @@ export interface OpenPoiRef {
   poi: string;
 }
 
+// The POI shimmer is an attract loop: it tells first-time visitors the markers
+// are clickable. Once someone opens a POI the hint has served its purpose, so
+// it is muted for the remainder of the page session. Module-scoped (rather than
+// per-Engine) so client-side navigation away from and back to the landing page
+// — which rebuilds the Engine — keeps it off. It is deliberately not persisted,
+// so a fresh page load turns the shimmer back on.
+let poiShimmerMuted = false;
+
 export interface EngineSnapshot {
   backend: RendererBackend | null;
   ready: boolean;
@@ -571,6 +579,7 @@ export class Engine {
         : [],
       blur: this.blurCurrent,
       wireframe: this.settings.wireframe,
+      poiShimmer: !poiShimmerMuted,
       crtBarrel: this.settings.crt ? CRT_BARREL : 0,
       flightPath: this.settings.flightPath ? this.flightPath : new Float32Array(0),
     };
@@ -743,6 +752,9 @@ export class Engine {
     const idx = this.models.findIndex((m) => m.company.slug === company);
     if (idx >= 0) this.scrubTarget = idx;
     this.openPoi = { company, poi };
+    // First POI opened this session: the markers no longer need to advertise
+    // themselves, so stop the shimmer until the next page load.
+    poiShimmerMuted = true;
     this.events.emit('poiOpened', this.openPoi);
     this.commit();
   }
