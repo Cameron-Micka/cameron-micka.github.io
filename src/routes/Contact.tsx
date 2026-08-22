@@ -2,7 +2,6 @@ import { TopNav } from '@/ui/TopNav';
 import { SOCIAL } from '@/ui/strings';
 
 const LINKS = [
-  { label: 'Email', href: SOCIAL.email, sub: 'hello@cameronmicka.com' },
   { label: 'GitHub', href: SOCIAL.github, sub: 'Cameron-Micka' },
   { label: 'LinkedIn', href: SOCIAL.linkedin, sub: 'in/tcmicka' },
   { label: 'Bluesky', href: SOCIAL.bluesky, sub: '@tcmicka.bsky.social' },

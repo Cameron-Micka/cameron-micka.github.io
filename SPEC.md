@@ -47,7 +47,7 @@ The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of
 ```
 /               → 3D Time Machine landing (client-rendered)
 /about          → Bio, headshot, longer-form narrative (SSG)
-/contact        → Static links: email, GitHub, LinkedIn, Bluesky, X (SSG)
+/contact        → Static links: GitHub, LinkedIn, Bluesky, X (SSG)
 /blog           → "Coming soon" placeholder. MDX pipeline scaffolded for future posts. (SSG)
 /blog/[slug]    → Reserved route; not yet populated
 ```
