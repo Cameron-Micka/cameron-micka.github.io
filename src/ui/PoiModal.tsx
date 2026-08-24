@@ -183,7 +183,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
       }}
     >
       <div
-        className={expanded ? 'modal expanded' : 'modal'}
+        className={expanded ? 'modal poi-modal expanded' : 'modal poi-modal'}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId(openKey)}
@@ -197,51 +197,53 @@ export function PoiModal({ companies }: { companies: Company[] }) {
           }}
           aria-hidden="true"
         />
-        <div className="modal-actions">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={expanded ? UI.collapse : UI.expand}
-            aria-pressed={expanded}
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? (
+        <div className="modal-header">
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={expanded ? UI.collapse : UI.expand}
+              aria-pressed={expanded}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              className="icon-btn close"
+              aria-label={UI.close}
+              onClick={() => engine.closePoi()}
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path
-                  d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"
+                  d="M6 6l12 12M18 6 6 18"
                   stroke="currentColor"
                   strokeWidth="2"
                   strokeLinecap="round"
-                  strokeLinejoin="round"
                 />
               </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          </button>
-          <button
-            type="button"
-            className="icon-btn close"
-            aria-label={UI.close}
-            onClick={() => engine.closePoi()}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M6 6l12 12M18 6 6 18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+            </button>
+          </div>
         </div>
 
         <div

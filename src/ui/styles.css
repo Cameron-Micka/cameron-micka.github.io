@@ -657,6 +657,38 @@ a:hover {
   display: flex;
   gap: 8px;
 }
+/* POI modal: the actions live in a header bar the content scrolls under, and
+   the scroll container runs to the modal's right edge so its scrollbar sits
+   outside the text column instead of on top of it. */
+.modal.poi-modal {
+  padding-right: 0;
+}
+.modal.poi-modal .modal-header {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  min-height: var(--modal-actions-size);
+  margin-bottom: 14px;
+  padding-right: var(--modal-pad);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.modal.poi-modal .modal-header .modal-actions {
+  position: static;
+  gap: 8px;
+}
+.modal.poi-modal .modal-content {
+  padding-right: var(--modal-pad);
+}
+/* The header already reserves the space the absolutely-positioned buttons
+   needed, so POI headings can use the full width. */
+.modal.poi-modal h2,
+.modal.poi-modal .eyebrow {
+  padding-right: 0;
+}
+.modal.poi-modal .eyebrow {
+  min-height: 0;
+}
 .modal.expanded {
   display: flex;
   flex-direction: column;
@@ -683,6 +715,13 @@ a:hover {
 }
 .modal.expanded .modal-content {
   padding-bottom: 20px;
+}
+.modal.poi-modal.expanded {
+  padding-right: 0;
+}
+.modal.poi-modal.expanded .modal-header,
+.modal.poi-modal.expanded .modal-content {
+  padding-right: max(var(--modal-pad), env(safe-area-inset-right));
 }
 
 /* ---- Settings panel ---- */
@@ -1327,7 +1366,7 @@ a:hover {
   /* Mobile browsers use overlay scrollbars, which are painted on top of the
      content instead of reserving space. Give the expanded modal's scroll
      container its own gutter so the bar never covers text or media. */
-  .modal.expanded .modal-content {
+  .modal.expanded:not(.poi-modal) .modal-content {
     padding-right: 12px;
   }
 }
