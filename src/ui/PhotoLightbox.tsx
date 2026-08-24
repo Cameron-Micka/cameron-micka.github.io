@@ -156,7 +156,7 @@ export function PhotoLightbox({
               aria-label={PHOTOGRAPHY.previous}
               onClick={goPrev}
             >
-              ← Previous
+              <span aria-hidden="true">←</span> Previous
             </button>
             <button
               type="button"
@@ -164,7 +164,7 @@ export function PhotoLightbox({
               aria-label={PHOTOGRAPHY.next}
               onClick={goNext}
             >
-              Next →
+              Next <span aria-hidden="true">→</span>
             </button>
           </nav>
         )}

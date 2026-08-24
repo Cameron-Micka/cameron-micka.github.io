@@ -27,6 +27,13 @@ if (duplicateId) {
   throw new Error(`Duplicate photo id: ${duplicateId}`);
 }
 
+// Grouped once at module load; the manifest is static, so callers can use the
+// returned arrays as stable references across renders.
+const byCategory: Record<PhotoCategory, Photo[]> = {
+  nature: photos.filter((p) => p.category === 'nature'),
+  automotive: photos.filter((p) => p.category === 'automotive'),
+};
+
 export function photosByCategory(category: PhotoCategory): Photo[] {
-  return photos.filter((p) => p.category === category);
+  return byCategory[category];
 }
