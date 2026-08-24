@@ -37,6 +37,7 @@ export const UI = {
   close: 'Close',
   expand: 'Expand',
   collapse: 'Collapse',
+  poiList: 'Points of interest',
   settings: 'Settings',
   freeCamera: 'Free camera',
   blogSoon: 'Writing is on the way. Check back soon.',

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Company, Media } from '@/content/schema';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import { Markdown } from './Markdown';
@@ -50,30 +50,69 @@ function MediaItem({ m }: { m: Media }) {
   return <img src={m.src} alt={m.alt ?? ''} loading="lazy" />;
 }
 
+type Entry = {
+  key: string;
+  company: Company;
+  poi: Company['pois'][number];
+  /** 1-based position of the POI within its own company. */
+  ordinal: number;
+};
+
 export function PoiModal({ companies }: { companies: Company[] }) {
   const engine = useEngine();
   const { openPoi } = useEngineSnapshot();
   const cardRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef(new Map<string, HTMLElement>());
   const lastFocused = useRef<Element | null>(null);
+  // Key of the POI the list is currently parked on. Kept in a ref so the
+  // scroll handler and the "openPoi changed elsewhere" effect can tell who
+  // moved last and avoid fighting each other.
+  const activeKey = useRef<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  const company = openPoi
-    ? companies.find((c) => c.slug === openPoi.company)
-    : undefined;
-  const poiIndex = company
-    ? company.pois.findIndex((p) => p.slug === openPoi?.poi)
-    : -1;
-  const poi = poiIndex >= 0 ? company!.pois[poiIndex] : undefined;
+  // Every POI across every company, in timeline order, so scrolling walks the
+  // whole career the same way the old prev/next buttons did.
+  const entries = useMemo<Entry[]>(
+    () =>
+      companies.flatMap((company) =>
+        company.pois.map((poi, i) => ({
+          key: `${company.slug}/${poi.slug}`,
+          company,
+          poi,
+          ordinal: i + 1,
+        })),
+      ),
+    [companies],
+  );
+
+  const openKey = openPoi ? `${openPoi.company}/${openPoi.poi}` : null;
+  const isOpen = openKey !== null && entries.some((e) => e.key === openKey);
 
   useEffect(() => {
-    if (!openPoi) setExpanded(false);
-  }, [openPoi]);
+    if (!isOpen) {
+      setExpanded(false);
+      activeKey.current = null;
+    }
+  }, [isOpen]);
+
+  // Scroll to the open POI whenever it changed from outside the list (initial
+  // open, a click on a marker in the 3D scene, or a hash change).
+  useEffect(() => {
+    if (!isOpen || !openKey || openKey === activeKey.current) return;
+    activeKey.current = openKey;
+    const list = listRef.current;
+    const section = sectionRefs.current.get(openKey);
+    if (list && section) list.scrollTop = section.offsetTop;
+  }, [isOpen, openKey]);
 
   useEffect(() => {
-    if (!openPoi) return;
+    if (!isOpen) return;
     lastFocused.current = document.activeElement;
     const card = cardRef.current;
-    card?.focus();
+    // Focus the scroll container so arrow keys / page keys move through the
+    // POIs immediately after the modal opens.
+    (listRef.current ?? card)?.focus();
 
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -101,46 +140,40 @@ export function PoiModal({ companies }: { companies: Company[] }) {
         lastFocused.current.focus();
       }
     };
-  }, [openPoi, engine]);
+  }, [isOpen, engine]);
 
-  if (!openPoi || !company || !poi) return null;
+  if (!isOpen || !openKey) return null;
 
-  const companyIndex = companies.findIndex((c) => c.slug === company.slug);
-
-  // Find the nearest company in `dir` (-1/+1) that has at least one POI, so we
-  // can hop across empty planets when navigating between systems.
-  const adjacentCompany = (dir: number) => {
-    for (let i = companyIndex + dir; i >= 0 && i < companies.length; i += dir) {
-      const c = companies[i];
-      if (c && c.pois.length > 0) return c;
+  // The POI whose section currently sits at the top of the viewport wins; at
+  // the very bottom of the list the last POI always wins, since a short final
+  // section may not be able to scroll all the way up.
+  const activeFromScroll = (list: HTMLElement): string | null => {
+    if (entries.length === 0) return null;
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 2) {
+      return entries[entries.length - 1]!.key;
     }
-    return undefined;
+    const probe = list.scrollTop + 24;
+    let key = entries[0]!.key;
+    for (const entry of entries) {
+      const section = sectionRefs.current.get(entry.key);
+      if (!section) continue;
+      if (section.offsetTop <= probe) key = entry.key;
+      else break;
+    }
+    return key;
   };
 
-  const prevCompany = adjacentCompany(-1);
-  const nextCompany = adjacentCompany(1);
-  const canGoPrev = poiIndex > 0 || prevCompany !== undefined;
-  const canGoNext = poiIndex < company.pois.length - 1 || nextCompany !== undefined;
-
-  const goPrev = () => {
-    if (poiIndex > 0) {
-      const target = company.pois[poiIndex - 1];
-      if (target) engine.openPoiRef(company.slug, target.slug);
-    } else if (prevCompany) {
-      const target = prevCompany.pois[prevCompany.pois.length - 1];
-      if (target) engine.openPoiRef(prevCompany.slug, target.slug);
-    }
+  const onScroll = () => {
+    const list = listRef.current;
+    if (!list) return;
+    const key = activeFromScroll(list);
+    if (!key || key === activeKey.current) return;
+    activeKey.current = key;
+    const entry = entries.find((e) => e.key === key);
+    if (entry) engine.openPoiRef(entry.company.slug, entry.poi.slug);
   };
 
-  const goNext = () => {
-    if (poiIndex < company.pois.length - 1) {
-      const target = company.pois[poiIndex + 1];
-      if (target) engine.openPoiRef(company.slug, target.slug);
-    } else if (nextCompany) {
-      const target = nextCompany.pois[0];
-      if (target) engine.openPoiRef(nextCompany.slug, target.slug);
-    }
-  };
+  const titleId = (key: string) => `poi-title-${key.replace('/', '--')}`;
 
   return (
     <div
@@ -153,13 +186,15 @@ export function PoiModal({ companies }: { companies: Company[] }) {
         className={expanded ? 'modal expanded' : 'modal'}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="poi-title"
+        aria-labelledby={titleId(openKey)}
         tabIndex={-1}
         ref={cardRef}
       >
         <span
           className="accent-bar"
-          style={{ background: poi.accent }}
+          style={{
+            background: entries.find((e) => e.key === openKey)?.poi.accent,
+          }}
           aria-hidden="true"
         />
         <div className="modal-actions">
@@ -209,41 +244,42 @@ export function PoiModal({ companies }: { companies: Company[] }) {
           </button>
         </div>
 
-        <div className="modal-content">
-          <div className="eyebrow">{company.name}</div>
-          <h2 id="poi-title">
-            <span className="poi-index">{poiIndex + 1}.</span> {poi.title}
-          </h2>
-          <div className="body">
-            <Markdown text={poi.body} />
-          </div>
-          {poi.media.length > 0 && (
-            <div className="media">
-              {poi.media.map((m, i) => (
-                <MediaItem key={i} m={m} />
-              ))}
-            </div>
-          )}
+        <div
+          className="modal-content poi-list"
+          ref={listRef}
+          onScroll={onScroll}
+          tabIndex={-1}
+          aria-label={UI.poiList}
+        >
+          {entries.map((entry) => (
+            <section
+              className="poi-section"
+              key={entry.key}
+              aria-labelledby={titleId(entry.key)}
+              aria-current={entry.key === openKey ? 'true' : undefined}
+              ref={(el) => {
+                if (el) sectionRefs.current.set(entry.key, el);
+                else sectionRefs.current.delete(entry.key);
+              }}
+            >
+              <div className="eyebrow">{entry.company.name}</div>
+              <h2 id={titleId(entry.key)}>
+                <span className="poi-index">{entry.ordinal}.</span>{' '}
+                {entry.poi.title}
+              </h2>
+              <div className="body">
+                <Markdown text={entry.poi.body} />
+              </div>
+              {entry.poi.media.length > 0 && (
+                <div className="media">
+                  {entry.poi.media.map((m, i) => (
+                    <MediaItem key={i} m={m} />
+                  ))}
+                </div>
+              )}
+            </section>
+          ))}
         </div>
-
-        {(company.pois.length > 1 || prevCompany || nextCompany) && (
-          <nav className="poi-nav" aria-label="Points of interest">
-            <button
-              type="button"
-              disabled={!canGoPrev}
-              onClick={goPrev}
-            >
-              ← Previous
-            </button>
-            <button
-              type="button"
-              disabled={!canGoNext}
-              onClick={goNext}
-            >
-              Next →
-            </button>
-          </nav>
-        )}
       </div>
     </div>
   );
