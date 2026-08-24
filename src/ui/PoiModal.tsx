@@ -144,6 +144,10 @@ export function PoiModal({ companies }: { companies: Company[] }) {
 
   if (!isOpen || !openKey) return null;
 
+  // The company owning the POI in view drives both the header title and the
+  // accent bar, so the bar only changes color when the company changes.
+  const activeCompany = entries.find((e) => e.key === openKey)?.company;
+
   // The POI whose section currently sits at the top of the viewport wins; at
   // the very bottom of the list the last POI always wins, since a short final
   // section may not be able to scroll all the way up.
@@ -192,12 +196,11 @@ export function PoiModal({ companies }: { companies: Company[] }) {
       >
         <span
           className="accent-bar"
-          style={{
-            background: entries.find((e) => e.key === openKey)?.poi.accent,
-          }}
+          style={{ background: activeCompany?.palette.high }}
           aria-hidden="true"
         />
         <div className="modal-header">
+          <div className="modal-title">{activeCompany?.name}</div>
           <div className="modal-actions">
             <button
               type="button"
@@ -264,7 +267,6 @@ export function PoiModal({ companies }: { companies: Company[] }) {
                 else sectionRefs.current.delete(entry.key);
               }}
             >
-              <div className="eyebrow">{entry.company.name}</div>
               <h2 id={titleId(entry.key)}>
                 <span className="poi-index">{entry.ordinal}.</span>{' '}
                 {entry.poi.title}
