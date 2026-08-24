@@ -45,6 +45,12 @@ export function TopNav({
         >
           {NAV.blog}
         </NavLink>
+        <NavLink
+          to="/photography"
+          className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
+        >
+          {NAV.photography}
+        </NavLink>
         {onToggleSettings && (
           <button
             type="button"

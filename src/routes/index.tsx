@@ -4,6 +4,7 @@ import Landing from './Landing';
 import About from './About';
 import Contact from './Contact';
 import Blog from './Blog';
+import Photography from './Photography';
 import NotFound from './NotFound';
 
 export const routes: RouteRecord[] = [
@@ -15,6 +16,7 @@ export const routes: RouteRecord[] = [
       { path: 'about', Component: About },
       { path: 'contact', Component: Contact },
       { path: 'blog', Component: Blog },
+      { path: 'photography', Component: Photography },
       { path: '*', Component: NotFound },
     ],
   },
