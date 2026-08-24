@@ -666,12 +666,28 @@ a:hover {
 .modal.poi-modal .modal-header {
   flex: none;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   min-height: var(--modal-actions-size);
   margin-bottom: 14px;
   padding-right: var(--modal-pad);
   padding-bottom: 12px;
   border-bottom: 1px solid var(--glass-border);
+}
+.modal.poi-modal .modal-header .modal-title {
+  min-width: 0;
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  text-shadow: var(--text-glow);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.modal.poi-modal .modal-header .modal-title::before {
+  content: '// ';
 }
 .modal.poi-modal .modal-header .modal-actions {
   position: static;
@@ -682,12 +698,8 @@ a:hover {
 }
 /* The header already reserves the space the absolutely-positioned buttons
    needed, so POI headings can use the full width. */
-.modal.poi-modal h2,
-.modal.poi-modal .eyebrow {
+.modal.poi-modal h2 {
   padding-right: 0;
-}
-.modal.poi-modal .eyebrow {
-  min-height: 0;
 }
 .modal.expanded {
   display: flex;
