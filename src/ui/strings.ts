@@ -10,6 +10,7 @@ export const NAV = {
   about: 'About',
   contact: 'Contact',
   blog: 'Blog',
+  photography: 'Photos',
 };
 
 export const SOCIAL = {
@@ -39,4 +40,21 @@ export const UI = {
   settings: 'Settings',
   freeCamera: 'Free camera',
   blogSoon: 'Writing is on the way. Check back soon.',
+};
+
+export const PHOTOGRAPHY = {
+  title: 'Photography',
+  lede: 'Frames from the road and the trail — shot for the love of light.',
+  sections: {
+    nature: 'Nature',
+    automotive: 'Automotive',
+  },
+  empty: 'No photos here yet. Check back soon.',
+  jumpLabel: 'Photography sections',
+  gridLabel: 'Photo grid',
+  open: 'View larger',
+  lightboxLabel: 'Photo viewer',
+  previous: 'Previous photo',
+  next: 'Next photo',
+  counter: (index: number, total: number) => `${index} / ${total}`,
 };

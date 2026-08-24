@@ -35,9 +35,9 @@ src/
     InputController.ts  wheel / pointer / touch / keyboard -> intents
     QualityManager.ts   Quality presets + Auto quality ramp
     Engine.ts     Owns state + RAF loop; exposes a useSyncExternalStore store
-  content/        Company data (TS) validated by a zod schema
+  content/        Company + photo data (TS) validated by a zod schema
   ui/             React overlay: nav, ruler, ribbon, POI modal, settings, HUD
-  routes/         Landing (CSR canvas) + /about /contact /blog (SSG)
+  routes/         Landing (CSR canvas) + /about /contact /blog /photography (SSG)
 ```
 
 The engine owns all per-frame state and never re-renders React on every frame.
@@ -62,8 +62,51 @@ sound, and a debug HUD from the settings panel; preferences persist in
 - `prefers-reduced-motion` (and the Paused motion setting) freezes the scene
   clock, so the cinematic is skipped and all idle animation stands still.
 - The POI modal traps focus, restores it on close, and closes on
-  Esc / click-outside / ✕.
+  Esc / click-outside / ✕. The photo lightbox follows the same pattern and
+  adds ← / → paging within the active gallery section.
 - POIs are deep-linkable via `#/{company}/{poi}`.
+
+## Photography assets
+
+The `/photography` gallery reads `src/content/photos.ts`, a zod-validated
+manifest. Image files are committed to this repo and served straight from
+GitHub Pages out of `public/`:
+
+```
+public/photos/<category>/<id>.webp          full size, ~2000px long edge
+public/photos/<category>/thumbs/<id>.webp   grid thumbnail, ~600px long edge
+```
+
+`<category>` is `nature` or `automotive`; `<id>` is a url-safe slug
+(`a-z`, `0-9`, `-`) and doubles as the manifest `id`.
+
+**Export recipe** — commit web derivatives only, never RAWs or camera-original
+JPEGs; git keeps every version of a binary forever.
+
+1. Resize so the long edge is 2000px (full) and 600px (thumb). Keep the
+   aspect ratio; the grid crops to 3:2 for layout only.
+2. Encode as WebP at quality ~80 (full) and ~75 (thumb). Add a JPEG next to it
+   only if you need a fallback for a specific target.
+3. Strip metadata, including EXIF GPS.
+
+With ImageMagick:
+
+```bash
+magick input.jpg -auto-orient -resize 2000x2000\> -strip -quality 80 \
+  public/photos/nature/<id>.webp
+magick input.jpg -auto-orient -resize 600x600\> -strip -quality 75 \
+  public/photos/nature/thumbs/<id>.webp
+```
+
+Then add an entry to `src/content/photos.ts` with the id, category, both
+paths (relative to `public/`, no leading slash), the **full-size** intrinsic
+`width`/`height` in pixels, and descriptive `alt` text. The dimensions let the
+grid reserve space so nothing shifts as images load, so they must be accurate.
+
+Keep the site comfortably under GitHub Pages' ~1 GB soft limit. If the gallery
+ever outgrows that, move the files to an external object store/CDN and change
+the manifest paths to absolute URLs — nothing else needs to change. Do not use
+Git LFS: Pages does not resolve LFS pointers, so the images would 404.
 
 ## Notable implementation decisions
 

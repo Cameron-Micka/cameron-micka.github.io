@@ -79,14 +79,44 @@ export const companySchema = z.object({
   pois: z.array(poiSchema),
 });
 
+export const photoCategorySchema = z.enum(['nature', 'automotive']);
+
+export const photoSchema = z.object({
+  id: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, 'Photo id must be url-safe (a-z, 0-9, -)'),
+  category: photoCategorySchema,
+  // Paths are relative to /public (no leading slash) so they can be resolved
+  // against BASE_URL at runtime — e.g. "photos/nature/foo.webp".
+  src: z.string(),
+  thumb: z.string(),
+  // Intrinsic pixel size of `src`. Used to reserve grid space (no layout
+  // shift) and to size the lightbox image before it loads.
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  alt: z.string().min(1),
+  caption: z.string().optional(),
+  location: z.string().optional(),
+});
+
 export type Media = z.infer<typeof mediaSchema>;
 export type Poi = z.infer<typeof poiSchema>;
 export type Company = z.infer<typeof companySchema>;
+export type PhotoCategory = z.infer<typeof photoCategorySchema>;
+export type Photo = z.infer<typeof photoSchema>;
+export type PhotoInput = z.input<typeof photoSchema>;
 // Input shape (before Zod applies defaults). Use when authoring raw company
 // data so fields with `.default()` (e.g. thinRing, ringTilt) stay optional.
 export type CompanyInput = z.input<typeof companySchema>;
 
 export const companiesSchema = z.array(companySchema);
+
+export const photosSchema = z.array(photoSchema);
+
+// Resolve a /public-relative asset path against the deployed base path.
+export function assetUrl(path: string): string {
+  return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
+}
 
 // Convert #rrggbb to a linear-ish RGB triple in 0..1 for shader palettes.
 export function hexToRgb(hex: string): [number, number, number] {
