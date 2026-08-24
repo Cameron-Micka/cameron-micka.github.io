@@ -537,12 +537,14 @@ a:hover {
     2 * var(--modal-actions-size) + 32px - var(--modal-pad)
   );
   --modal-pad: clamp(20px, 4vw, 34px);
-  --modal-actions-top: 12px;
+  --modal-actions-top: var(--modal-pad);
   --modal-actions-size: 36px;
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(880px, 100%);
   max-height: 100%;
-  overflow: auto;
+  overflow: hidden;
   border-radius: 0;
   background: linear-gradient(
     180deg,
@@ -587,7 +589,6 @@ a:hover {
   display: flex;
   align-items: center;
   min-height: var(--modal-actions-size);
-  margin-top: calc(var(--modal-actions-top) - var(--modal-pad));
   margin-bottom: 10px;
   color: var(--accent);
   font-size: 11px;
@@ -597,7 +598,29 @@ a:hover {
   padding-right: var(--modal-header-actions-space);
 }
 .modal .modal-content {
+  position: relative;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  /* One POI per "page": flicks and wheel scrolls settle on a POI heading,
+     which in turn drives the camera to that POI's planet. */
+  scroll-snap-type: y proximity;
+  scroll-padding-top: 0;
+}
+.modal .modal-content:focus-visible {
+  outline: none;
+}
+.modal .poi-section {
+  scroll-snap-align: start;
+  scroll-margin-top: 0;
+}
+.modal .poi-section + .poi-section {
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid var(--glass-border);
+}
+.modal .poi-section:last-child {
+  padding-bottom: 8px;
 }
 .modal .body {
   margin-top: 14px;
@@ -650,59 +673,16 @@ a:hover {
   padding-left: max(var(--modal-pad), env(safe-area-inset-left));
   padding-right: max(var(--modal-pad), env(safe-area-inset-right));
 }
-/* In expanded mode `.modal-content` is the scroll container, so the eyebrow's
-   negative top margin would be clipped by it. Keep the eyebrow inside the
-   content box and move the action buttons down to stay aligned with it. */
+/* The action buttons sit above the scroll container, so they must clear the
+   safe-area inset the expanded modal adds to its own padding. */
 .modal.expanded .modal-actions {
   top: max(var(--modal-pad), env(safe-area-inset-top));
-}
-.modal.expanded .eyebrow {
-  margin-top: 0;
 }
 .modal.expanded .accent-bar {
   border-radius: 0;
 }
 .modal.expanded .modal-content {
-  flex: 1 1 auto;
-  overflow: auto;
   padding-bottom: 20px;
-}
-.modal.expanded nav.poi-nav {
-  flex-shrink: 0;
-  margin-top: 0;
-  margin-bottom: 0;
-}
-.modal nav.poi-nav {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 20px;
-  margin-bottom: calc(12px - var(--modal-pad));
-  gap: 10px;
-}
-.modal nav.poi-nav button {
-  background: rgba(255, 122, 24, 0.08);
-  border: 1px solid var(--glass-border);
-  color: var(--accent-2);
-  border-radius: 0;
-  padding: 8px 14px;
-  cursor: pointer;
-  font-family: var(--font);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  transition:
-    color 0.14s linear,
-    border-color 0.14s linear,
-    box-shadow 0.14s linear;
-}
-.modal nav.poi-nav button:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
-  box-shadow: var(--glow);
-}
-.modal nav.poi-nav button:disabled {
-  opacity: 0.3;
-  cursor: default;
 }
 
 /* ---- Settings panel ---- */
@@ -1269,6 +1249,9 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .modal .modal-content {
+    scroll-snap-type: none;
+  }
   .modal,
   .modal-scrim,
   .settings,
