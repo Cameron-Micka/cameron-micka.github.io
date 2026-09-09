@@ -539,10 +539,10 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let beachMask = oceans * (1.0 - smoothstep(0.015, 0.055, abs(oceanField - waterLevel))) * (1.0 - slope);
   land = mix(land, dryColor * 1.12, beachMask * 0.5);
   let deepOcean = vec3<f32>(0.005, 0.018, 0.07);
-  let shallowOcean = vec3<f32>(0.42, 0.82, 0.80);
-  // Concentrate the lightening in a narrow band just inside the shoreline so
-  // most of the ocean stays dark and coasts get a visible turquoise rim.
-  let depth = smoothstep(waterLevel - 0.10, waterLevel, oceanField);
+  let shallowOcean = mix(vec3<f32>(0.045, 0.16, 0.19), vec3<f32>(0.13, 0.15, 0.12), dryMask * 0.65 + rockMask * 0.2);
+  // A narrow, subdued shelf; local climate adds sediment tint rather than
+  // painting the same bright tropical rim around every continent.
+  let depth = smoothstep(waterLevel - 0.055, waterLevel - 0.008, oceanField);
   let water = mix(deepOcean, shallowOcean, depth);
   let base = mix(land, water, waterMask);
 

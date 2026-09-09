@@ -260,7 +260,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let sunVisible = select(1.0, 0.0, ground.x >= 0.0 && ground.y > ground.x);
   let sunTransmission = cloudTransmission(sunTau);
 
-  // Single-scattering shell approximation. Extinction/opacity does not depend
+  // Optical-depth shell approximation. Extinction/opacity does not depend
   // on sunlight: unlit clouds still occlude the surface and transmit lightning.
   let NdL = clamp(dot(n, sun), 0.0, 1.0);
   let albedo = mix(vec3<f32>(1.0), obj.palHigh.rgb, 0.08);

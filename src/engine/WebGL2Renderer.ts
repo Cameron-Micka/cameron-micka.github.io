@@ -381,8 +381,9 @@ void main(){
   float beachMask=uOceans*(1.0-smoothstep(0.015,0.055,abs(oceanField-waterLevel)))*(1.0-slope);
   land=mix(land,dryColor*1.12,beachMask*0.5);
   vec3 deepOcean=vec3(0.005,0.018,0.07);
-  vec3 shallowOcean=vec3(0.42,0.82,0.80);
-  float depth=smoothstep(waterLevel-0.10,waterLevel,oceanField);
+  vec3 shallowOcean=mix(vec3(0.045,0.16,0.19),vec3(0.13,0.15,0.12),dryMask*0.65+rockMask*0.2);
+  // Narrow shelf with climate-driven sediment tint, not a bright turquoise rim.
+  float depth=smoothstep(waterLevel-0.055,waterLevel-0.008,oceanField);
   vec3 water=mix(deepOcean,shallowOcean,depth);
   vec3 base=mix(land,water,waterMask);
   // Polar ice caps: tighter to the poles, with internal breakup, shallow blue
