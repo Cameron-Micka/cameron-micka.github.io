@@ -1,8 +1,7 @@
-// Atmospheric scattering shell. A sphere slightly larger than the planet is
-// drawn additively; for each fragment we march the view ray through the shell
-// (terminating at the planet surface when it is occluded) and accumulate an
-// altitude-weighted, sun-lit density. This yields a soft blue limb glow that is
-// brightest on the day side and fades into space — similar to views of Earth.
+// Bounded single scattering in a spherical Rayleigh/Mie atmosphere.
+// Premultiplied composition: scattering + background * viewTransmission.
+// RGB sunlight extinction preserves sunset color; background extinction uses
+// a scalar RGB mean because fixed-function blending cannot transmit per channel.
 
 struct Frame {
   viewProj : mat4x4<f32>,
@@ -56,10 +55,7 @@ fn raySphere(ro : vec3<f32>, rd : vec3<f32>, ce : vec3<f32>, ra : f32) -> vec2<f
   return vec2<f32>(-b - s, -b + s);
 }
 
-// Analytic shadow factor against the frame's sphere occluder list, with an
-// exclusion (the parent planet whose atmosphere we're shading) so we don't
-// double-darken the night side, which the per-sample sunAmt gate already
-// handles. Returns 1.0 unshadowed, 0.0 fully shadowed.
+// The parent planet is tested exactly along each sun ray in the integrator.
 fn shadowFactor(p : vec3<f32>, L : vec3<f32>, exclude : vec3<f32>) -> f32 {
   var s = 1.0;
   let cnt = i32(frame.shadowMisc.x);
@@ -104,72 +100,50 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   }
 
   let thickness = max(outerR - innerR, 1e-4);
-  let STEPS = 12;
-  let dt = (tFar - tNear) / f32(STEPS);
-  var dayGlow = 0.0;
-  var ambient = 0.0;
-  for (var i = 0; i < STEPS; i = i + 1) {
+  // Tier is 0=high, 1=medium, 2=low. All loops have fixed upper bounds.
+  let steps = select(select(12, 8, frame.shadowMisc.y > 0.5), 6, frame.shadowMisc.y > 1.5);
+  let sunSteps = select(4, 2, frame.shadowMisc.y > 0.5);
+  let dt = (tFar - tNear) / f32(steps);
+  let ds = dt / thickness;
+  let betaR = vec3<f32>(0.18, 0.42, 0.90) * mix(vec3<f32>(1.0), max(obj.palHigh.rgb, vec3<f32>(0.05)), 0.25);
+  let betaM = vec3<f32>(0.12);
+  let mu = clamp(dot(rd, sun), -1.0, 1.0);
+  let phaseR = 3.0 * (1.0 + mu * mu) / (16.0 * 3.14159265);
+  let g = 0.76;
+  let phaseM = (1.0 - g * g) / (4.0 * 3.14159265 * pow(max(1.0 + g * g - 2.0 * g * mu, 0.01), 1.5));
+  var viewTau = 0.0;
+  var col = vec3<f32>(0.0);
+  for (var i = 0; i < 12; i = i + 1) {
+    if (i >= steps) { break; }
     let t = tNear + (f32(i) + 0.5) * dt;
     let pos = ro + rd * t;
-    let up = pos - center;
-    let r = length(up);
-    let hgt = clamp((r - innerR) / thickness, 0.0, 1.0);
-    let density = exp(-hgt * 4.0);
-    // Sun gate starts past the terminator so night-side samples contribute 0.
-    let sunAmt = smoothstep(0.05, 0.40, dot(normalize(up), sun));
-    // Per-sample analytic shadow from other planets (self excluded so we
-    // don't double-darken what sunAmt already handles).
-    let shadow = shadowFactor(pos, sun, center);
-    dayGlow = dayGlow + density * sunAmt * shadow * dt;
-    ambient = ambient + density * dt;
+    let h = clamp((length(pos - center) - innerR) / thickness, 0.0, 1.0);
+    let density = exp(-vec2<f32>(4.0, 12.0) * h);
+    let extinction = betaR * density.x + betaM * density.y;
+    let scalarExt = dot(extinction, vec3<f32>(1.0 / 3.0));
+    let stepTau = min(scalarExt * ds, 20.0);
+    let stepWeight = exp(-viewTau) * (1.0 - exp(-stepTau)) / max(scalarExt, 1e-5);
+    viewTau = min(viewTau + stepTau, 20.0);
+
+    // Twilight follows geometric planet occlusion, not a normal/limb gate.
+    let ground = raySphere(pos, sun, center, innerR);
+    if (ground.x >= 0.0 && ground.y > ground.x) { continue; }
+    let sunExit = raySphere(pos, sun, center, outerR).y;
+    let sunDt = max(sunExit, 0.0) / f32(sunSteps);
+    var sunDepth = vec2<f32>(0.0);
+    for (var j = 0; j < 4; j = j + 1) {
+      if (j >= sunSteps) { break; }
+      let sp = pos + sun * ((f32(j) + 0.5) * sunDt);
+      let sh = clamp((length(sp - center) - innerR) / thickness, 0.0, 1.0);
+      sunDepth = sunDepth + exp(-vec2<f32>(4.0, 12.0) * sh) * (sunDt / thickness);
+    }
+    let sunTransmission = exp(-min(betaR * sunDepth.x + betaM * sunDepth.y, vec3<f32>(20.0)));
+    let scattering = betaR * density.x * phaseR + betaM * density.y * phaseM;
+    // Same unit-albedo solar irradiance (PI) as the surface BRDF.
+    col = col + scattering * sunTransmission * stepWeight * shadowFactor(pos, sun, center) * 3.14159265;
   }
-  dayGlow = dayGlow / thickness;
-  ambient = ambient / thickness;
-
-  let atmoColor = mix(obj.palHigh.rgb, vec3<f32>(0.45, 0.62, 1.0), 0.5);
-  let focus = obj.p1.x;
-  let intensity = obj.p1.y * (0.85 + 0.3 * focus);
-
-  // Limb-sun gate: zero the whole shell on rays whose closest approach to
-  // the planet center sits on the night-side hemisphere. Cubed so values
-  // near the terminator are aggressively pushed toward zero, keeping the
-  // bright-side rim intact while the night-side rim fully disappears.
-  let tLimb = max(0.0, -dot(ro - center, rd));
-  let limbPos = ro + rd * tLimb;
-  let limbNormal = normalize(limbPos - center);
-  let limbSunRaw = smoothstep(0.10, 0.40, dot(limbNormal, sun));
-  let limbSun = limbSunRaw * limbSunRaw * limbSunRaw;
-
-  var col = atmoColor * dayGlow * 0.55 * intensity;
-
-  // Subtle forward (Mie) scatter where we look toward the sun through the shell.
-  let mieC = max(dot(rd, sun), 0.0);
-  let mieC2 = mieC * mieC;
-  let mieC4 = mieC2 * mieC2;
-  let mie = mieC4 * mieC4 * dayGlow * 0.22;
-  col = col + atmoColor * mie * intensity;
-
-  // Surface-aware limb gate: limbSun is geared for *limb* (miss) rays where
-  // it kills the night-side rim glow. For rays that pierce the planet's
-  // disk, the per-sample `sunAmt` smoothstep above already provides a
-  // smooth terminator on the haze accumulated through the column — and
-  // applying the cubed limbSun on top of that paints a sharp angular cut
-  // across the lit disk (visible from close-up free-cam views). Soft-blend
-  // from limbSun at the silhouette to 1.0 inside the disk using the
-  // ray's chord length through the inner sphere, so the silhouette stays
-  // a continuous ring rather than swapping discretely.
-  let hitsPlanet = inner.x > 0.0 && inner.x < inner.y;
-  let innerSpan = max(inner.y - inner.x, 0.0);
-  let surfaceBlend = smoothstep(0.0, thickness * 0.25, innerSpan);
-  let limbBlend = select(0.0, surfaceBlend, hitsPlanet);
-  let surfaceGate = mix(limbSun, 1.0, limbBlend);
-  col = col * surfaceGate;
-
-  // Distance fog (matches planet + ring): additive shell, so just attenuate
-  // the contribution rather than mixing toward a colour.
   let dist = distance(in.worldPos, ro);
   let s = dist * 0.018;
-  col = col * exp(-s * s);
-
-  return vec4<f32>(col, 1.0);
+  let visibility = clamp(obj.p1.y, 0.0, 1.0) * exp(-s * s);
+  return vec4<f32>(col * visibility, (1.0 - exp(-viewTau)) * visibility);
 }

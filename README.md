@@ -54,6 +54,21 @@ stable for 3+ seconds. Users can override quality, motion,
 sound, and a debug HUD from the settings panel; preferences persist in
 `localStorage`.
 
+Planet surfaces use filtered height gradients, climate-driven palette variation,
+and separate rock, ice, and ocean roughness. Ocean waves fade into roughness when
+they become subpixel; silhouettes remain spherical. Atmospheric Rayleigh/Mie
+single scattering uses optical depth and geometric sunlight occlusion, with
+scalar view extinction for premultiplied-alpha compositing. Cloud lighting and
+cast shadows share the same density field and altitude; only WebGPU `high`
+samples the shallow cloud volume at multiple points.
+
+Both backends composite linear light before a single ACES-style tone map and
+display encode. WebGL2 uses RGBA16F when `EXT_color_buffer_float` and complete
+framebuffers are available, negotiating MSAA counts supported by both color and
+depth. Its RGBA8 fallback retains the same compositing order but clips HDR
+highlights. WebGPU retains bloom and subtle chromatic aberration; WebGL2 remains
+a lower-cost fallback rather than an exact post-processing match.
+
 ### Accessibility & SEO
 
 - A semantic, crawlable résumé (`ui/ResumeContent.tsx`) mirrors all scene

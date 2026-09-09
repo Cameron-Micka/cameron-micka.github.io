@@ -750,7 +750,13 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: atmosphereMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+        targets: [{
+          format: HDR_FORMAT,
+          blend: {
+            color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+          },
+        }],
       },
       primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
       depthStencil: {
@@ -1332,8 +1338,8 @@ export class WebGPURenderer implements SceneRenderer {
     const lowNoPost = frame.quality.tier === 'low';
     post[0] = lowNoPost ? 0 : frame.blur;
     post[1] = lowNoPost ? 0 : 0.55;
-    post[2] = lowNoPost ? 0 : (frame.quality.chromaticAberration ? 0.0035 : 0);
-    post[3] = lowNoPost ? 0 : (frame.quality.bloomMips > 0 ? 0.8 : 0);
+    post[2] = lowNoPost ? 0 : (frame.quality.chromaticAberration ? 0.0006 : 0);
+    post[3] = lowNoPost ? 0 : (frame.quality.bloomMips > 0 ? 0.3 : 0);
     post[4] = 1 / this.width;
     post[5] = 1 / this.height;
     post[6] = 1 / this.fxW;
@@ -1522,7 +1528,7 @@ export class WebGPURenderer implements SceneRenderer {
       }
 
       // Cloud shells (alpha blended) — between the opaque planet and the
-      // additive atmosphere so haze can still glow over the cloud silhouette.
+      // transmissive atmosphere so haze still wraps the cloud silhouette.
       for (const o of objects) {
         if (o.kind !== 5) continue;
         bindSphere(o.lod);

@@ -130,7 +130,6 @@ float continentFbm(vec3 p){float v=0.,a=.6;for(int i=0;i<3;i++){v+=a*vnoise(p);p
 // break up the linearity, so we keep just the dominant ridge structure to
 // get continuous Andes/Himalaya-like scars instead of noisy peaks.
 float ridgedFbm(vec3 p){float v=0.,a=.65;for(int i=0;i<2;i++){float n=vnoise(p);v+=a*(1.0-abs(n-0.5)*2.0);p*=2.1;a*=.5;}return v;}
-vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 // --- Cook-Torrance PBR helpers (mirror of planet.wgsl) ---
 const float PI=3.14159265359;
 float dGGX(float NdH,float r){float a=r*r;float a2=a*a;float f=NdH*NdH*(a2-1.0)+1.0;return a2/(PI*f*f);}
@@ -195,18 +194,32 @@ float cloudDensity(vec3 localDir,float time,float seedf){
   float lo=0.62-cov*0.30;float hi=lo+0.14;
   return smoothstep(lo,hi,n);
 }
-// Cloud shadow on the planet surface. vLocal is the unit-sphere local pos;
-// world light is converted to the planet's local rotation frame via the
-// normalized model columns (uniform scale). Then we hit the (taller, see
-// below) cloud shadow shell with the exact ray-sphere intersection and
-// sample the same density the cloud shader rendered. Returns the multiplier
-// on direct light (1.0 = unshadowed, [1-STRENGTH] = fully shadowed).
-const float CLOUD_SHADOW_STRENGTH=1.0;
-// Shadow-projection shell, intentionally taller than the rendered cloud shell
-// (1.006) so the cast shadow is displaced toward the anti-solar side and
-// clears the opaque puff instead of hiding directly beneath it. See the
-// matching note in planet.wgsl.
-const float CLOUD_SHADOW_SHELL=1.06;
+// Shared with CLOUDS_FRAG: actual shell radii and Beer-Lambert extinction.
+const float CLOUD_SHELL_SCALE=1.006;
+const float CLOUD_BASE_SCALE=1.003;
+const float CLOUD_EXTINCTION=2.4;
+vec2 cloudRaySphere(vec3 ro,vec3 rd,float radius){
+  float b=dot(ro,rd);
+  float h=b*b-dot(ro,ro)+radius*radius;
+  if(h<0.0)return vec2(1.0,-1.0);
+  return vec2(-b-sqrt(h),-b+sqrt(h));
+}
+float cloudOpticalDepth(vec3 ro,vec3 rd,float time,float seedf){
+  vec2 outer=cloudRaySphere(ro,rd,CLOUD_SHELL_SCALE);
+  float start=max(outer.x,0.0),end=outer.y;
+  vec2 inner=cloudRaySphere(ro,rd,CLOUD_BASE_SCALE);
+  if(inner.y>0.0&&inner.y>inner.x){
+    if(inner.x>start)end=min(end,inner.x);
+    else start=max(start,inner.y);
+  }
+  if(end<=start)return 0.0;
+  float path=min((end-start)/(CLOUD_SHELL_SCALE-CLOUD_BASE_SCALE),12.0);
+  // WebGL uses one shell-density sample and an analytic slant column.
+  float density=cloudDensity(normalize(ro+rd*((start+end)*0.5)),time,seedf);
+  return min(CLOUD_EXTINCTION*density*path,20.0);
+}
+float cloudTransmission(float opticalDepth){return exp(-clamp(opticalDepth,0.0,20.0));}
+// Rotate sunlight to local space; visible clouds and shadows share this column.
 float cloudShadow(vec3 vLocal,vec3 worldL,float time,float seedf,float enabled){
   if(enabled<0.001)return 1.0;
   vec3 r0=normalize(uModel[0].xyz);
@@ -216,16 +229,13 @@ float cloudShadow(vec3 vLocal,vec3 worldL,float time,float seedf,float enabled){
   vec3 vn=normalize(vLocal);
   float nL=dot(vn,localL);
   if(nL<=0.0)return 1.0;
-  float R2m1=CLOUD_SHADOW_SHELL*CLOUD_SHADOW_SHELL-1.0;
-  float t=-nL+sqrt(nL*nL+R2m1);
-  vec3 cloudDir=normalize(vn+localL*t);
-  float density=cloudDensity(cloudDir,time,seedf);
-  return 1.0-density*CLOUD_SHADOW_STRENGTH*enabled;
+  float tau=cloudOpticalDepth(vn,normalize(localL),time,seedf);
+  return mix(1.0,cloudTransmission(tau),clamp(enabled,0.0,1.0));
 }
 // Marbled land color + height from domain-warped fBm at noise-domain position
 // sp. Factored out so the flow-field feature can sample two advected
-// positions and cross-fade. local is the un-advected position used for
-// region-scale biome tint. Mirror of surfaceMarble in planet.wgsl.
+// positions and cross-fade. Climate is applied afterwards in un-advected
+// coordinates. Mirror of surfaceMarble in planet.wgsl.
 struct Surf{vec3 color;float height;};
 Surf surfaceMarble(vec3 sp,vec3 local,float seed){
   vec3 q=vec3(fbm(sp),fbm(sp+vec3(5.2,1.3,2.8)),fbm(sp+vec3(7.1,4.4,6.9)));
@@ -238,18 +248,16 @@ Surf surfaceMarble(vec3 sp,vec3 local,float seed){
   float rLen=clamp(length(r)*0.55,0.0,1.0);
   land=mix(land,uLow*0.55,qLen*0.22);
   land=mix(land,uHigh*1.15,rLen*0.20);
-  float biomeR=vnoise(local*0.55+vec3(11.3,3.7,5.1));
-  float biomeG=vnoise(local*0.55+vec3(24.7,6.2,9.4));
-  float biomeB=vnoise(local*0.55+vec3(37.1,8.9,2.6));
-  vec3 biomeColor=mix(uLow,uHigh,vec3(biomeR,biomeG,biomeB));
-  land=mix(land,biomeColor,0.18);
   float ridge=ridgedFbm(warpQ*0.5);
   float mountainMask=smoothstep(0.62,0.74,ridge)*smoothstep(0.42,0.62,h);
-  vec3 mountainRock=mix(uMid*0.55,vec3(0.48,0.28,0.16),0.75);
-  land=mix(land,mountainRock,mountainMask*0.85);
-  float snowMask=smoothstep(0.78,0.95,h)*smoothstep(0.58,0.74,ridge);
-  land=mix(land,vec3(0.94,0.95,0.97),snowMask*0.9);
-  return Surf(land,h);
+  return Surf(land,clamp(h+mountainMask*0.14,0.0,1.0));
+}
+// Reuse the evaluated height; no extra marble samples. Uniform calls only.
+vec3 surfaceGradient(vec3 p,vec3 n,float height){
+  vec3 dx=dFdx(p),dy=dFdy(p);
+  vec3 tx=cross(dy,n),ty=cross(n,dx);
+  float det=dot(dx,tx);
+  return (tx*dFdx(height)+ty*dFdy(height))*sign(det)/max(abs(det),1e-10);
 }
 // Smooth unit tangent flow direction: low-frequency 3-channel noise vector
 // projected onto the surface tangent plane. Mirror of flowDir in planet.wgsl.
@@ -324,7 +332,7 @@ void main(){
   vec3 viewDir=normalize(uCamera-vWorld);
   vec3 lightDir=normalize(uLight);
   float rim=pow(1.0-clamp(dot(n,viewDir),0.0,1.0),3.0);
-  vec3 sp=vLocal*2.2+vec3(uSeed*0.001);
+  vec3 sp=vLocal*(2.2+uSeed*0.0001)+vec3(uSeed*0.001);
   // Flow-field advection (after Emil Dziewanowski,
   // https://emildziewanowski.com/flowfields/): when uFlow is on, advect the
   // marbled surface detail along a tangent flow field, cross-fading two
@@ -351,7 +359,27 @@ void main(){
   float continentH=continentFbm(continentPos);
   float oceanField=continentH*0.85+h*0.15;
   float waterLevel=0.55;
-  float waterMask=uOceans*(1.0-smoothstep(waterLevel-0.03,waterLevel+0.03,oceanField));
+  float coastWidth=max(0.018,fwidth(oceanField));
+  float waterMask=uOceans*(1.0-smoothstep(waterLevel-coastWidth,waterLevel+coastWidth,oceanField));
+  vec3 localPos=normalize(vLocal);
+  float localFootprint=max(length(dFdx(localPos)),length(dFdy(localPos)));
+  float terrainHeight=mix(h,h*0.45+continentH*0.55,uOceans);
+  vec3 terrainGrad=surfaceGradient(localPos,localPos,terrainHeight);
+  float terrainFade=1.0-smoothstep(0.25,0.9,localFootprint*(2.2+uSeed*0.0001)*32.0);
+  float slope=clamp(length(terrainGrad)*0.08,0.0,1.0)*terrainFade;
+  float elevation=clamp((oceanField-waterLevel)*3.0+h*0.45,0.0,1.0);
+  float moisture=vnoise(localPos*1.8+vec3(uSeed*0.0017,7.3,13.1));
+  float temperature=1.0-abs(localPos.y)-elevation*0.55+(moisture-0.5)*0.12;
+  float dryMask=smoothstep(0.35,0.8,temperature)*(1.0-smoothstep(0.30,0.65,moisture));
+  float rockMask=smoothstep(0.32,0.75,max(elevation,slope));
+  float snowMask=uOceans*(1.0-smoothstep(0.12,0.32,temperature))*smoothstep(0.30,0.65,elevation)*(1.0-slope*0.7);
+  vec3 wetColor=mix(uLow,uMid,moisture);
+  vec3 dryColor=mix(uMid,uHigh,0.6);
+  land=mix(land,mix(wetColor,dryColor,dryMask),0.42);
+  land=mix(land,mix(uMid,uHigh,0.25)*0.68,rockMask*0.6);
+  land=mix(land,vec3(0.88,0.93,0.97),snowMask*0.85);
+  float beachMask=uOceans*(1.0-smoothstep(0.015,0.055,abs(oceanField-waterLevel)))*(1.0-slope);
+  land=mix(land,dryColor*1.12,beachMask*0.5);
   vec3 deepOcean=vec3(0.005,0.018,0.07);
   vec3 shallowOcean=vec3(0.42,0.82,0.80);
   float depth=smoothstep(waterLevel-0.10,waterLevel,oceanField);
@@ -364,7 +392,6 @@ void main(){
   // Mirror of planet.wgsl, including the uOceans gate: every ice term is
   // scaled by uOceans, so on a dry world the eight fbm calls below are pure
   // waste. uOceans is uniform across the draw, so the branch is coherent.
-  vec3 localPos=normalize(vLocal);
   vec3 r0=normalize(uModel[0].xyz);
   vec3 r1=normalize(uModel[1].xyz);
   vec3 r2=normalize(uModel[2].xyz);
@@ -397,7 +424,22 @@ void main(){
   // plus a denser field of small pits. Bowls darken toward shadowed regolith,
   // rims and ejecta brighten with freshly excavated material, and the profile
   // gradient perturbs the shading normal so relief tracks the sun direction.
-  vec3 shadeN=n;
+  float terrainStrength=mix(0.028,0.010,uCraters)*terrainFade;
+  vec3 surfaceGrad=terrainGrad*terrainStrength/max(1.0,length(terrainGrad)*terrainStrength/0.38);
+  surfaceGrad*= (1.0-waterMask)*(1.0-iceMask*0.75);
+  float waveUnresolved=0.0;
+  if(uOceans>0.5){
+    vec3 waveDirA=normalize(vec3(1.0,0.3,0.7));
+    vec3 waveDirB=normalize(vec3(-0.4,0.8,1.0));
+    float phaseA=dot(localPos,waveDirA)*60.0+uTime*0.55+uSeed;
+    float phaseB=dot(localPos,waveDirB)*95.0-uTime*0.4;
+    float waveFadeA=1.0-smoothstep(0.6,2.4,fwidth(phaseA));
+    float waveFadeB=1.0-smoothstep(0.6,2.4,fwidth(phaseB));
+    vec3 waveGrad=waveDirA*cos(phaseA)*0.045*waveFadeA+waveDirB*cos(phaseB)*0.030*waveFadeB;
+    surfaceGrad+=(waveGrad-localPos*dot(waveGrad,localPos))*waterMask*(1.0-iceMask);
+    waveUnresolved=1.0-(waveFadeA+waveFadeB)*0.5;
+  }
+  vec3 shadeN=normalize(n-(r0*surfaceGrad.x+r1*surfaceGrad.y+r2*surfaceGrad.z));
   if(uCraters>0.5){
     // fwidth needs uniform control flow; uCraters is uniform per draw. The
     // per-layer cell footprint drives an LOD fade so the grid dissolves
@@ -423,14 +465,16 @@ void main(){
     base=mix(base,base*0.90,floorMask*0.25);
     base=mix(base,min(base*1.08+vec3(0.005),vec3(1.0)),rimMask*0.16);
     vec3 gradWorld=r0*craterG.x+r1*craterG.y+r2*craterG.z;
-    shadeN=normalize(n-gradWorld);
+    shadeN=normalize(shadeN-gradWorld);
   }
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
   // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere
   // triangle face, see planet.wgsl for the FWHM derivation); land = rough.
   vec3 albedo=base;
   float metallic=0.0;
-  float roughness=mix(mix(0.92,0.35,waterMask),0.5,iceMask);
+  float landRoughness=clamp(0.87+dryMask*0.10-moisture*0.12-rockMask*0.12,0.62,0.97);
+  float waterRoughness=0.35+depth*0.06+waveUnresolved*0.06;
+  float roughness=mix(mix(landRoughness,waterRoughness,waterMask),0.48+h*0.10,max(iceMask,snowMask));
   vec3 F0base=mix(mix(vec3(0.04),vec3(0.02),waterMask),vec3(0.05,0.055,0.06),iceMask);
   vec3 F0=mix(F0base,albedo,metallic);
   vec3 L=lightDir;vec3 V=viewDir;vec3 H=normalize(L+V);
@@ -441,11 +485,7 @@ void main(){
   float D=dGGX(NdH,roughness);
   float G=gSmith(NdV,NdL,roughness);
   vec3 F=fSchlick(VdH,F0);
-  // Golden glitter on the water: tint the specular highlight toward warm gold
-  // (only on water via waterMask) so the sun's reflection reads like a sunset
-  // glint on the ocean rather than a neutral white spot. Land stays untinted.
-  vec3 specTint=mix(vec3(1.0),vec3(1.0,0.78,0.42),waterMask);
-  vec3 specular=(D*G)*F/max(4.0*NdV*NdL,1e-3)*specTint;
+  vec3 specular=(D*G)*F/max(4.0*NdV*NdL,1e-3);
   vec3 kS=F;
   vec3 kD=(vec3(1.0)-kS)*(1.0-metallic);
   // Pre-multiply sun radiance by PI so diffuse simplifies to kD*albedo*NdL.
@@ -458,7 +498,13 @@ void main(){
   vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL*shadow*cloudShadowMul;
   float ambientShadowMul=0.10+0.90*cloudShadowMul;
   vec3 ambient=albedo*0.004*ambientShadowMul;
-  vec3 col=ambient+direct;
+  // Neutral solar reflection plus a roughness-softened atmospheric sky.
+  vec3 skyFresnel=fSchlick(NdV,vec3(0.02));
+  float skyHorizon=1.0-clamp(dot(n,reflect(-V,shadeN)),0.0,1.0);
+  vec3 skyColor=mix(vec3(0.035,0.075,0.16),vec3(0.20,0.28,0.38),skyHorizon);
+  vec3 skyReflection=skyColor*skyFresnel*(1.0-roughness*0.5)*waterMask*(1.0-iceMask)*(1.0-uCraters)
+    *smoothstep(-0.12,0.3,dot(n,L))*ambientShadowMul;
+  vec3 col=ambient+direct+skyReflection;
   // City lights on the night side of land masses (planet-feature gated).
   // Population proxy: low-freq continent fbm + coastline boost. Lights are
   // a sparse hash-grid: each cell rolls a hash; populated cells emit one
@@ -519,7 +565,7 @@ void main(){
   col+=uHigh*rim*NdL*0.55*shadow;
   col*=(0.85+0.3*uFocus);
   col=mix(col,FOG_COLOR,fogFactor(vWorld,uCamera));
-  frag=vec4(aces(col),1.0);
+  frag=vec4(col,1.0);
 }`;
 
 const POINT_VERT = `#version 300 es
@@ -888,10 +934,6 @@ precision highp float;
 out vec4 frag;
 void main(){ frag=vec4(0.25,1.0,0.85,1.0); }`;
 
-// Final present pass: samples the resolved scene texture and applies the sRGB
-// OETF (gamma ~2.2). The scene is rendered/tonemapped in linear space into an
-// offscreen buffer; without this encode the canvas displays linear values as
-// if sRGB, which looks much too dark. Mirrors the tail of composite.wgsl.
 // Planetary ring: a flat annulus mesh oriented by uModel. Ported from
 // ring.wgsl. Curved bands (angular sin modulation) + layered fBm + Cassini
 // gaps; palette zones, planet-shadow dimming, forward-scatter, Kajiya-Kay
@@ -1077,6 +1119,8 @@ void main(){
   vUv = p * 0.5 + 0.5;
   gl_Position = vec4(p, 0.0, 1.0);
 }`;
+// Tone map once after linear scene/atmosphere/FX compositing, then encode for
+// display, matching composite.wgsl. RGBA8 fallback clips HDR highlights only.
 const PRESENT_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -1085,6 +1129,7 @@ uniform vec3 uFlare;   // xy = sun screen uv, z = strength
 uniform float uAspect; // width / height
 uniform float uBarrel; // CRT lens curvature, 0 = flat
 out vec4 frag;
+vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 // Deep-space lens flare (mu6k 4sX3Rs): chromatic ghost discs through screen
 // centre and reflection halos. uv/pos centred + aspect.
 vec3 lensflare(vec2 uv, vec2 pos){
@@ -1153,7 +1198,7 @@ void main(){
   vec3 c = texture(uScene, uv).rgb;
   c += sunFlare(uv);
   c += godRays(uv);
-  frag = vec4(pow(c, vec3(1.0/2.2)), 1.0);
+  frag = vec4(pow(aces(max(c,vec3(0.0))), vec3(1.0/2.2)), 1.0);
 }`;
 
 // Atmospheric scattering shell: marches the view ray through a sphere slightly
@@ -1167,14 +1212,12 @@ uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uColor;uniform vec3 uCenter;
 uniform float uInner;uniform float uOuter;uniform float uFocus;uniform float uIntensity;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
-vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 vec2 raySphere(vec3 ro,vec3 rd,vec3 ce,float ra){
   vec3 oc=ro-ce;float b=dot(oc,rd);float c=dot(oc,oc)-ra*ra;float h=b*b-c;
   if(h<0.0)return vec2(1.0,-1.0);
   float s=sqrt(h);return vec2(-b-s,-b+s);
 }
-// Analytic shadow with self-exclude (parent planet's own sphere is skipped so
-// per-sample sunAmt isn't double-darkened). 1.0 unshadowed, 0.0 fully shadowed.
+// Parent-planet occlusion is tested exactly along each sample's sun ray.
 float shadowFactor(vec3 p,vec3 L,vec3 exclude){
   float s=1.0;
   for(int i=0;i<8;i++){
@@ -1199,49 +1242,50 @@ void main(){
   if(inner.x>0.0&&inner.x<inner.y)tFar=min(tFar,inner.x);
   if(tFar<=tNear){frag=vec4(0.0);return;}
   float thickness=max(uOuter-uInner,1e-4);
-  const int STEPS=10;
+  // Fixed fallback budget: six view samples, two sunlight samples each.
+  const int STEPS=6;
   float dt=(tFar-tNear)/float(STEPS);
-  float dayGlow=0.0;float ambient=0.0;
+  float ds=dt/thickness;
+  vec3 betaR=vec3(0.18,0.42,0.90)*mix(vec3(1.0),max(uColor,vec3(0.05)),0.25);
+  vec3 betaM=vec3(0.12);
+  float mu=clamp(dot(rd,sun),-1.0,1.0);
+  float phaseR=3.0*(1.0+mu*mu)/(16.0*3.14159265);
+  float g=0.76;
+  float phaseM=(1.0-g*g)/(4.0*3.14159265*pow(max(1.0+g*g-2.0*g*mu,0.01),1.5));
+  float viewTau=0.0;
+  vec3 col=vec3(0.0);
   for(int i=0;i<STEPS;i++){
     float t=tNear+(float(i)+0.5)*dt;
-    vec3 pos=ro+rd*t;vec3 up=pos-uCenter;float r=length(up);
-    float hgt=clamp((r-uInner)/thickness,0.0,1.0);
-    float density=exp(-hgt*4.0);
-    // Sun gate starts past the terminator so night-side samples contribute 0.
-    float sunAmt=smoothstep(0.05,0.40,dot(normalize(up),sun));
-    float shadow=shadowFactor(pos,sun,uCenter);
-    dayGlow+=density*sunAmt*shadow*dt;ambient+=density*dt;
+    vec3 pos=ro+rd*t;
+    float h=clamp((length(pos-uCenter)-uInner)/thickness,0.0,1.0);
+    vec2 density=exp(-vec2(4.0,12.0)*h);
+    vec3 extinction=betaR*density.x+betaM*density.y;
+    float scalarExt=dot(extinction,vec3(1.0/3.0));
+    float stepTau=min(scalarExt*ds,20.0);
+    float stepWeight=exp(-viewTau)*(1.0-exp(-stepTau))/max(scalarExt,1e-5);
+    viewTau=min(viewTau+stepTau,20.0);
+    vec2 ground=raySphere(pos,sun,uCenter,uInner);
+    if(ground.x>=0.0&&ground.y>ground.x)continue;
+    float sunDt=max(raySphere(pos,sun,uCenter,uOuter).y,0.0)/2.0;
+    vec2 sunDepth=vec2(0.0);
+    for(int j=0;j<2;j++){
+      vec3 sp=pos+sun*((float(j)+0.5)*sunDt);
+      float sh=clamp((length(sp-uCenter)-uInner)/thickness,0.0,1.0);
+      sunDepth+=exp(-vec2(4.0,12.0)*sh)*(sunDt/thickness);
+    }
+    vec3 sunTransmission=exp(-min(betaR*sunDepth.x+betaM*sunDepth.y,vec3(20.0)));
+    vec3 scattering=betaR*density.x*phaseR+betaM*density.y*phaseM;
+    col+=scattering*sunTransmission*stepWeight*shadowFactor(pos,sun,uCenter)*3.14159265;
   }
-  dayGlow/=thickness;ambient/=thickness;
-  vec3 atmoColor=mix(uColor,vec3(0.45,0.62,1.0),0.5);
-  float intensity=uIntensity*(0.85+0.3*uFocus);
-  // Limb-sun gate (cubed) zeroes shell on night-side limb rays.
-  float tLimb=max(0.0,-dot(ro-uCenter,rd));
-  vec3 limbPos=ro+rd*tLimb;
-  vec3 limbNormal=normalize(limbPos-uCenter);
-  float limbSunRaw=smoothstep(0.10,0.40,dot(limbNormal,sun));
-  float limbSun=limbSunRaw*limbSunRaw*limbSunRaw;
-  vec3 col=atmoColor*dayGlow*0.55*intensity;
-  float mie=pow(max(dot(rd,sun),0.0),8.0)*dayGlow*0.22;
-  col+=atmoColor*mie*intensity;
-  // Surface-aware limb gate: only apply limbSun to limb (miss) rays. Over
-  // the planet's disk, per-sample sunAmt already smooths the terminator;
-  // double-gating with cubed limbSun paints a sharp angular cut. Soft-blend
-  // by chord length so the silhouette ring stays continuous.
-  bool hitsPlanet=inner.x>0.0&&inner.x<inner.y;
-  float innerSpan=max(inner.y-inner.x,0.0);
-  float surfaceBlend=smoothstep(0.0,thickness*0.25,innerSpan);
-  float limbBlend=hitsPlanet?surfaceBlend:0.0;
-  float surfaceGate=mix(limbSun,1.0,limbBlend);
-  col*=surfaceGate;
-  // Distance fog (additive shell -> attenuate).
-  float dist=distance(vWorld,ro);float fs=dist*0.030;
-  col*=exp(-fs*fs);
-  frag=vec4(aces(col),1.0);
+  // Premultiplied scattering + transmitted background. RGB sunlight extinction,
+  // scalar mean view extinction (fixed-function blending has only one alpha).
+  float dist=distance(vWorld,ro);float fs=dist*0.018;
+  float visibility=clamp(uIntensity,0.0,1.0)*exp(-fs*fs);
+  frag=vec4(col*visibility,(1.0-exp(-viewTau))*visibility);
 }`;
 
 // Cloud shell (alpha-blended, drawn between the planet surface and the
-// additive atmosphere). Mirrors clouds.wgsl. Uses PLANET_VERT to get vLocal,
+// transmissive atmosphere). Mirrors clouds.wgsl. Uses PLANET_VERT to get vLocal,
 // vWorld, vNrm. The cloud noise + rotation MUST match the planet shader's
 // cloudShadow so the projected shadow lines up with the rendered puff.
 const CLOUDS_FRAG = `#version 300 es
@@ -1281,19 +1325,31 @@ float cloudDensity(vec3 localDir,float time,float seedf){
   float lo=0.62-cov*0.30;float hi=lo+0.14;
   return smoothstep(lo,hi,n);
 }
-float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf){
-  vec3 r0=normalize(uModel[0].xyz);
-  vec3 r1=normalize(uModel[1].xyz);
-  vec3 r2=normalize(uModel[2].xyz);
-  vec3 localSun=normalize(vec3(dot(r0,worldSun),dot(r1,worldSun),dot(r2,worldSun)));
-  float d1=cloudDensity(normalize(localDir+localSun*0.045),time,seedf);
-  float d2=cloudDensity(normalize(localDir+localSun*0.090),time,seedf);
-  float d3=cloudDensity(normalize(localDir+localSun*0.160),time,seedf);
-  float occ=clamp(0.55*d1+0.30*d2+0.15*d3,0.0,1.0);
-  float grain=cFbm(localDir*14.0+vec3(seedf*0.011,seedf*0.013,seedf*0.017));
-  float occDetail=clamp(occ*mix(0.75,1.20,grain),0.0,1.0);
-  return 1.0-occDetail*0.70;
+// Shared with PLANET_FRAG: actual shell radii and Beer-Lambert extinction.
+const float CLOUD_SHELL_SCALE=1.006;
+const float CLOUD_BASE_SCALE=1.003;
+const float CLOUD_EXTINCTION=2.4;
+vec2 cloudRaySphere(vec3 ro,vec3 rd,float radius){
+  float b=dot(ro,rd);
+  float h=b*b-dot(ro,ro)+radius*radius;
+  if(h<0.0)return vec2(1.0,-1.0);
+  return vec2(-b-sqrt(h),-b+sqrt(h));
 }
+float cloudOpticalDepth(vec3 ro,vec3 rd,float time,float seedf){
+  vec2 outer=cloudRaySphere(ro,rd,CLOUD_SHELL_SCALE);
+  float start=max(outer.x,0.0),end=outer.y;
+  vec2 inner=cloudRaySphere(ro,rd,CLOUD_BASE_SCALE);
+  if(inner.y>0.0&&inner.y>inner.x){
+    if(inner.x>start)end=min(end,inner.x);
+    else start=max(start,inner.y);
+  }
+  if(end<=start)return 0.0;
+  float path=min((end-start)/(CLOUD_SHELL_SCALE-CLOUD_BASE_SCALE),12.0);
+  // WebGL uses one shell-density sample and an analytic slant column.
+  float density=cloudDensity(normalize(ro+rd*((start+end)*0.5)),time,seedf);
+  return min(CLOUD_EXTINCTION*density*path,20.0);
+}
+float cloudTransmission(float opticalDepth){return exp(-clamp(opticalDepth,0.0,20.0));}
 // ---- thunderstorms: localized, randomly-timed lightning flashes embedded in
 // the cloud field. Mirrors clouds.wgsl exactly so both backends storm alike.
 vec3 cHash3v(vec3 p){
@@ -1343,10 +1399,23 @@ void main(){
   // normalize so the noise lookup lines up with the shadow projection.
   vec3 localDir=normalize(vLocal);
   float density=cloudDensity(localDir,uTime,uSeed);
-  float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed);
+  vec3 r0=normalize(uModel[0].xyz),r1=normalize(uModel[1].xyz),r2=normalize(uModel[2].xyz);
+  vec3 localSun=normalize(vec3(dot(r0,sun),dot(r1,sun),dot(r2,sun)));
+  vec3 localView=normalize(vec3(dot(r0,viewDir),dot(r1,viewDir),dot(r2,viewDir)));
+  vec3 samplePos=localDir*((CLOUD_BASE_SCALE+CLOUD_SHELL_SCALE)*0.5);
+  float viewTau=cloudOpticalDepth(localDir*CLOUD_SHELL_SCALE,-localView,uTime,uSeed);
+  float sunTau=cloudOpticalDepth(samplePos,localSun,uTime,uSeed);
+  vec2 ground=cloudRaySphere(samplePos,localSun,1.0);
+  float sunVisible=ground.x>=0.0&&ground.y>ground.x?0.0:1.0;
+  float sunTransmission=cloudTransmission(sunTau);
   float NdL=clamp(dot(n,sun),0.0,1.0);
   vec3 albedo=mix(vec3(1.0),uTint,0.08);
-  vec3 col=albedo*(0.02+0.98*NdL)*selfShadow;
+  float mu=clamp(dot(-viewDir,sun),-1.0,1.0),g=0.65;
+  float phase=(1.0-g*g)/pow(max(1.0+g*g-2.0*g*mu,0.01),1.5);
+  // PI irradiance HG single scatter + bounded diffuse multiple scattering.
+  float singleScatter=0.25*phase*sunTransmission;
+  float multipleScatter=0.75*(1.0-sunTransmission)*NdL;
+  vec3 col=albedo*(0.015+(singleScatter+multipleScatter)*sunVisible);
   // Other-planet shadows (no self-exclude: parent surface is along L past
   // the cloud fragment).
   float s=1.0;
@@ -1362,25 +1431,15 @@ void main(){
     s*=smoothstep(R2,R2*1.10,c2);
   }
   col*=s;
-  // Soft terminator on the cloud alpha so we don't see bright clouds on
-  // the night-side hemisphere.
-  float dayMask=smoothstep(-0.10,0.25,dot(n,sun));
-  // Taper alpha at the silhouette so back-face culling doesn't make a hard
-  // edge at the limb.
-  float edgeFade=smoothstep(0.05,0.30,dot(n,viewDir));
-  float baseA=density*dayMask*edgeFade*uVisibility;
-  // Thunderstorm flashes: localized purple-blue lightning lighting cloud cells
-  // from within. Brightest on the night side, faint on the day side; stormA
-  // rises with the flash so the emissive survives the alpha blend where the
-  // night-side cloud alpha is otherwise near zero.
+  // Opacity depends on optical depth, never on day/night lighting.
+  float alpha=(1.0-cloudTransmission(viewTau))*clamp(uVisibility,0.0,1.0);
+  // Preserve seeded storm timing; emission passes through the same cloud alpha.
   float storm=cloudStorm(localDir,uTime,uSeed,density);
-  float nightBoost=mix(0.55,1.0,1.0-dayMask);
+  float nightBoost=mix(1.0,0.55,NdL*sunVisible);
   col+=stormColor(storm)*nightBoost;
-  float stormA=clamp(storm,0.0,1.0)*edgeFade*uVisibility;
-  float alpha=max(baseA,stormA);
   // Distance fog attenuation on the alpha so far clouds don't punch holes
   // in the haze.
-  float dist=distance(vWorld,uCamera);float sd=dist*0.030;
+  float dist=distance(vWorld,uCamera);float sd=dist*0.018;
   alpha*=exp(-sd*sd);
   frag=vec4(col,alpha);
 }`;
@@ -1499,9 +1558,8 @@ void main(){
 
 // The scene's star — mirror of sun.wgsl. Reuses PLANET_VERT (gives vNrm/vLocal/
 // vWorld). Emissive surface with granulation + dark sunspots + limb darkening;
-// no lighting and no distance fog (it is a light source). The WebGL2 scene
-// target is RGBA8, so the body is kept near/below 1.0 with clearly darker spots
-// rather than relying on HDR bloom.
+// no lighting and no distance fog (it is a light source). Linear radiance
+// matches WebGPU; the RGBA8 fallback necessarily clips the brightest regions.
 const SUN_FRAG = `#version 300 es
 precision highp float;
 in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
@@ -1557,7 +1615,7 @@ void main(){
   float ndv=max(dot(normalize(vNrm),V),0.0);
   float limb=0.55+0.45*pow(ndv,0.55);
   col*=limb;
-  frag=vec4(col*1.3,1.0);
+  frag=vec4(col*2.2,1.0);
 }`;
 
 // Camera-facing additive corona billboard — mirror of sun.wgsl corona.
@@ -1645,10 +1703,10 @@ export class WebGL2Renderer implements SceneRenderer {
   private corona!: Program;
   private present!: Program;
 
-  // Offscreen scene target: the scene is rendered (and per-shader tonemapped)
-  // in linear space into a multisampled buffer, resolved to a texture, then
-  // presented to the canvas with the sRGB gamma encode. Mirrors the WebGPU
-  // HDR-scene + composite split so both backends match in brightness.
+  // Linear HDR where supported; RGBA8 preserves the same composite order on
+  // devices without float color attachments, but clips bright highlights.
+  private hdr = false;
+  private sceneSamples = 0;
   private msaaFbo: WebGLFramebuffer | null = null;
   private msaaColor: WebGLRenderbuffer | null = null;
   private msaaDepth: WebGLRenderbuffer | null = null;
@@ -1720,6 +1778,7 @@ export class WebGL2Renderer implements SceneRenderer {
     if (!gl) throw new Error('WebGL2 not available');
     this.gl = gl;
     this.canvas = canvas;
+    this.hdr = gl.getExtension('EXT_color_buffer_float') !== null;
 
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -2069,12 +2128,17 @@ export class WebGL2Renderer implements SceneRenderer {
     if (this.sceneTex) gl.deleteTexture(this.sceneTex);
     if (this.resolveFbo) gl.deleteFramebuffer(this.resolveFbo);
 
-    const maxSamples = gl.getParameter(gl.MAX_SAMPLES) as number;
-    const samples = Math.min(4, maxSamples);
+    const format = this.hdr ? gl.RGBA16F : gl.RGBA8;
+    // MAX_SAMPLES alone does not guarantee that float color and depth support
+    // the same count. Zero gives a valid unmultisampled target on those devices.
+    const colorSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, format, gl.SAMPLES) as Int32Array;
+    const depthSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) as Int32Array;
+    const samples = Math.max(0, ...Array.from(colorSamples).filter((n) => n <= 4 && depthSamples.includes(n)));
+    this.sceneSamples = samples;
 
     const color = gl.createRenderbuffer()!;
     gl.bindRenderbuffer(gl.RENDERBUFFER, color);
-    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.RGBA8, w, h);
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, format, w, h);
     const depth = gl.createRenderbuffer()!;
     gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
     gl.renderbufferStorageMultisample(
@@ -2088,10 +2152,11 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, msaa);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+    const sceneComplete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
 
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, format, w, h, 0, gl.RGBA, this.hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -2099,6 +2164,7 @@ export class WebGL2Renderer implements SceneRenderer {
     const resolve = gl.createFramebuffer()!;
     gl.bindFramebuffer(gl.FRAMEBUFFER, resolve);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    const resolveComplete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindRenderbuffer(gl.RENDERBUFFER, null);
@@ -2109,6 +2175,14 @@ export class WebGL2Renderer implements SceneRenderer {
     this.msaaDepth = depth;
     this.resolveFbo = resolve;
     this.sceneTex = tex;
+    if (!sceneComplete || !resolveComplete) {
+      if (this.hdr) {
+        this.hdr = false;
+        this.ensureSceneTargets();
+      } else {
+        throw new Error('WebGL2 scene framebuffer is incomplete');
+      }
+    }
   }
 
   render(frame: FrameState): void {
@@ -2313,7 +2387,7 @@ export class WebGL2Renderer implements SceneRenderer {
     }
 
     // Cloud shells (alpha-blended). Between the opaque planet and the
-    // additive atmosphere so the haze still wraps around the limb above
+    // transmissive atmosphere so the haze still wraps around the limb above
     // the clouds. Same sphere mesh, scaled up by CLOUD_SHELL_SCALE.
     // Per-planet — only set up state if at least one visible planet has
     // clouds enabled in its company definition.
@@ -2371,9 +2445,9 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.disable(gl.BLEND);
     }
 
-    // Atmospheric scattering shells (additive, camera-facing hemisphere only).
+    // Premultiplied scattering plus transmitted scene, camera-facing shell.
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
     gl.enable(gl.CULL_FACE);
     gl.cullFace(gl.BACK);
@@ -2854,7 +2928,9 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   private estimateMemoryMB(): number {
-    return (this.width * this.height * 4 + this.starCount * 40) / (1024 * 1024);
+    const colorBytes = this.hdr ? 8 : 4;
+    const targetBytes = (colorBytes + 4) * Math.max(1, this.sceneSamples) + colorBytes;
+    return (this.width * this.height * targetBytes + this.starCount * 40) / (1024 * 1024);
   }
 
   getStats(): RenderStats {

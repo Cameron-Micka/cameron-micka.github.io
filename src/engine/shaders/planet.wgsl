@@ -261,15 +261,44 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
   return smoothstep(lo, hi, n);
 }
 
-const CLOUD_SHADOW_STRENGTH : f32 = 1.0;
-// Shadow-projection shell, intentionally HIGHER than the rendered cloud shell
-// (1.006 in clouds.wgsl). At the true render altitude the cast shadow would
-// land within ~1-3 deg of the puff and stay hidden directly beneath the
-// opaque cloud. Projecting the shadow ray against a taller shell displaces
-// the shadow toward the anti-solar side by ~4-8 deg so it clears the puff
-// and reads as a real cloud shadow. Cloud cells are ~9 deg radius (cFbm
-// freq 3.2), so this is the minimum gap that makes shadows visible.
-const CLOUD_SHADOW_SHELL : f32 = 1.06;
+// Shared with clouds.wgsl: radii in planet units and normal optical depth.
+const CLOUD_SHELL_SCALE : f32 = 1.006;
+const CLOUD_BASE_SCALE : f32 = 1.003;
+const CLOUD_EXTINCTION : f32 = 2.4;
+
+fn cloudRaySphere(ro : vec3<f32>, rd : vec3<f32>, radius : f32) -> vec2<f32> {
+  let b = dot(ro, rd);
+  let h = b * b - dot(ro, ro) + radius * radius;
+  if (h < 0.0) { return vec2<f32>(1.0, -1.0); }
+  return vec2<f32>(-b - sqrt(h), -b + sqrt(h));
+}
+
+fn cloudOpticalDepth(ro : vec3<f32>, rd : vec3<f32>, time : f32, seedf : f32) -> f32 {
+  let outer = cloudRaySphere(ro, rd, CLOUD_SHELL_SCALE);
+  var start = max(outer.x, 0.0);
+  var end = outer.y;
+  let inner = cloudRaySphere(ro, rd, CLOUD_BASE_SCALE);
+  if (inner.y > 0.0 && inner.y > inner.x) {
+    if (inner.x > start) { end = min(end, inner.x); }
+    else { start = max(start, inner.y); }
+  }
+  if (end <= start) { return 0.0; }
+  let path = min((end - start) / (CLOUD_SHELL_SCALE - CLOUD_BASE_SCALE), 12.0);
+  // High tier only: three shallow volume samples. Other tiers use one shell
+  // density and an analytic slant column. Sun/view/shadow use the same field.
+  let steps = select(1, 3, frame.shadowMisc.y < 0.5);
+  var density = 0.0;
+  for (var i = 0; i < 3; i = i + 1) {
+    if (i >= steps) { break; }
+    let t = mix(start, end, (f32(i) + 0.5) / f32(steps));
+    density = density + cloudDensity(normalize(ro + rd * t), time, seedf);
+  }
+  return min(CLOUD_EXTINCTION * density * path / f32(steps), 20.0);
+}
+
+fn cloudTransmission(opticalDepth : f32) -> f32 {
+  return exp(-clamp(opticalDepth, 0.0, 20.0));
+}
 
 // Cloud shadow on the planet surface. From the surface fragment (vn is the
 // normalized unit-sphere local position), march along the local-space sun
@@ -278,28 +307,20 @@ const CLOUD_SHADOW_SHELL : f32 = 1.06;
 // cloud density function the cloud shader uses, and attenuate direct light.
 // vn and localL are precomputed by the caller (the fragment body already needs
 // the planet's rotation basis for ice shading) so this avoids recomputing the
-// basis and the two normalizes here. Returns a multiplier in [1 - STRENGTH, 1]
+// basis and the two normalizes here. Returns Beer-Lambert transmission in [0, 1]
 // for the direct term, or 1.0 on the night side where NdL already kills it.
 fn cloudShadow(vn : vec3<f32>, localL : vec3<f32>, time : f32, seedf : f32, enabled : f32) -> f32 {
   if (enabled < 0.001) { return 1.0; }
   let nL = dot(vn, localL);
   if (nL <= 0.0) { return 1.0; }
-  // Exact ray-sphere intersection from a unit-length surface point along a
-  // unit-length direction with a shell at radius R: t = -nL + sqrt(nL^2 + R^2 - 1).
-  // Uses the taller CLOUD_SHADOW_SHELL (not the render shell) so the shadow is
-  // displaced far enough from the cloud to be visible.
-  let R2m1 = CLOUD_SHADOW_SHELL * CLOUD_SHADOW_SHELL - 1.0;
-  let t = -nL + sqrt(nL * nL + R2m1);
-  let cloudDir = normalize(vn + localL * t);
-  let density = cloudDensity(cloudDir, time, seedf);
-  return 1.0 - density * CLOUD_SHADOW_STRENGTH * enabled;
+  let tau = cloudOpticalDepth(vn, localL, time, seedf);
+  return mix(1.0, cloudTransmission(tau), clamp(enabled, 0.0, 1.0));
 }
 
 // Marbled land color + height from the domain-warped fBm at a noise-domain
 // sample position `sp`. Factored out of the fragment body so the flow-field
-// feature can sample it at two advected positions and cross-fade them. `local`
-// is the un-advected surface position used for region-scale biome tinting so
-// climate zones stay put while fine detail streams. Must stay in sync with the
+// feature can sample it at two advected positions and cross-fade them. Climate
+// zones are applied afterwards in un-advected coordinates. Keep in sync with the
 // WebGL2 mirror (surfaceMarble in PLANET_FRAG).
 struct Surf {
   color : vec3<f32>,
@@ -325,18 +346,20 @@ fn surfaceMarble(sp : vec3<f32>, local : vec3<f32>, seed : f32) -> Surf {
   let rLen = clamp(length(r) * 0.55, 0.0, 1.0);
   land = mix(land, obj.palLow.rgb * 0.55, qLen * 0.22);
   land = mix(land, obj.palHigh.rgb * 1.15, rLen * 0.20);
-  let biomeR = vnoise(local * 0.55 + vec3<f32>(11.3, 3.7, 5.1));
-  let biomeG = vnoise(local * 0.55 + vec3<f32>(24.7, 6.2, 9.4));
-  let biomeB = vnoise(local * 0.55 + vec3<f32>(37.1, 8.9, 2.6));
-  let biomeColor = mix(obj.palLow.rgb, obj.palHigh.rgb, vec3<f32>(biomeR, biomeG, biomeB));
-  land = mix(land, biomeColor, 0.18);
   let ridge = ridgedFbm(warpQ * 0.5);
   let mountainMask = smoothstep(0.62, 0.74, ridge) * smoothstep(0.42, 0.62, height);
-  let mountainRock = mix(obj.palMid.rgb * 0.55, vec3<f32>(0.48, 0.28, 0.16), 0.75);
-  land = mix(land, mountainRock, mountainMask * 0.85);
-  let snowMask = smoothstep(0.78, 0.95, height) * smoothstep(0.58, 0.74, ridge);
-  land = mix(land, vec3<f32>(0.94, 0.95, 0.97), snowMask * 0.9);
-  return Surf(land, height);
+  return Surf(land, clamp(height + mountainMask * 0.14, 0.0, 1.0));
+}
+
+// Reconstruct a local-space height gradient from the already evaluated field.
+// No extra marble samples; call only in uniform fragment control flow.
+fn surfaceGradient(p : vec3<f32>, n : vec3<f32>, height : f32) -> vec3<f32> {
+  let dx = dpdx(p);
+  let dy = dpdy(p);
+  let tx = cross(dy, n);
+  let ty = cross(n, dx);
+  let det = dot(dx, tx);
+  return (tx * dpdx(height) + ty * dpdy(height)) * sign(det) / max(abs(det), 1e-10);
 }
 
 // Smooth unit tangent flow direction for the flow-field feature: a
@@ -492,7 +515,29 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let continentH = continentFbm(continentPos);
   let oceanField = continentH * 0.85 + height * 0.15;
   let waterLevel = 0.55;
-  let waterMask = oceans * (1.0 - smoothstep(waterLevel - 0.03, waterLevel + 0.03, oceanField));
+  let coastWidth = max(0.018, fwidth(oceanField));
+  let waterMask = oceans * (1.0 - smoothstep(waterLevel - coastWidth, waterLevel + coastWidth, oceanField));
+  let localPos = normalize(in.localPos);
+  let localFootprint = max(length(dpdx(localPos)), length(dpdy(localPos)));
+  let terrainHeight = mix(height, height * 0.45 + continentH * 0.55, oceans);
+  let terrainGrad = surfaceGradient(localPos, localPos, terrainHeight);
+  // Fade unresolved relief before it becomes sparkling subpixel bump detail.
+  let terrainFade = 1.0 - smoothstep(0.25, 0.9, localFootprint * (2.2 + seed * 0.0001) * 32.0);
+  let slope = clamp(length(terrainGrad) * 0.08, 0.0, 1.0) * terrainFade;
+  let elevation = clamp((oceanField - waterLevel) * 3.0 + height * 0.45, 0.0, 1.0);
+  let moisture = vnoise(localPos * 1.8 + vec3<f32>(seed * 0.0017, 7.3, 13.1));
+  let temperature = 1.0 - abs(localPos.y) - elevation * 0.55 + (moisture - 0.5) * 0.12;
+  let dryMask = smoothstep(0.35, 0.8, temperature) * (1.0 - smoothstep(0.30, 0.65, moisture));
+  let rockMask = smoothstep(0.32, 0.75, max(elevation, slope));
+  let snowMask = oceans * (1.0 - smoothstep(0.12, 0.32, temperature))
+    * smoothstep(0.30, 0.65, elevation) * (1.0 - slope * 0.7);
+  let wetColor = mix(obj.palLow.rgb, obj.palMid.rgb, moisture);
+  let dryColor = mix(obj.palMid.rgb, obj.palHigh.rgb, 0.6);
+  land = mix(land, mix(wetColor, dryColor, dryMask), 0.42);
+  land = mix(land, mix(obj.palMid.rgb, obj.palHigh.rgb, 0.25) * 0.68, rockMask * 0.6);
+  land = mix(land, vec3<f32>(0.88, 0.93, 0.97), snowMask * 0.85);
+  let beachMask = oceans * (1.0 - smoothstep(0.015, 0.055, abs(oceanField - waterLevel))) * (1.0 - slope);
+  land = mix(land, dryColor * 1.12, beachMask * 0.5);
   let deepOcean = vec3<f32>(0.005, 0.018, 0.07);
   let shallowOcean = vec3<f32>(0.42, 0.82, 0.80);
   // Concentrate the lightening in a narrow band just inside the shoreline so
@@ -512,7 +557,6 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // multiplied by `oceans`, so on a dry world the eight fBm evaluations below
   // were computed only to be scaled to zero. `oceans` is uniform across the
   // draw, so the branch is coherent and derivative-free.
-  let localPos = normalize(in.localPos);
   let r0 = normalize(obj.model[0].xyz);
   let r1 = normalize(obj.model[1].xyz);
   let r2 = normalize(obj.model[2].xyz);
@@ -555,7 +599,23 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Bowls darken toward shadowed regolith, rims and ejecta brighten with
   // freshly excavated material, and the analytic profile gradient perturbs
   // the shading normal so the relief responds to the sun direction.
-  var shadeN = n;
+  let terrainStrength = mix(0.028, 0.010, obj.p2.z) * terrainFade;
+  var surfaceGrad = terrainGrad * terrainStrength / max(1.0, length(terrainGrad) * terrainStrength / 0.38);
+  surfaceGrad = surfaceGrad * (1.0 - waterMask) * (1.0 - iceMask * 0.75);
+  var waveUnresolved = 0.0;
+  if (oceans > 0.5) {
+    let waveDirA = normalize(vec3<f32>(1.0, 0.3, 0.7));
+    let waveDirB = normalize(vec3<f32>(-0.4, 0.8, 1.0));
+    let phaseA = dot(localPos, waveDirA) * 60.0 + obj.p0.z * 0.55 + seed;
+    let phaseB = dot(localPos, waveDirB) * 95.0 - obj.p0.z * 0.4;
+    let waveFadeA = 1.0 - smoothstep(0.6, 2.4, fwidth(phaseA));
+    let waveFadeB = 1.0 - smoothstep(0.6, 2.4, fwidth(phaseB));
+    let waveGrad = waveDirA * cos(phaseA) * 0.045 * waveFadeA
+      + waveDirB * cos(phaseB) * 0.030 * waveFadeB;
+    surfaceGrad = surfaceGrad + (waveGrad - localPos * dot(waveGrad, localPos)) * waterMask * (1.0 - iceMask);
+    waveUnresolved = 1.0 - (waveFadeA + waveFadeB) * 0.5;
+  }
+  var shadeN = normalize(n - (r0 * surfaceGrad.x + r1 * surfaceGrad.y + r2 * surfaceGrad.z));
   if (obj.p2.z > 0.5) {
     // fwidth needs uniform control flow; the crater flag is uniform per draw.
     // Cell footprint per layer drives an LOD fade so the crater grid dissolves
@@ -590,7 +650,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     base2 = mix(base2, base2 * 0.90, floorMask * 0.25);
     base2 = mix(base2, min(base2 * 1.08 + vec3<f32>(0.005), vec3<f32>(1.0)), rimMask * 0.16);
     let gradWorld = r0 * craterG.x + r1 * craterG.y + r2 * craterG.z;
-    shadeN = normalize(n - gradWorld);
+    shadeN = normalize(shadeN - gradWorld);
   }
 
   // --- Cook-Torrance PBR direct lighting from the key sun ---
@@ -609,7 +669,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Ice is a brighter, smoother dielectric than rough land but still matte
   // next to open water, so it gets its own roughness/F0 lerp layered on top of
   // the land/water mix.
-  let roughness = mix(mix(0.92, 0.35, waterMask), 0.5, iceMask);
+  let landRoughness = clamp(0.87 + dryMask * 0.10 - moisture * 0.12 - rockMask * 0.12, 0.62, 0.97);
+  let waterRoughness = 0.35 + depth * 0.06 + waveUnresolved * 0.06;
+  let roughness = mix(mix(landRoughness, waterRoughness, waterMask), 0.48 + height * 0.10, max(iceMask, snowMask));
   let F0base = mix(mix(vec3<f32>(0.04), vec3<f32>(0.02), waterMask), vec3<f32>(0.05, 0.055, 0.06), iceMask);
   let F0 = mix(F0base, albedo, metallic);
 
@@ -625,11 +687,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let G = gSmith(NdV, NdL, roughness);
   let F = fSchlick(VdH, F0);
 
-  // Golden glitter on the water: tint the specular highlight toward warm gold
-  // (only on water via waterMask) so the sun's reflection reads like a sunset
-  // glint on the ocean rather than a neutral white spot. Land stays untinted.
-  let specTint = mix(vec3<f32>(1.0), vec3<f32>(1.0, 0.78, 0.42), waterMask);
-  let specular = (D * G) * F / max(4.0 * NdV * NdL, 1e-3) * specTint;
+  let specular = (D * G) * F / max(4.0 * NdV * NdL, 1e-3);
   let kS = F;
   let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
 
@@ -658,7 +716,15 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // being pitch black — surface noise stays just barely legible.
   let ambientShadowMul = 0.10 + 0.90 * cloudShadowMul;
   let ambient = albedo * 0.004 * ambientShadowMul;
-  var color = ambient + direct;
+  // The water dielectric reflects a neutral sun and a blue atmospheric sky,
+  // not a gold material tint. Roughness softens the grazing sky response.
+  let skyFresnel = fSchlick(NdV, vec3<f32>(0.02));
+  let skyHorizon = 1.0 - clamp(dot(n, reflect(-V, shadeN)), 0.0, 1.0);
+  let skyColor = mix(vec3<f32>(0.035, 0.075, 0.16), vec3<f32>(0.20, 0.28, 0.38), skyHorizon);
+  let skyReflection = skyColor * skyFresnel * (1.0 - roughness * 0.5)
+    * waterMask * (1.0 - iceMask) * obj.p1.y
+    * smoothstep(-0.12, 0.3, dot(n, L)) * ambientShadowMul;
+  var color = ambient + direct + skyReflection;
 
   // City lights on the night side of land masses. Gated by p2.x (planet
   // feature flag). Population density driven by the same continent field

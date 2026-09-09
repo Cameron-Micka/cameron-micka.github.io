@@ -134,37 +134,43 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
   return smoothstep(lo, hi, n);
 }
 
-// Cheap directional self-shadowing for cloud depth detail. We sample density a
-// few short steps toward the sun in cloud-local space and darken where upstream
-// density is high. A tiny high-frequency modulation keeps the shadow break-up
-// organic instead of uniformly soft.
-fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf : f32) -> f32 {
-  let r0 = normalize(obj.model[0].xyz);
-  let r1 = normalize(obj.model[1].xyz);
-  let r2 = normalize(obj.model[2].xyz);
-  let localSun = normalize(vec3<f32>(
-    dot(r0, worldSun),
-    dot(r1, worldSun),
-    dot(r2, worldSun),
-  ));
-  let d1 = cloudDensity(normalize(localDir + localSun * 0.045), time, seedf);
-  // Below the high tier, collapse the three-tap sun march (and the grain
-  // modulation) to the single nearest tap. Each tap is a full domain-warped
-  // cloudDensity — three fBm evaluations — so this drops ~7 of the 10 fBm
-  // calls the cloud shell costs per pixel. The 0.85 factor approximates the
-  // magnitude of the weighted three-tap blend it replaces. `shadowMisc.y` is
-  // uniform across the draw, so the branch is divergence-free.
-  var occDetail = 0.0;
-  if (frame.shadowMisc.y > 0.5) {
-    occDetail = clamp(d1 * 0.85, 0.0, 1.0);
-  } else {
-    let d2 = cloudDensity(normalize(localDir + localSun * 0.090), time, seedf);
-    let d3 = cloudDensity(normalize(localDir + localSun * 0.160), time, seedf);
-    let occ = clamp(0.55 * d1 + 0.30 * d2 + 0.15 * d3, 0.0, 1.0);
-    let grain = cFbm(localDir * 14.0 + vec3<f32>(seedf * 0.011, seedf * 0.013, seedf * 0.017));
-    occDetail = clamp(occ * mix(0.75, 1.20, grain), 0.0, 1.0);
+// Shared with planet.wgsl: radii in planet units and normal optical depth.
+const CLOUD_SHELL_SCALE : f32 = 1.006;
+const CLOUD_BASE_SCALE : f32 = 1.003;
+const CLOUD_EXTINCTION : f32 = 2.4;
+
+fn cloudRaySphere(ro : vec3<f32>, rd : vec3<f32>, radius : f32) -> vec2<f32> {
+  let b = dot(ro, rd);
+  let h = b * b - dot(ro, ro) + radius * radius;
+  if (h < 0.0) { return vec2<f32>(1.0, -1.0); }
+  return vec2<f32>(-b - sqrt(h), -b + sqrt(h));
+}
+
+fn cloudOpticalDepth(ro : vec3<f32>, rd : vec3<f32>, time : f32, seedf : f32) -> f32 {
+  let outer = cloudRaySphere(ro, rd, CLOUD_SHELL_SCALE);
+  var start = max(outer.x, 0.0);
+  var end = outer.y;
+  let inner = cloudRaySphere(ro, rd, CLOUD_BASE_SCALE);
+  if (inner.y > 0.0 && inner.y > inner.x) {
+    if (inner.x > start) { end = min(end, inner.x); }
+    else { start = max(start, inner.y); }
   }
-  return 1.0 - occDetail * 0.70;
+  if (end <= start) { return 0.0; }
+  let path = min((end - start) / (CLOUD_SHELL_SCALE - CLOUD_BASE_SCALE), 12.0);
+  // High tier only: three shallow volume samples. Other tiers use one shell
+  // density and an analytic slant column. Sun/view/shadow use the same field.
+  let steps = select(1, 3, frame.shadowMisc.y < 0.5);
+  var density = 0.0;
+  for (var i = 0; i < 3; i = i + 1) {
+    if (i >= steps) { break; }
+    let t = mix(start, end, (f32(i) + 0.5) / f32(steps));
+    density = density + cloudDensity(normalize(ro + rd * t), time, seedf);
+  }
+  return min(CLOUD_EXTINCTION * density * path / f32(steps), 20.0);
+}
+
+fn cloudTransmission(opticalDepth : f32) -> f32 {
+  return exp(-clamp(opticalDepth, 0.0, 20.0));
 }
 
 // ---- thunderstorms -------------------------------------------------------
@@ -242,14 +248,30 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let seedf = obj.p1.y;
   let time = obj.p0.z;
   let density = cloudDensity(localDir, time, seedf);
-  let selfShadow = cloudSelfShadow(localDir, sun, time, seedf);
+  let r0 = normalize(obj.model[0].xyz);
+  let r1 = normalize(obj.model[1].xyz);
+  let r2 = normalize(obj.model[2].xyz);
+  let localSun = normalize(vec3<f32>(dot(r0, sun), dot(r1, sun), dot(r2, sun)));
+  let localView = normalize(vec3<f32>(dot(r0, viewDir), dot(r1, viewDir), dot(r2, viewDir)));
+  let samplePos = localDir * ((CLOUD_BASE_SCALE + CLOUD_SHELL_SCALE) * 0.5);
+  let viewTau = cloudOpticalDepth(localDir * CLOUD_SHELL_SCALE, -localView, time, seedf);
+  let sunTau = cloudOpticalDepth(samplePos, localSun, time, seedf);
+  let ground = cloudRaySphere(samplePos, localSun, 1.0);
+  let sunVisible = select(1.0, 0.0, ground.x >= 0.0 && ground.y > ground.x);
+  let sunTransmission = cloudTransmission(sunTau);
 
-  // Lighting: diffuse-only white dielectric with a small ambient floor so the
-  // unlit side reads as deep grey without a hard terminator. Tinted very
-  // slightly by the planet's atmosphere color so clouds feel cohesive.
+  // Single-scattering shell approximation. Extinction/opacity does not depend
+  // on sunlight: unlit clouds still occlude the surface and transmit lightning.
   let NdL = clamp(dot(n, sun), 0.0, 1.0);
   let albedo = mix(vec3<f32>(1.0), obj.palHigh.rgb, 0.08);
-  var col = albedo * (0.02 + 0.98 * NdL) * selfShadow;
+  let mu = clamp(dot(-viewDir, sun), -1.0, 1.0);
+  let g = 0.65;
+  let phase = (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * mu, 0.01), 1.5);
+  // HG single scatter with PI irradiance plus a bounded diffuse multiple-
+  // scattering approximation: optically thick puffs reflect, not turn black.
+  let singleScatter = 0.25 * phase * sunTransmission;
+  let multipleScatter = 0.75 * (1.0 - sunTransmission) * NdL;
+  var col = albedo * (0.015 + (singleScatter + multipleScatter) * sunVisible);
 
   // Per-planet analytic shadow from other planets (no self-exclude needed:
   // the parent planet's surface is behind every cloud fragment along L).
@@ -269,28 +291,13 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   }
   col = col * s;
 
-  // Night-side fade: smooth out the cloud alpha across the terminator so we
-  // don't see bright clouds on the unlit hemisphere. Slightly past the
-  // terminator on both sides for a gentle wrap.
-  let dayMask = smoothstep(-0.10, 0.25, dot(n, sun));
+  let vis = clamp(obj.p1.w, 0.0, 1.0);
+  let alpha = (1.0 - cloudTransmission(viewTau)) * vis;
 
-  // Fade alpha near the silhouette so the cloud back-face culling doesn't
-  // produce a hard cutoff at the limb. Front-faces near the limb have a
-  // small dot with the view, so taper alpha as the surface goes edge-on.
-  let edgeFade = smoothstep(0.05, 0.30, dot(n, viewDir));
-
-  let vis = obj.p1.w;
-  let baseA = density * dayMask * edgeFade * vis;
-
-  // Thunderstorm flashes: localized purple-blue lightning lighting cloud cells
-  // from within. Brightest on the night side, faint on the day side. stormA
-  // rises with the flash so the emissive color survives the alpha blend even
-  // where the night-side cloud alpha is otherwise near zero.
+  // Keep storm timing/seed unchanged; cloud extinction also bounds emission.
   let storm = cloudStorm(localDir, time, seedf, density);
-  let nightBoost = mix(0.55, 1.0, 1.0 - dayMask);
+  let nightBoost = mix(1.0, 0.55, NdL * sunVisible);
   col = col + stormColor(storm) * nightBoost;
-  let stormA = clamp(storm, 0.0, 1.0) * edgeFade * vis;
-  let alpha = max(baseA, stormA);
 
   // Distance fog attenuation — clouds fade with depth same as everything
   // else. Applied to the alpha so far-away cloud shells don't punch holes
