@@ -202,11 +202,9 @@ float cloudDensity(vec3 localDir,float time,float seedf){
 // sample the same density the cloud shader rendered. Returns the multiplier
 // on direct light (1.0 = unshadowed, [1-STRENGTH] = fully shadowed).
 const float CLOUD_SHADOW_STRENGTH=1.0;
-// Shadow-projection shell, intentionally taller than the rendered cloud shell
-// (1.006) so the cast shadow is displaced toward the anti-solar side and
-// clears the opaque puff instead of hiding directly beneath it. See the
-// matching note in planet.wgsl.
-const float CLOUD_SHADOW_SHELL=1.06;
+// Slightly above the rendered cloud shell (1.006), keeping the projected
+// shadow visible without making it look detached. Mirrors planet.wgsl.
+const float CLOUD_SHADOW_SHELL=1.03;
 float cloudShadow(vec3 vLocal,vec3 worldL,float time,float seedf,float enabled){
   if(enabled<0.001)return 1.0;
   vec3 r0=normalize(uModel[0].xyz);

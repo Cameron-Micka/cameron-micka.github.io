@@ -262,14 +262,10 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
 }
 
 const CLOUD_SHADOW_STRENGTH : f32 = 1.0;
-// Shadow-projection shell, intentionally HIGHER than the rendered cloud shell
-// (1.006 in clouds.wgsl). At the true render altitude the cast shadow would
-// land within ~1-3 deg of the puff and stay hidden directly beneath the
-// opaque cloud. Projecting the shadow ray against a taller shell displaces
-// the shadow toward the anti-solar side by ~4-8 deg so it clears the puff
-// and reads as a real cloud shadow. Cloud cells are ~9 deg radius (cFbm
-// freq 3.2), so this is the minimum gap that makes shadows visible.
-const CLOUD_SHADOW_SHELL : f32 = 1.06;
+// Project above the rendered cloud shell (1.006 in clouds.wgsl), but keep the
+// offset modest so shadows sit close beneath their clouds. The small lift
+// produces roughly 2-4 deg of separation toward the anti-solar side.
+const CLOUD_SHADOW_SHELL : f32 = 1.03;
 
 // Cloud shadow on the planet surface. From the surface fragment (vn is the
 // normalized unit-sphere local position), march along the local-space sun
@@ -286,8 +282,8 @@ fn cloudShadow(vn : vec3<f32>, localL : vec3<f32>, time : f32, seedf : f32, enab
   if (nL <= 0.0) { return 1.0; }
   // Exact ray-sphere intersection from a unit-length surface point along a
   // unit-length direction with a shell at radius R: t = -nL + sqrt(nL^2 + R^2 - 1).
-  // Uses the taller CLOUD_SHADOW_SHELL (not the render shell) so the shadow is
-  // displaced far enough from the cloud to be visible.
+  // Uses the slightly taller CLOUD_SHADOW_SHELL (not the render shell) so the
+  // shadow remains visible without appearing detached from the cloud.
   let R2m1 = CLOUD_SHADOW_SHELL * CLOUD_SHADOW_SHELL - 1.0;
   let t = -nL + sqrt(nL * nL + R2m1);
   let cloudDir = normalize(vn + localL * t);
