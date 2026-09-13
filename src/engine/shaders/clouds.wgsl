@@ -244,12 +244,21 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let density = cloudDensity(localDir, time, seedf);
   let selfShadow = cloudSelfShadow(localDir, sun, time, seedf);
 
-  // Lighting: diffuse-only white dielectric with a small ambient floor so the
-  // unlit side reads as deep grey without a hard terminator. Tinted very
-  // slightly by the planet's atmosphere color so clouds feel cohesive.
-  let NdL = clamp(dot(n, sun), 0.0, 1.0);
-  let albedo = mix(vec3<f32>(1.0), obj.palHigh.rgb, 0.08);
-  var col = albedo * (0.02 + 0.98 * NdL) * selfShadow;
+  // Direct sunlight stays neutral overhead but warms as it grazes the
+  // atmosphere near the terminator. A separate cool atmospheric fill remains
+  // in self-shadowed folds so cloud depth reads blue-grey rather than black.
+  let sunElevation = dot(n, sun);
+  let NdL = clamp(sunElevation, 0.0, 1.0);
+  let horizonWarmth = smoothstep(-0.02, 0.12, sunElevation)
+    * (1.0 - smoothstep(0.18, 0.65, sunElevation));
+  let directSunColor = mix(
+    vec3<f32>(1.0),
+    vec3<f32>(1.0, 0.62, 0.34),
+    horizonWarmth * 0.72,
+  );
+  let atmosphereFill = mix(vec3<f32>(0.18, 0.30, 0.52), obj.palHigh.rgb, 0.12);
+  let fillStrength = 0.018 + 0.045 * (1.0 - NdL);
+  var col = directSunColor * NdL * selfShadow + atmosphereFill * fillStrength;
 
   // Per-planet analytic shadow from other planets (no self-exclude needed:
   // the parent planet's surface is behind every cloud fragment along L).
@@ -272,7 +281,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Night-side fade: smooth out the cloud alpha across the terminator so we
   // don't see bright clouds on the unlit hemisphere. Slightly past the
   // terminator on both sides for a gentle wrap.
-  let dayMask = smoothstep(-0.10, 0.25, dot(n, sun));
+  let dayMask = smoothstep(-0.10, 0.25, sunElevation);
 
   // Fade alpha near the silhouette so the cloud back-face culling doesn't
   // produce a hard cutoff at the limb. Front-faces near the limb have a

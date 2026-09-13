@@ -1378,9 +1378,15 @@ void main(){
   vec3 localDir=normalize(vLocal);
   float density=cloudDensity(localDir,uTime,uSeed);
   float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed);
-  float NdL=clamp(dot(n,sun),0.0,1.0);
-  vec3 albedo=mix(vec3(1.0),uTint,0.08);
-  vec3 col=albedo*(0.02+0.98*NdL)*selfShadow;
+  // Neutral overhead light, warm grazing sunlight, and cool atmospheric fill
+  // in self-shadowed folds. Mirrors clouds.wgsl.
+  float sunElevation=dot(n,sun);
+  float NdL=clamp(sunElevation,0.0,1.0);
+  float horizonWarmth=smoothstep(-0.02,0.12,sunElevation)*(1.0-smoothstep(0.18,0.65,sunElevation));
+  vec3 directSunColor=mix(vec3(1.0),vec3(1.0,0.62,0.34),horizonWarmth*0.72);
+  vec3 atmosphereFill=mix(vec3(0.18,0.30,0.52),uTint,0.12);
+  float fillStrength=0.018+0.045*(1.0-NdL);
+  vec3 col=directSunColor*NdL*selfShadow+atmosphereFill*fillStrength;
   // Other-planet shadows (no self-exclude: parent surface is along L past
   // the cloud fragment).
   float s=1.0;
@@ -1398,7 +1404,7 @@ void main(){
   col*=s;
   // Soft terminator on the cloud alpha so we don't see bright clouds on
   // the night-side hemisphere.
-  float dayMask=smoothstep(-0.10,0.25,dot(n,sun));
+  float dayMask=smoothstep(-0.10,0.25,sunElevation);
   // Taper alpha at the silhouette so back-face culling doesn't make a hard
   // edge at the limb.
   float edgeFade=smoothstep(0.05,0.30,dot(n,viewDir));
