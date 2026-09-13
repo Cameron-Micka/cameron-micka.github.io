@@ -508,10 +508,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // sampling position, producing wispy, tendril-like fronds at the boundary.
   // Mirror of PLANET_FRAG.
   //
-  // The whole block is gated on the per-draw `oceans` flag: every ice term is
-  // multiplied by `oceans`, so on a dry world the eight fBm evaluations below
-  // were computed only to be scaled to zero. `oceans` is uniform across the
-  // draw, so the branch is coherent and derivative-free.
+  // Ice vanishes on dry worlds and below the minimum possible cap edge.
+  // Nonnegative fBm bounds that edge at 0.66 absolute local latitude, so
+  // equatorial pixels can skip all eight noise evaluations without changing it.
   let localPos = normalize(in.localPos);
   let r0 = normalize(obj.model[0].xyz);
   let r1 = normalize(obj.model[1].xyz);
@@ -519,7 +518,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let localLightDir = normalize(vec3<f32>(dot(r0, lightDir), dot(r1, lightDir), dot(r2, lightDir)));
   var iceMask = 0.0;
   var base2 = base;
-  if (oceans > 0.5) {
+  let minimumIceLatitude = 0.87 - 0.5 * (0.26 + 0.08) - 0.04;
+  if (oceans > 0.5 && abs(localPos.y) > minimumIceLatitude) {
     let lat = abs(localPos.y);
     let iceWarpPos = localPos * 3.8 + vec3<f32>(seed * 0.0019, seed * 0.0023, seed * 0.0017);
     let iceWarpA = fbm(iceWarpPos) - 0.5;

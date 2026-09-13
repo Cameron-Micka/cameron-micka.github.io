@@ -54,6 +54,26 @@ stable for 3+ seconds. Users can override quality, motion,
 sound, and a debug HUD from the settings panel; preferences persist in
 `localStorage`.
 
+Both backends use single-scattering atmospheres with exponential Rayleigh/Mie
+density profiles and wavelength-dependent Beer-Lambert attenuation on both
+paths. WebGPU Medium/High and WebGL2 use 16 view samples and 8 sunlight samples.
+WebGPU Low uses 8 view samples and a cached sunlight optical-depth lookup
+instead of tracing a sunlight ray at every sample. The 128x64 RG32F texture
+costs 64 KB, is generated once per renderer with 64 integration samples per
+texel, and is reused across planets, frames, and quality changes. Its coordinates
+concentrate precision near the ground and sunlight horizon.
+
+The planet blocks sunlight
+geometrically, and other bodies can eclipse the haze. Density reaches zero at
+the shell boundary to avoid a hard outer edge. Coefficients use shell-thickness
+units so planets of different sizes share the same optical properties. This
+remains an additive in-scattering pass; it does not attenuate the underlying
+surface/background or model multiple scattering.
+
+Both surface shaders also skip polar-ice noise outside the mathematically
+possible ice region, avoiding work on large equatorial areas without changing
+terrain detail or render resolution.
+
 ### Accessibility & SEO
 
 - A semantic, crawlable résumé (`ui/ResumeContent.tsx`) mirrors all scene

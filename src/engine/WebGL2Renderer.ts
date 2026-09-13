@@ -361,16 +361,16 @@ void main(){
   // ice tones, and directional crease darkening so the caps read less flat.
   // Two offset fbm passes form a domain-warp vector that distorts the edge
   // sampling position, producing wispy, tendril-like fronds at the boundary.
-  // Mirror of planet.wgsl, including the uOceans gate: every ice term is
-  // scaled by uOceans, so on a dry world the eight fbm calls below are pure
-  // waste. uOceans is uniform across the draw, so the branch is coherent.
+  // Mirror of planet.wgsl: nonnegative fbm bounds the cap edge at 0.66
+  // absolute local latitude. Skip the eight noise calls where ice is impossible.
   vec3 localPos=normalize(vLocal);
   vec3 r0=normalize(uModel[0].xyz);
   vec3 r1=normalize(uModel[1].xyz);
   vec3 r2=normalize(uModel[2].xyz);
   vec3 localLightDir=normalize(vec3(dot(r0,lightDir),dot(r1,lightDir),dot(r2,lightDir)));
   float iceMask=0.0;
-  if(uOceans>0.5){
+  float minimumIceLatitude=0.87-0.5*(0.26+0.08)-0.04;
+  if(uOceans>0.5&&abs(localPos.y)>minimumIceLatitude){
   float lat=abs(localPos.y);
   vec3 iceWarpPos=localPos*3.8+vec3(uSeed*0.0019,uSeed*0.0023,uSeed*0.0017);
   float iceWarpA=fbm(iceWarpPos)-0.5;
@@ -1156,9 +1156,8 @@ void main(){
   frag = vec4(pow(c, vec3(1.0/2.2)), 1.0);
 }`;
 
-// Atmospheric scattering shell: marches the view ray through a sphere slightly
-// larger than the planet, accumulating altitude-weighted, sun-lit density for a
-// soft blue limb glow. Reuses PLANET_VERT (only uModel/uViewProj attributes).
+// Single-scattering atmosphere, matching atmosphere.wgsl in shell-thickness units.
+// Reuses PLANET_VERT (only uModel/uViewProj attributes).
 const ATMOSPHERE_FRAG = `#version 300 es
 precision highp float;
 in vec3 vWorld;
@@ -1173,8 +1172,7 @@ vec2 raySphere(vec3 ro,vec3 rd,vec3 ce,float ra){
   if(h<0.0)return vec2(1.0,-1.0);
   float s=sqrt(h);return vec2(-b-s,-b+s);
 }
-// Analytic shadow with self-exclude (parent planet's own sphere is skipped so
-// per-sample sunAmt isn't double-darkened). 1.0 unshadowed, 0.0 fully shadowed.
+// Other bodies cast analytic shadows; the parent is tested along each sun ray.
 float shadowFactor(vec3 p,vec3 L,vec3 exclude){
   float s=1.0;
   for(int i=0;i<8;i++){
@@ -1190,6 +1188,11 @@ float shadowFactor(vec3 p,vec3 L,vec3 exclude){
   }
   return s;
 }
+vec2 airDensity(vec3 pos,vec3 center,float innerR,float thickness){
+  float altitude=clamp((length(pos-center)-innerR)/thickness,0.0,1.0);
+  vec2 falloff=vec2(6.0,18.0);
+  return max((exp(-altitude*falloff)-exp(-falloff))/(vec2(1.0)-exp(-falloff)),vec2(0.0));
+}
 void main(){
   vec3 ro=uCamera;vec3 rd=normalize(vWorld-ro);vec3 sun=normalize(uLight);
   vec2 outer=raySphere(ro,rd,uCenter,uOuter);
@@ -1199,41 +1202,41 @@ void main(){
   if(inner.x>0.0&&inner.x<inner.y)tFar=min(tFar,inner.x);
   if(tFar<=tNear){frag=vec4(0.0);return;}
   float thickness=max(uOuter-uInner,1e-4);
-  const int STEPS=10;
+  vec3 betaRayleigh=vec3(0.32,0.75,1.83)*mix(vec3(1.0),uColor,0.08);
+  vec3 betaMie=vec3(0.22);vec3 betaMieExtinction=betaMie/0.9;
+  float cosine=clamp(dot(rd,sun),-1.0,1.0);
+  float phaseRayleigh=3.0*(1.0+cosine*cosine)/(16.0*3.14159265);
+  float anisotropy=0.76;
+  float phaseMie=(1.0-anisotropy*anisotropy)/(4.0*3.14159265*pow(1.0+anisotropy*anisotropy-2.0*anisotropy*cosine,1.5));
+  const int STEPS=16;const int LIGHT_STEPS=8;
   float dt=(tFar-tNear)/float(STEPS);
-  float dayGlow=0.0;float ambient=0.0;
+  float stepLength=dt/thickness;
+  vec2 viewDepth=vec2(0.0);vec3 col=vec3(0.0);
   for(int i=0;i<STEPS;i++){
     float t=tNear+(float(i)+0.5)*dt;
-    vec3 pos=ro+rd*t;vec3 up=pos-uCenter;float r=length(up);
-    float hgt=clamp((r-uInner)/thickness,0.0,1.0);
-    float density=exp(-hgt*4.0);
-    // Sun gate starts past the terminator so night-side samples contribute 0.
-    float sunAmt=smoothstep(0.05,0.40,dot(normalize(up),sun));
-    float shadow=shadowFactor(pos,sun,uCenter);
-    dayGlow+=density*sunAmt*shadow*dt;ambient+=density*dt;
+    vec3 pos=ro+rd*t;
+    vec2 density=airDensity(pos,uCenter,uInner,thickness);
+    vec2 segmentDepth=density*stepLength;
+    viewDepth+=segmentDepth*0.5;
+    vec2 ground=raySphere(pos,sun,uCenter,uInner);
+    if(!(ground.x>0.0&&ground.y>ground.x)){
+      float lightDistance=max(raySphere(pos,sun,uCenter,uOuter).y,0.0);
+      vec2 lightDepth=vec2(0.0);
+      for(int j=0;j<LIGHT_STEPS;j++){
+        float start=float(j)/float(LIGHT_STEPS);float end=float(j+1)/float(LIGHT_STEPS);
+        float lightStart=start*start*lightDistance;float lightEnd=end*end*lightDistance;
+        vec3 lightPos=pos+sun*(lightStart+lightEnd)*0.5;
+        lightDepth+=airDensity(lightPos,uCenter,uInner,thickness)*((lightEnd-lightStart)/thickness);
+      }
+      vec2 opticalDepth=viewDepth+lightDepth;
+      vec3 transmittance=exp(-(betaRayleigh*opticalDepth.x+betaMieExtinction*opticalDepth.y));
+      vec3 scattering=betaRayleigh*(density.x*phaseRayleigh)+betaMie*(density.y*phaseMie);
+      col+=transmittance*scattering*(stepLength*shadowFactor(pos,sun,uCenter));
+    }
+    viewDepth+=segmentDepth*0.5;
   }
-  dayGlow/=thickness;ambient/=thickness;
-  vec3 atmoColor=mix(uColor,vec3(0.45,0.62,1.0),0.5);
   float intensity=uIntensity*(0.85+0.3*uFocus);
-  // Limb-sun gate (cubed) zeroes shell on night-side limb rays.
-  float tLimb=max(0.0,-dot(ro-uCenter,rd));
-  vec3 limbPos=ro+rd*tLimb;
-  vec3 limbNormal=normalize(limbPos-uCenter);
-  float limbSunRaw=smoothstep(0.10,0.40,dot(limbNormal,sun));
-  float limbSun=limbSunRaw*limbSunRaw*limbSunRaw;
-  vec3 col=atmoColor*dayGlow*0.55*intensity;
-  float mie=pow(max(dot(rd,sun),0.0),8.0)*dayGlow*0.22;
-  col+=atmoColor*mie*intensity;
-  // Surface-aware limb gate: only apply limbSun to limb (miss) rays. Over
-  // the planet's disk, per-sample sunAmt already smooths the terminator;
-  // double-gating with cubed limbSun paints a sharp angular cut. Soft-blend
-  // by chord length so the silhouette ring stays continuous.
-  bool hitsPlanet=inner.x>0.0&&inner.x<inner.y;
-  float innerSpan=max(inner.y-inner.x,0.0);
-  float surfaceBlend=smoothstep(0.0,thickness*0.25,innerSpan);
-  float limbBlend=hitsPlanet?surfaceBlend:0.0;
-  float surfaceGate=mix(limbSun,1.0,limbBlend);
-  col*=surfaceGate;
+  col*=5.0*intensity;
   // Distance fog (additive shell -> attenuate).
   float dist=distance(vWorld,ro);float fs=dist*0.030;
   col*=exp(-fs*fs);

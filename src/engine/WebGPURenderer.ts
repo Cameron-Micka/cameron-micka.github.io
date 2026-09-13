@@ -22,6 +22,12 @@ import { poiMarkerDistance, poiFocusFade } from './Scene';
 import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
 import { QUALITY_PRESETS } from './QualityManager';
+import {
+  ATMOSPHERE_SHELL_SCALE,
+  ATMOSPHERE_LUT_WIDTH,
+  ATMOSPHERE_LUT_HEIGHT,
+  createAtmosphereOpticalDepthLut,
+} from './atmosphere';
 
 import planetWGSL from './shaders/planet.wgsl?raw';
 import nebulaWGSL from './shaders/nebula.wgsl?raw';
@@ -75,6 +81,8 @@ export class WebGPURenderer implements SceneRenderer {
   private depthTex!: GPUTexture;
   private depthView!: GPUTextureView;
   private sampleCount = 1;
+  private atmosphereLut!: GPUTexture;
+  private atmosphereBG!: GPUBindGroup;
 
   // Reduced-resolution target holding the nebula raymarch, upsampled into the
   // scene pass. Sized from CSS pixels so it doesn't scale with devicePixelRatio.
@@ -308,6 +316,18 @@ export class WebGPURenderer implements SceneRenderer {
       addressModeU: 'clamp-to-edge',
       addressModeV: 'clamp-to-edge',
     });
+    this.atmosphereLut = d.createTexture({
+      label: 'Atmosphere optical depths',
+      size: [ATMOSPHERE_LUT_WIDTH, ATMOSPHERE_LUT_HEIGHT],
+      format: 'rg32float',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    });
+    d.queue.writeTexture(
+      { texture: this.atmosphereLut },
+      createAtmosphereOpticalDepthLut(),
+      { bytesPerRow: ATMOSPHERE_LUT_WIDTH * 8 },
+      [ATMOSPHERE_LUT_WIDTH, ATMOSPHERE_LUT_HEIGHT],
+    );
   }
 
   private createPipelines(sampleCount: number): void {
@@ -744,8 +764,21 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
+    const atmosphereLayout = d.createBindGroupLayout({
+      entries: [{
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { sampleType: 'unfilterable-float' },
+      }],
+    });
+    this.atmosphereBG = d.createBindGroup({
+      layout: atmosphereLayout,
+      entries: [{ binding: 0, resource: this.atmosphereLut.createView() }],
+    });
     const atmosphere = d.createRenderPipeline({
-      layout: sceneObjPL,
+      layout: d.createPipelineLayout({
+        bindGroupLayouts: [this.frameLayout, this.objLayout, atmosphereLayout],
+      }),
       vertex: { module: atmosphereMod, entryPoint: 'vs', buffers: [meshLayout] },
       fragment: {
         module: atmosphereMod,
@@ -1154,7 +1187,7 @@ export class WebGPURenderer implements SceneRenderer {
 
       // Atmospheric scattering shell (skipped in wireframe debug view).
       if (!frame.wireframe) {
-        const outerR = er * 1.02;
+        const outerR = er * ATMOSPHERE_SHELL_SCALE;
         mat4.fromRotationTranslationScale(model, rot, p.center, outerR);
         this.writeObject(
           objIndex,
@@ -1539,6 +1572,7 @@ export class WebGPURenderer implements SceneRenderer {
         bindSphere(o.lod);
         scenePass.setPipeline(this.pipelines.atmosphere);
         scenePass.setBindGroup(1, this.objBG, [o.index * OBJ_STRIDE]);
+        scenePass.setBindGroup(2, this.atmosphereBG);
         scenePass.drawIndexed(this.sphereLods[o.lod]!.count);
         this.stats.drawCalls++;
         this.stats.triangles += this.sphereLods[o.lod]!.count / 3;
@@ -1852,7 +1886,8 @@ export class WebGPURenderer implements SceneRenderer {
     const backdrop = this.backdropW * this.backdropH * 8;
     const fx = this.fxW * this.fxH * 8 * 2;
     const stars = this.starCount * 7 * 4;
-    return (hdr * 2 + msaa + depth + backdrop + fx + stars) / (1024 * 1024);
+    const atmosphere = ATMOSPHERE_LUT_WIDTH * ATMOSPHERE_LUT_HEIGHT * 8;
+    return (hdr * 2 + msaa + depth + backdrop + fx + stars + atmosphere) / (1024 * 1024);
   }
 
   getStats(): RenderStats {
@@ -1870,6 +1905,7 @@ export class WebGPURenderer implements SceneRenderer {
     this.backdropTex?.destroy();
     this.fxSrcTex?.destroy();
     this.fxTex?.destroy();
+    this.atmosphereLut?.destroy();
     this.starBuf?.destroy();
     this.satelliteBuf?.destroy();
     this.poiBuf?.destroy();

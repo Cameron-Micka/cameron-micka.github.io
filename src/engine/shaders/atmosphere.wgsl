@@ -1,8 +1,6 @@
-// Atmospheric scattering shell. A sphere slightly larger than the planet is
-// drawn additively; for each fragment we march the view ray through the shell
-// (terminating at the planet surface when it is occluded) and accumulate an
-// altitude-weighted, sun-lit density. This yields a soft blue limb glow that is
-// brightest on the day side and fades into space — similar to views of Earth.
+// Single-scattering atmosphere with Rayleigh/Mie density profiles. Optical
+// depths use shell-thickness units so differently sized planets share the
+// same atmosphere. The additive pass contributes attenuated in-scattered light.
 
 struct Frame {
   viewProj : mat4x4<f32>,
@@ -24,6 +22,7 @@ struct Obj {
 
 @group(0) @binding(0) var<uniform> frame : Frame;
 @group(1) @binding(0) var<uniform> obj : Obj;
+@group(2) @binding(0) var opticalDepthLut : texture_2d<f32>;
 
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
@@ -56,10 +55,7 @@ fn raySphere(ro : vec3<f32>, rd : vec3<f32>, ce : vec3<f32>, ra : f32) -> vec2<f
   return vec2<f32>(-b - s, -b + s);
 }
 
-// Analytic shadow factor against the frame's sphere occluder list, with an
-// exclusion (the parent planet whose atmosphere we're shading) so we don't
-// double-darken the night side, which the per-sample sunAmt gate already
-// handles. Returns 1.0 unshadowed, 0.0 fully shadowed.
+// Other bodies cast analytic shadows; the parent is tested along each sun ray.
 fn shadowFactor(p : vec3<f32>, L : vec3<f32>, exclude : vec3<f32>) -> f32 {
   var s = 1.0;
   let cnt = i32(frame.shadowMisc.x);
@@ -78,6 +74,30 @@ fn shadowFactor(p : vec3<f32>, L : vec3<f32>, exclude : vec3<f32>) -> f32 {
   return s;
 }
 
+fn airDensity(pos : vec3<f32>, center : vec3<f32>, innerR : f32, thickness : f32) -> vec2<f32> {
+  let altitude = clamp((length(pos - center) - innerR) / thickness, 0.0, 1.0);
+  let falloff = vec2<f32>(6.0, 18.0);
+  return max((exp(-altitude * falloff) - exp(-falloff)) / (vec2<f32>(1.0) - exp(-falloff)), vec2<f32>(0.0));
+}
+
+fn sunlightDepth(pos : vec3<f32>, center : vec3<f32>, sun : vec3<f32>, innerR : f32, thickness : f32) -> vec2<f32> {
+  let up = pos - center;
+  let radius = length(up);
+  let altitude = clamp((radius - innerR) / thickness, 0.0, 1.0);
+  let radiusRatio = innerR / radius;
+  let horizonCosine = -sqrt(max(1.0 - radiusRatio * radiusRatio, 0.0));
+  let angleCoord = sqrt(clamp((dot(up, sun) / radius - horizonCosine) / (1.0 - horizonCosine), 0.0, 1.0));
+  let dimensions = vec2<i32>(textureDimensions(opticalDepthLut));
+  let coord = vec2<f32>(angleCoord, sqrt(altitude)) * vec2<f32>(dimensions - vec2<i32>(1));
+  let base = min(vec2<i32>(coord), dimensions - vec2<i32>(2));
+  let blend = coord - vec2<f32>(base);
+  let lower = mix(textureLoad(opticalDepthLut, base, 0).xy,
+    textureLoad(opticalDepthLut, base + vec2<i32>(1, 0), 0).xy, blend.x);
+  let upper = mix(textureLoad(opticalDepthLut, base + vec2<i32>(0, 1), 0).xy,
+    textureLoad(opticalDepthLut, base + vec2<i32>(1, 1), 0).xy, blend.x);
+  return mix(lower, upper, blend.y);
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let center = obj.model[3].xyz;
@@ -91,7 +111,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   if (outer.y <= outer.x) {
     return vec4<f32>(0.0);
   }
-  var tNear = max(outer.x, 0.0);
+  let tNear = max(outer.x, 0.0);
   var tFar = outer.y;
 
   // The opaque planet truncates the column of atmosphere we can see through.
@@ -104,66 +124,54 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   }
 
   let thickness = max(outerR - innerR, 1e-4);
-  let STEPS = 12;
+  let betaRayleigh = vec3<f32>(0.32, 0.75, 1.83) * mix(vec3<f32>(1.0), obj.palHigh.rgb, 0.08);
+  let betaMie = vec3<f32>(0.22);
+  let betaMieExtinction = betaMie / 0.9;
+  let cosine = clamp(dot(rd, sun), -1.0, 1.0);
+  let phaseRayleigh = 3.0 * (1.0 + cosine * cosine) / (16.0 * 3.14159265);
+  let anisotropy = 0.76;
+  let phaseMie = (1.0 - anisotropy * anisotropy) /
+    (4.0 * 3.14159265 * pow(1.0 + anisotropy * anisotropy - 2.0 * anisotropy * cosine, 1.5));
+  let lowQuality = frame.shadowMisc.y >= 1.5;
+  let STEPS = select(16, 8, lowQuality);
+  let LIGHT_STEPS = 8;
   let dt = (tFar - tNear) / f32(STEPS);
-  var dayGlow = 0.0;
-  var ambient = 0.0;
+  let stepLength = dt / thickness;
+  var viewDepth = vec2<f32>(0.0);
+  var col = vec3<f32>(0.0);
   for (var i = 0; i < STEPS; i = i + 1) {
     let t = tNear + (f32(i) + 0.5) * dt;
     let pos = ro + rd * t;
-    let up = pos - center;
-    let r = length(up);
-    let hgt = clamp((r - innerR) / thickness, 0.0, 1.0);
-    let density = exp(-hgt * 4.0);
-    // Sun gate starts past the terminator so night-side samples contribute 0.
-    let sunAmt = smoothstep(0.05, 0.40, dot(normalize(up), sun));
-    // Per-sample analytic shadow from other planets (self excluded so we
-    // don't double-darken what sunAmt already handles).
-    let shadow = shadowFactor(pos, sun, center);
-    dayGlow = dayGlow + density * sunAmt * shadow * dt;
-    ambient = ambient + density * dt;
+    let density = airDensity(pos, center, innerR, thickness);
+    let segmentDepth = density * stepLength;
+    viewDepth = viewDepth + segmentDepth * 0.5;
+    let ground = raySphere(pos, sun, center, innerR);
+    if (!(ground.x > 0.0 && ground.y > ground.x)) {
+      var lightDepth = vec2<f32>(0.0);
+      if (lowQuality) {
+        lightDepth = sunlightDepth(pos, center, sun, innerR, thickness);
+      } else {
+        let lightDistance = max(raySphere(pos, sun, center, outerR).y, 0.0);
+        for (var j = 0; j < LIGHT_STEPS; j = j + 1) {
+          let start = f32(j) / f32(LIGHT_STEPS);
+          let end = f32(j + 1) / f32(LIGHT_STEPS);
+          let lightStart = start * start * lightDistance;
+          let lightEnd = end * end * lightDistance;
+          let lightPos = pos + sun * (lightStart + lightEnd) * 0.5;
+          lightDepth = lightDepth + airDensity(lightPos, center, innerR, thickness) *
+            ((lightEnd - lightStart) / thickness);
+        }
+      }
+      let opticalDepth = viewDepth + lightDepth;
+      let transmittance = exp(-(betaRayleigh * opticalDepth.x + betaMieExtinction * opticalDepth.y));
+      let scattering = betaRayleigh * (density.x * phaseRayleigh) + betaMie * (density.y * phaseMie);
+      col = col + transmittance * scattering * (stepLength * shadowFactor(pos, sun, center));
+    }
+    viewDepth = viewDepth + segmentDepth * 0.5;
   }
-  dayGlow = dayGlow / thickness;
-  ambient = ambient / thickness;
-
-  let atmoColor = mix(obj.palHigh.rgb, vec3<f32>(0.45, 0.62, 1.0), 0.5);
   let focus = obj.p1.x;
   let intensity = obj.p1.y * (0.85 + 0.3 * focus);
-
-  // Limb-sun gate: zero the whole shell on rays whose closest approach to
-  // the planet center sits on the night-side hemisphere. Cubed so values
-  // near the terminator are aggressively pushed toward zero, keeping the
-  // bright-side rim intact while the night-side rim fully disappears.
-  let tLimb = max(0.0, -dot(ro - center, rd));
-  let limbPos = ro + rd * tLimb;
-  let limbNormal = normalize(limbPos - center);
-  let limbSunRaw = smoothstep(0.10, 0.40, dot(limbNormal, sun));
-  let limbSun = limbSunRaw * limbSunRaw * limbSunRaw;
-
-  var col = atmoColor * dayGlow * 0.55 * intensity;
-
-  // Subtle forward (Mie) scatter where we look toward the sun through the shell.
-  let mieC = max(dot(rd, sun), 0.0);
-  let mieC2 = mieC * mieC;
-  let mieC4 = mieC2 * mieC2;
-  let mie = mieC4 * mieC4 * dayGlow * 0.22;
-  col = col + atmoColor * mie * intensity;
-
-  // Surface-aware limb gate: limbSun is geared for *limb* (miss) rays where
-  // it kills the night-side rim glow. For rays that pierce the planet's
-  // disk, the per-sample `sunAmt` smoothstep above already provides a
-  // smooth terminator on the haze accumulated through the column — and
-  // applying the cubed limbSun on top of that paints a sharp angular cut
-  // across the lit disk (visible from close-up free-cam views). Soft-blend
-  // from limbSun at the silhouette to 1.0 inside the disk using the
-  // ray's chord length through the inner sphere, so the silhouette stays
-  // a continuous ring rather than swapping discretely.
-  let hitsPlanet = inner.x > 0.0 && inner.x < inner.y;
-  let innerSpan = max(inner.y - inner.x, 0.0);
-  let surfaceBlend = smoothstep(0.0, thickness * 0.25, innerSpan);
-  let limbBlend = select(0.0, surfaceBlend, hitsPlanet);
-  let surfaceGate = mix(limbSun, 1.0, limbBlend);
-  col = col * surfaceGate;
+  col = col * (5.0 * intensity);
 
   // Distance fog (matches planet + ring): additive shell, so just attenuate
   // the contribution rather than mixing toward a colour.
