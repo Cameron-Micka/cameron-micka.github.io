@@ -441,13 +441,46 @@ void main(){
   float D=dGGX(NdH,roughness);
   float G=gSmith(NdV,NdL,roughness);
   vec3 F=fSchlick(VdH,F0);
-  // Golden glitter on the water: tint the specular highlight toward warm gold
-  // (only on water via waterMask) so the sun's reflection reads like a sunset
-  // glint on the ocean rather than a neutral white spot. Land stays untinted.
+  // Warm continuous ocean reflection plus sparse Journey-style HDR glitter.
   vec3 specTint=mix(vec3(1.0),vec3(1.0,0.78,0.42),waterMask);
   vec3 specular=(D*G)*F/max(4.0*NdV*NdL,1e-3)*specTint;
   vec3 kS=F;
   vec3 kD=(vec3(1.0)-kS)*(1.0-metallic);
+  // Each cell contains a round mirror; the radial mask prevents square glints.
+  float glitterScale=120.0;
+  vec3 glitterCoord=localPos*glitterScale+vec3(uSeed*0.013,uSeed*0.017,uSeed*0.011);
+  vec3 glitterFootprint3=fwidth(glitterCoord);
+  float glitterFootprint=max(glitterFootprint3.x,max(glitterFootprint3.y,glitterFootprint3.z));
+  float glitterLod=1.0-smoothstep(0.40,0.80,glitterFootprint);
+  vec3 glitterCell=floor(glitterCoord);
+  vec3 glitterSub=fract(glitterCoord);
+  vec3 glitterCenterRandom=vec3(hash3(glitterCell+vec3(31.0,79.0,47.0)),hash3(glitterCell+vec3(67.0,11.0,97.0)),hash3(glitterCell+vec3(5.0,43.0,113.0)));
+  vec3 glitterCenter=mix(vec3(0.43),vec3(0.57),glitterCenterRandom);
+  vec3 glitterDelta=glitterSub-glitterCenter;
+  vec3 glitterDx=dFdx(glitterCoord);
+  vec3 glitterDy=dFdy(glitterCoord);
+  float glitterXX=dot(glitterDx,glitterDx);
+  float glitterXY=dot(glitterDx,glitterDy);
+  float glitterYY=dot(glitterDy,glitterDy);
+  float glitterDet=max(glitterXX*glitterYY-glitterXY*glitterXY,1e-6);
+  float glitterRhsX=dot(glitterDelta,glitterDx);
+  float glitterRhsY=dot(glitterDelta,glitterDy);
+  vec2 glitterOffsetPx=vec2((glitterRhsX*glitterYY-glitterRhsY*glitterXY)/glitterDet,(glitterRhsY*glitterXX-glitterRhsX*glitterXY)/glitterDet);
+  float glitterRadiusPx=mix(0.48,0.64,glitterCenterRandom.x);
+  float glitterDisc=1.0-smoothstep(glitterRadiusPx-0.38,glitterRadiusPx+0.38,length(glitterOffsetPx));
+  vec3 glitterRandom=vec3(hash3(glitterCell+vec3(17.0,53.0,101.0)),hash3(glitterCell+vec3(59.0,23.0,7.0)),hash3(glitterCell+vec3(13.0,83.0,41.0)))*2.0-vec3(1.0);
+  vec3 glitterSlope=glitterRandom-localPos*dot(glitterRandom,localPos);
+  glitterSlope*=1.0;
+  vec3 glitterNormalLocal=normalize(localPos+glitterSlope);
+  vec3 glitterNormal=normalize(r0*glitterNormalLocal.x+r1*glitterNormalLocal.y+r2*glitterNormalLocal.z);
+  float glitterAlignment=clamp(dot(glitterNormal,H),0.0,1.0);
+  float glitterFlash=smoothstep(0.9900,0.9985,glitterAlignment);
+  float glitterRandomEnergy=hash3(glitterCell+vec3(109.0,37.0,71.0));
+  float glitterEnergy2=glitterRandomEnergy*glitterRandomEnergy;
+  float glitterEnergy=0.24+1.76*glitterEnergy2*glitterEnergy2;
+  float openWaterMask=smoothstep(0.75,0.98,waterMask)*(1.0-smoothstep(0.03,0.25,iceMask));
+  float glitterMask=openWaterMask*glitterLod*glitterDisc*glitterFlash;
+  vec3 glitter=vec3(1.0,0.9,0.72)*glitterEnergy*glitterMask*NdL;
   // Pre-multiply sun radiance by PI so diffuse simplifies to kD*albedo*NdL.
   vec3 sunRadiance=vec3(PI);
   float shadow=shadowFactor(vWorld,L);
@@ -458,7 +491,7 @@ void main(){
   vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL*shadow*cloudShadowMul;
   float ambientShadowMul=0.10+0.90*cloudShadowMul;
   vec3 ambient=albedo*0.004*ambientShadowMul;
-  vec3 col=ambient+direct;
+  vec3 col=ambient+direct+glitter*shadow*cloudShadowMul;
   // City lights on the night side of land masses (planet-feature gated).
   // Population proxy: low-freq continent fbm + coastline boost. Lights are
   // a sparse hash-grid: each cell rolls a hash; populated cells emit one

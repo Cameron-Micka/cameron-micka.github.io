@@ -625,13 +625,73 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let G = gSmith(NdV, NdL, roughness);
   let F = fSchlick(VdH, F0);
 
-  // Golden glitter on the water: tint the specular highlight toward warm gold
-  // (only on water via waterMask) so the sun's reflection reads like a sunset
-  // glint on the ocean rather than a neutral white spot. Land stays untinted.
+  // Warm the continuous ocean reflection, then layer sparse microfacet flashes
+  // over it below. The flashes deliberately exceed 1.0 so the HDR bloom pass
+  // turns isolated grains into points of sun glitter rather than white noise.
   let specTint = mix(vec3<f32>(1.0), vec3<f32>(1.0, 0.78, 0.42), waterMask);
   let specular = (D * G) * F / max(4.0 * NdV * NdL, 1e-3) * specTint;
   let kS = F;
   let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
+
+  // Journey-style glitter: each stable local-space cell contains one small,
+  // round mirror with a random tangent slope. A grain flashes only when its
+  // normal nearly matches H, the normal that reflects L directly toward V.
+  // The radial mask keeps the cell itself from becoming a square sparkle.
+  let glitterScale = 120.0;
+  let glitterCoord = localPos * glitterScale
+    + vec3<f32>(seed * 0.013, seed * 0.017, seed * 0.011);
+  let glitterFootprint3 = fwidth(glitterCoord);
+  let glitterFootprint = max(glitterFootprint3.x, max(glitterFootprint3.y, glitterFootprint3.z));
+  let glitterLod = 1.0 - smoothstep(0.40, 0.80, glitterFootprint);
+  let glitterCell = floor(glitterCoord);
+  let glitterSub = fract(glitterCoord);
+  let glitterCenterRandom = vec3<f32>(
+    hash3(glitterCell + vec3<f32>(31.0, 79.0, 47.0)),
+    hash3(glitterCell + vec3<f32>(67.0, 11.0, 97.0)),
+    hash3(glitterCell + vec3<f32>(5.0, 43.0, 113.0)),
+  );
+  let glitterCenter = mix(vec3<f32>(0.43), vec3<f32>(0.57), glitterCenterRandom);
+  let glitterDelta = glitterSub - glitterCenter;
+  let glitterDx = dpdx(glitterCoord);
+  let glitterDy = dpdy(glitterCoord);
+  let glitterXX = dot(glitterDx, glitterDx);
+  let glitterXY = dot(glitterDx, glitterDy);
+  let glitterYY = dot(glitterDy, glitterDy);
+  let glitterDet = max(glitterXX * glitterYY - glitterXY * glitterXY, 1e-6);
+  let glitterRhsX = dot(glitterDelta, glitterDx);
+  let glitterRhsY = dot(glitterDelta, glitterDy);
+  let glitterOffsetPx = vec2<f32>(
+    (glitterRhsX * glitterYY - glitterRhsY * glitterXY) / glitterDet,
+    (glitterRhsY * glitterXX - glitterRhsX * glitterXY) / glitterDet,
+  );
+  let glitterRadiusPx = mix(0.48, 0.64, glitterCenterRandom.x);
+  let glitterDisc = 1.0 - smoothstep(
+    glitterRadiusPx - 0.38,
+    glitterRadiusPx + 0.38,
+    length(glitterOffsetPx),
+  );
+  let glitterRandom = vec3<f32>(
+    hash3(glitterCell + vec3<f32>(17.0, 53.0, 101.0)),
+    hash3(glitterCell + vec3<f32>(59.0, 23.0, 7.0)),
+    hash3(glitterCell + vec3<f32>(13.0, 83.0, 41.0)),
+  ) * 2.0 - vec3<f32>(1.0);
+  var glitterSlope = glitterRandom - localPos * dot(glitterRandom, localPos);
+  glitterSlope = glitterSlope * 1.0;
+  let glitterNormalLocal = normalize(localPos + glitterSlope);
+  let glitterNormal = normalize(
+    r0 * glitterNormalLocal.x
+      + r1 * glitterNormalLocal.y
+      + r2 * glitterNormalLocal.z
+  );
+  let glitterAlignment = clamp(dot(glitterNormal, H), 0.0, 1.0);
+  let glitterFlash = smoothstep(0.9900, 0.9985, glitterAlignment);
+  let glitterRandomEnergy = hash3(glitterCell + vec3<f32>(109.0, 37.0, 71.0));
+  let glitterEnergy2 = glitterRandomEnergy * glitterRandomEnergy;
+  let glitterEnergy = 0.24 + 1.76 * glitterEnergy2 * glitterEnergy2;
+  let openWaterMask = smoothstep(0.75, 0.98, waterMask)
+    * (1.0 - smoothstep(0.03, 0.25, iceMask));
+  let glitterMask = openWaterMask * glitterLod * glitterDisc * glitterFlash;
+  let glitter = vec3<f32>(1.0, 0.9, 0.72) * glitterEnergy * glitterMask * NdL;
 
   // Sun radiance pre-multiplied by PI so that diffuse simplifies to
   // kD * albedo * NdL (matches the look of the previous Lambert-ish shader
@@ -658,7 +718,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // being pitch black — surface noise stays just barely legible.
   let ambientShadowMul = 0.10 + 0.90 * cloudShadowMul;
   let ambient = albedo * 0.004 * ambientShadowMul;
-  var color = ambient + direct;
+  var color = ambient + direct + glitter * shadow * cloudShadowMul;
 
   // City lights on the night side of land masses. Gated by p2.x (planet
   // feature flag). Population density driven by the same continent field
