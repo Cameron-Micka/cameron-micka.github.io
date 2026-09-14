@@ -640,17 +640,13 @@ void main(){
     float pulse=shimmer(pinUv,vOrdinal,vCount);
     float radius=0.32+0.02*pulse;
     float aa=max(length(vec2(dFdx(d),dFdy(d))),1e-4);
-    float a=(1.0-smoothstep(radius-aa,radius+aa,d))*vAttr.y;
-    vec2 local=pinUv/radius;
-    float dome=sqrt(max(1.0-dot(local,local),0.0));
-    vec3 normal=vec3(local,dome);
-    float lighting=clamp(dot(normal,normalize(vec3(-0.4,0.5,1.0))),0.0,1.0);
-    float specular=pow(lighting,18.0)*0.35;
+    float ring=abs(d-(radius-0.05));
+    float a=(1.0-smoothstep(0.05-aa,0.05+aa,ring))*vAttr.y;
     float halo=(1.0-smoothstep(0.0,4.0*aa,abs(d-radius)))*vAttr.y;
     float glow=halo*pulse;
     // UI accent orange (--accent: #ff7a18) so markers match the interface.
-    vec3 rgb=vec3(1.0,0.478,0.094)*(0.38+0.62*lighting)*a
-      +vec3(1.0,0.95,0.85)*(specular*a+glow*1.6);
+    vec3 rgb=vec3(1.0,0.478,0.094)*a
+      +vec3(1.0,0.95,0.85)*glow*1.6;
     frag=vec4(rgb,min(1.0,a+glow*0.8));
   }else{
     if(uWireframe>0.5){
@@ -701,7 +697,7 @@ void main(){
   // back to it.
   float pointPx=clamp(aParam.z*uHeight,1.0,256.0);
   float pinR=0.32*pointPx/uHeight;
-  ao=ao-dir*pinR;
+  ao=ao-dir*min(pinR,len);
   bool isOuter=aParam.y>0.5;
   vec2 chosen=isOuter?ao:ai;
   float z=isOuter?co.z:ci.z;
@@ -709,7 +705,7 @@ void main(){
   vec2 p=chosen+perp*aParam.x*uThick;
   vec2 ndc=vec2(p.x/uAspect,p.y);
   gl_Position=vec4(ndc*w,z,w);
-  vColor=aColor;
+  vColor=aColor*step(pinR,len);
   vEdge=aParam.x;
   vAxial=aParam.y;
 }`;
@@ -2793,8 +2789,7 @@ export class WebGL2Renderer implements SceneRenderer {
       for (let i = 0; i < p.pois.length; i++) {
         const poi = p.pois[i]!;
         const dir = quat.rotateVec3(rot, poi.dir);
-        const surfDir = quat.rotateVec3(rot, poi.surfaceDir);
-        const inner = vec3.add(p.center, vec3.scale(surfDir, er));
+        const inner = vec3.add(p.center, vec3.scale(dir, er));
         const outer = vec3.add(p.center, vec3.scale(dir, markerDist));
         const dim = fade;
         // NDC half-extent, matching the WebGPU POI billboard size so markers

@@ -75,9 +75,6 @@ export interface PlanetInstance {
   pois: {
     slug: string;
     dir: Vec3;
-    // Where the connector line touches the surface: the POI direction nudged a
-    // few degrees off the closest point so connectors don't all meet dead-on.
-    surfaceDir: Vec3;
     accent: Vec3;
   }[];
   focus: number; // 0..1 how focused/foregrounded this planet is

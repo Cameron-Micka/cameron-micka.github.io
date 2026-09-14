@@ -55,11 +55,12 @@ fn vs(
   var ao = (clipOuter.xy / clipOuter.w) * ac;
   var dir = ao - ai;
   let len = length(dir);
-  dir = select(vec2<f32>(0.0, 1.0), dir / len, len > 1e-6);
+  dir = select(vec2<f32>(0.0, 1.0), dir / max(len, 1e-6), len > 1e-6);
   let perp = vec2<f32>(-dir.y, dir.x);
 
   // Stop the line at the pin head's rim instead of its center.
-  ao = ao - dir * (PIN_R * attribs.x);
+  let pinR = PIN_R * attribs.x;
+  ao = ao - dir * min(pinR, len);
 
   let chosen = select(ai, ao, isOuter);
   let z = select(clipInner.z, clipOuter.z, isOuter);
@@ -71,7 +72,7 @@ fn vs(
 
   out.color = UI_ACCENT;
   // Brighter near the marker, faint where it meets the surface.
-  out.alpha = attribs.y * select(0.25, 0.9, isOuter);
+  out.alpha = attribs.y * select(0.25, 0.9, isOuter) * step(pinR, len);
   out.edge = side;
   out.axial = ends[vid];
   return out;
