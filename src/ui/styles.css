@@ -1767,11 +1767,7 @@ a:hover {
     height: 40px;
   }
   .flight-console {
-    display: flex;
-    width: calc(100% - 32px);
-    height: auto;
-    min-height: 72px;
-    padding: 14px 18px;
+    display: none;
   }
   .settings {
     right: max(16px, env(safe-area-inset-right));
@@ -1928,6 +1924,11 @@ a:hover {
 @media (min-width: 721px) and (max-height: 500px) {
   .ribbon {
     display: none;
+  }
+  .freecam {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
   }
 }
 
