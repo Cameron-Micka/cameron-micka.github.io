@@ -12,7 +12,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const previousFocus = document.activeElement;
-    panelRef.current?.querySelector('select')?.focus();
+    panelRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -32,6 +32,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       id="system-settings"
       role="dialog"
       aria-label={UI.settings}
+      tabIndex={-1}
       ref={panelRef}
     >
       <div className="settings-header">

@@ -24,7 +24,7 @@ const DEFAULTS: PersistedSettings = {
   wireframe: false,
   forceBackend: 'auto',
   freeCamera: false,
-  flightPath: true,
+  flightPath: false,
   crt: false,
 };
 
