@@ -1,24 +1,30 @@
+import { ArrowLeft, ArrowRight, RotateCcw, Video } from 'lucide-react';
 import { tenureLabel, type Company } from '@/content/schema';
-import { useEngineSnapshot } from './EngineContext';
-import { HINTS } from './strings';
+import { useEngine, useEngineSnapshot } from './EngineContext';
 
 function formatDates(c: Company): string {
   return tenureLabel(c.start, c.end);
 }
 
 export function BottomRibbon({ companies }: { companies: Company[] }) {
+  const engine = useEngine();
   const { focusedIndex, openPoi, freeCamera } = useEngineSnapshot();
   if (openPoi) return null;
-  const touch =
-    typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-  // Free-fly mode detaches the camera from the timeline, so the focused
-  // company is no longer meaningful — keep only the controls tip.
   if (freeCamera) {
     return (
-      <div className="ribbon hint-only" aria-live="polite">
-        <div className="hint">
-          {touch ? HINTS.freeCameraTouch : HINTS.freeCameraDesktop}
+      <div className="ribbon flight-console" aria-live="polite">
+        <div className="flight-status">
+          <Video size={20} aria-hidden="true" />
+          <span>Free camera</span>
         </div>
+        <button
+          type="button"
+          className="navlink return-timeline"
+          onClick={() => engine.setFreeCamera(false)}
+        >
+          <RotateCcw size={15} aria-hidden="true" />
+          Timeline
+        </button>
       </div>
     );
   }
@@ -29,25 +35,69 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
     : null;
   return (
     <div className="ribbon" aria-live="polite">
-      {logoSrc && (
-        <img
-          className="company-logo"
-          src={logoSrc}
-          alt=""
-          aria-hidden="true"
-          width={32}
-          height={32}
-        />
-      )}
-      <div className="company">
-        <span className="company-name">{company.name}</span>
+      <div className="ribbon-channel" aria-hidden="true">
+        <span className="channel-label">Position</span>
+        <span className="channel-value">
+          {String(focusedIndex + 1).padStart(2, '0')}
+          <span>/{String(companies.length).padStart(2, '0')}</span>
+        </span>
+        <span className="channel-meter">
+          {companies.map((item, index) => (
+            <span
+              key={item.slug}
+              className={index === focusedIndex ? 'active' : ''}
+            />
+          ))}
+        </span>
       </div>
-      <div className="role">{company.role}</div>
-      <div className="dates">
-        {formatDates(company)}
-        {company.location ? ` · ${company.location}` : ''}
+      <div className="ribbon-readout">
+        <div className="ribbon-identity">
+          {logoSrc && (
+            <img
+              className="company-logo"
+              src={logoSrc}
+              alt=""
+              width={28}
+              height={28}
+            />
+          )}
+          <div>
+            <div className="company">{company.name}</div>
+            <div className="role">{company.role}</div>
+          </div>
+        </div>
+        <div className="dates">
+          <span>{formatDates(company)}</span>
+          {company.location && (
+            <span className="location">{company.location}</span>
+          )}
+        </div>
       </div>
-      <div className="hint">{touch ? HINTS.scrubTouch : HINTS.scrubDesktop}</div>
+      <div className="ribbon-transport">
+        <span className="transport-label">Timeline</span>
+        <div className="transport-keys">
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Previous company"
+            title="Previous company"
+            disabled={focusedIndex === 0}
+            onClick={() => engine.jumpToPlanet(focusedIndex - 1)}
+          >
+            <ArrowLeft size={19} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Next company"
+            title="Next company"
+            disabled={focusedIndex === companies.length - 1}
+            onClick={() => engine.jumpToPlanet(focusedIndex + 1)}
+          >
+            <ArrowRight size={19} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

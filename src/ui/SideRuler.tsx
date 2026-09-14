@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { Company } from '@/content/schema';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 
@@ -12,22 +13,6 @@ function rangeLabel(start: string, end: string | null): string {
   return sy === ey ? sy : `${sy} – ${ey}`;
 }
 
-function NavArrow({ direction }: { direction: 'up' | 'down' }) {
-  // Solid arrowhead. viewBox is symmetric so flipping vertically swaps up/down.
-  const points = direction === 'up' ? '5,11 10,4 15,11' : '5,5 10,12 15,5';
-  return (
-    <svg
-      width="20"
-      height="16"
-      viewBox="0 0 20 16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <polygon points={points} fill="currentColor" />
-    </svg>
-  );
-}
-
 export function SideRuler({ companies }: { companies: Company[] }) {
   const engine = useEngine();
   const { focusedIndex, freeCamera } = useEngineSnapshot();
@@ -36,40 +21,41 @@ export function SideRuler({ companies }: { companies: Company[] }) {
   // The scrubber drives the timeline camera, which free-fly mode overrides.
   if (freeCamera) return null;
   return (
-    <div className="ruler" role="tablist" aria-label="Career timeline">
+    <nav className="ruler" aria-label="Career timeline">
       <button
         type="button"
         className="ruler-nav"
         aria-label="Previous timeline item"
+        title="Previous timeline item"
         onClick={() => engine.jumpToPlanet(focusedIndex - 1)}
         disabled={!canGoUp}
       >
-        <NavArrow direction="up" />
+        <ChevronUp size={17} aria-hidden="true" />
       </button>
       {companies.map((c, i) => (
         <button
           key={c.slug}
           type="button"
-          role="tab"
-          aria-selected={i === focusedIndex}
+          aria-current={i === focusedIndex ? 'step' : undefined}
           className={i === focusedIndex ? 'active' : ''}
           onClick={() => engine.jumpToPlanet(i)}
         >
           <span className="label">
             {c.name} · {rangeLabel(c.start, c.end)}
           </span>
-          <span className="tick" />
+          <span className="tick" aria-hidden="true" />
         </button>
       ))}
       <button
         type="button"
         className="ruler-nav"
         aria-label="Next timeline item"
+        title="Next timeline item"
         onClick={() => engine.jumpToPlanet(focusedIndex + 1)}
         disabled={!canGoDown}
       >
-        <NavArrow direction="down" />
+        <ChevronDown size={17} aria-hidden="true" />
       </button>
-    </div>
+    </nav>
   );
 }

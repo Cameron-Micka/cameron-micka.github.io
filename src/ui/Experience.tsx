@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Video } from 'lucide-react';
 import type { Company } from '@/content/schema';
 import { Engine } from '@/engine/Engine';
 import { EngineContext, useEngine, useEngineSnapshot } from './EngineContext';
@@ -139,7 +140,10 @@ export function Experience({ companies }: { companies: Company[] }) {
         <EngineContext.Provider value={engine}>
           {!startError && <LoadingBar />}
           <div className="overlay">
-            <TopNav onToggleSettings={() => setSettingsOpen((o) => !o)} />
+            <TopNav
+              onToggleSettings={() => setSettingsOpen((o) => !o)}
+              settingsOpen={settingsOpen}
+            />
             <SideRuler companies={companies} />
             <BottomRibbon companies={companies} />
             <PoiModal companies={companies} />
@@ -179,19 +183,7 @@ function FreeCameraButton() {
         title={UI.freeCamera}
         onClick={() => engine.setFreeCamera(!freeCamera)}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M3 7.5A1.5 1.5 0 0 1 4.5 6h8A1.5 1.5 0 0 1 14 7.5v9A1.5 1.5 0 0 1 12.5 18h-8A1.5 1.5 0 0 1 3 16.5v-9Z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <path
-            d="M14 10.5l5-2.75v8.5L14 13.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <Video size={19} strokeWidth={1.7} aria-hidden="true" />
       </button>
     </div>
   );

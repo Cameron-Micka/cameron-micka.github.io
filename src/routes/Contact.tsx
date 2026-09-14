@@ -1,3 +1,4 @@
+import { ArrowUpRight } from 'lucide-react';
 import { TopNav } from '@/ui/TopNav';
 import { SOCIAL } from '@/ui/strings';
 
@@ -27,7 +28,8 @@ export default function Contact() {
                 rel={l.href.startsWith('http') ? 'noreferrer' : undefined}
               >
                 <strong>{l.label}</strong>
-                <span style={{ color: 'var(--muted)' }}>{l.sub}</span>
+                <span className="social-handle">{l.sub}</span>
+                <ArrowUpRight size={17} aria-hidden="true" />
               </a>
             </li>
           ))}

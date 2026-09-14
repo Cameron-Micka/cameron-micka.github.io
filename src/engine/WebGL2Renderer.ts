@@ -555,7 +555,7 @@ void main(){
 
 const POINT_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
-layout(location=1) in vec4 aAttr; // x size, y phase/dim, z digit (Arabic numeral, POIs only), w POI count on planet
+layout(location=1) in vec4 aAttr; // x size, y phase/dim, z POI shimmer order, w POI count on planet
 layout(location=2) in vec3 aColor;
 uniform mat4 uViewProj;
 uniform float uTime;
@@ -563,7 +563,7 @@ uniform float uMode; // 0 star, 1 poi
 uniform float uHeight; // viewport height in pixels (POI fixed-screen sizing)
 out vec4 vAttr;
 out vec3 vColor;
-out float vDigit;
+out float vOrdinal;
 out float vCount;
 void main(){
   vec4 clip=uViewProj*vec4(aPos,1.0);
@@ -577,58 +577,20 @@ void main(){
   gl_PointSize=clamp(ps,1.0,256.0);
   vAttr=vec4(twinkle,aAttr.y,uMode,aAttr.x);
   vColor=aColor;
-  vDigit=aAttr.z;
+  vOrdinal=aAttr.z;
   vCount=aAttr.w;
 }`;
 
 const POINT_FRAG = `#version 300 es
 precision highp float;
-in vec4 vAttr;in vec3 vColor;in float vDigit;in float vCount;
+in vec4 vAttr;in vec3 vColor;in float vOrdinal;in float vCount;
 uniform float uWireframe;
 uniform float uTime;
 uniform float uPoiShimmer;
 out vec4 frag;
-// Arabic numerals 0..9 rendered as a seven-segment union of line-segment SDFs
-// in a normalized glyph-local box [-1,1]x[-1,1]. Each digit lights a subset of
-// the seven segments; the fragment unions them by min-distance and masks the
-// pixel by smoothstep of distance vs. stroke half-width, so digits render
-// crisply without bitmap rasterization artifacts.
-float segDist(vec2 p,vec2 a,vec2 b){
-  vec2 pa=p-a;vec2 ba=b-a;
-  float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-6),0.0,1.0);
-  return length(pa-ba*h);
-}
-float digitDist(vec2 p,int d){
-  // Seven-segment layout corners. x/y inset from the glyph box edges.
-  float x=0.55;float y=0.9;
-  vec2 tl=vec2(-x,y);vec2 tr=vec2(x,y);
-  vec2 ml=vec2(-x,0.0);vec2 mr=vec2(x,0.0);
-  vec2 bl=vec2(-x,-y);vec2 br=vec2(x,-y);
-  // "1" reads better as a single centered stem than as a right-aligned pair.
-  if(d==1){
-    return segDist(p,vec2(0.0,y),vec2(0.0,-y));
-  }
-  float dm=1e9;
-  // a (top)
-  if(d==0||d==2||d==3||d==5||d==6||d==7||d==8||d==9){dm=min(dm,segDist(p,tl,tr));}
-  // f (upper-left)
-  if(d==0||d==4||d==5||d==6||d==8||d==9){dm=min(dm,segDist(p,tl,ml));}
-  // b (upper-right)
-  if(d==0||d==2||d==3||d==4||d==7||d==8||d==9){dm=min(dm,segDist(p,tr,mr));}
-  // g (middle)
-  if(d==2||d==3||d==4||d==5||d==6||d==8||d==9){dm=min(dm,segDist(p,ml,mr));}
-  // e (lower-left)
-  if(d==0||d==2||d==6||d==8){dm=min(dm,segDist(p,ml,bl));}
-  // c (lower-right)
-  if(d==0||d==3||d==4||d==5||d==6||d==7||d==8||d==9){dm=min(dm,segDist(p,mr,br));}
-  // d (bottom)
-  if(d==0||d==2||d==3||d==5||d==6||d==8||d==9){dm=min(dm,segDist(p,bl,br));}
-  return dm;
-}
-
 // One shimmer "slot" per POI: SHIMMER_SLOT seconds each, of which the first
 // SHIMMER_SWEEP fraction is the highlight travelling a full turn around the
-// ring and the remainder is a short rest before the next marker takes over.
+// pin head and the remainder is a short rest before the next marker takes over.
 // Mirrors shimmer() in poi.wgsl.
 const float SHIMMER_SLOT=1.6;
 const float SHIMMER_SWEEP=0.75;
@@ -637,7 +599,7 @@ const float SHIMMER_SWEEP=0.75;
 const float SHIMMER_GAIN=0.5;
 const float TAU=6.2831853;
 const float HALF_PI=1.5707963;
-float shimmer(vec2 uv,float digit,float count){
+float shimmer(vec2 uv,float ordinal,float count){
   // uPoiShimmer is 0 once the visitor has opened a POI this session.
   if(uPoiShimmer<0.5){return 0.0;}
   float total=max(count,1.0);
@@ -646,7 +608,7 @@ float shimmer(vec2 uv,float digit,float count){
   // Index of the marker whose turn it is, cycling 0..total-1.
   // NOTE: 'active' is a reserved word in GLSL ES, hence activeIdx.
   float activeIdx=whole-total*floor(whole/total);
-  if(abs(activeIdx-(digit-1.0))>0.5){return 0.0;}
+  if(abs(activeIdx-(ordinal-1.0))>0.5){return 0.0;}
   float travel=fract(slots)/SHIMMER_SWEEP;
   if(travel>1.0){return 0.0;}
   // Fade the highlight in and out at the ends of its lap so it does not pop
@@ -673,45 +635,22 @@ void main(){
       frag=vec4(vec3(0.25,1.0,0.85)*a,a);
       return;
     }
-    // Shimmer: a narrow highlight that travels once around the circumference
-    // of a single marker, brightening the ring and bulging its radius by a
-    // hair. Markers take turns in POI order (digit 1, 2, 3, ...); when the
-    // last one finishes the sequence restarts at the first, so only one
-    // marker ever shimmers at a time. gl_PointCoord's Y is flipped, so negate
-    // uv.y to match the WebGPU sweep direction.
-    float pulse=shimmer(vec2(uv.x,-uv.y),vDigit,vCount);
-    float radius=0.85+0.02*pulse;
-    // Isotropic AA: use the L2 norm of (dFdx, dFdy) instead of fwidth()
-    // (which is L1 and gives a slightly wider band at the diagonals,
-    // making the ring read as bulgier at corners than at cardinals).
-    float aa=length(vec2(dFdx(d),dFdy(d)));
-    // Thin ring: AA-only smoothstep from peak (d=radius) out to 1.5*aa.
-    // No solid core so the line reads ~1.5px wide regardless of marker
-    // size.
-    float outline=(1.0-smoothstep(0.0,1.5*aa,abs(d-radius)))*vAttr.y;
-    // Bright warm highlight riding on top of the ring, matched to the flight
-    // path's travelling pulse (same tint and 1.6 gain) so both effects read at
-    // the same intensity. Slightly wider than the ring line so the glow shows
-    // up even on small markers. The POI pass is additive into the HDR target,
-    // so pushing RGB past 1.0 here is deliberate: bloom picks up the overshoot.
+    // gl_PointCoord's Y is flipped relative to the WebGPU billboards.
+    vec2 pinUv=vec2(uv.x,-uv.y);
+    float pulse=shimmer(pinUv,vOrdinal,vCount);
+    float radius=0.32+0.02*pulse;
+    float aa=max(length(vec2(dFdx(d),dFdy(d))),1e-4);
+    float a=(1.0-smoothstep(radius-aa,radius+aa,d))*vAttr.y;
+    vec2 local=pinUv/radius;
+    float dome=sqrt(max(1.0-dot(local,local),0.0));
+    vec3 normal=vec3(local,dome);
+    float lighting=clamp(dot(normal,normalize(vec3(-0.4,0.5,1.0))),0.0,1.0);
+    float specular=pow(lighting,18.0)*0.35;
     float halo=(1.0-smoothstep(0.0,4.0*aa,abs(d-radius)))*vAttr.y;
     float glow=halo*pulse;
-    // Map marker uv into a normalized glyph-local box [-1,1]x[-1,1]. halfW/halfH
-    // size the digit so it sits comfortably inside the ring at radius 0.85.
-    // gl_PointCoord origin is upper-left, so we flip Y here to match the
-    // glyph-local convention where +y = top.
-    float halfW=0.28;float halfH=0.30;
-    vec2 gp=vec2(uv.x/halfW,-uv.y/halfH);
-    int dig=int(vDigit+0.5);
-    float glyphDist=digitDist(gp,dig);
-    // One screen pixel in glyph-local units (isotropic AA).
-    vec2 dgx=dFdx(gp);vec2 dgy=dFdy(gp);
-    float aaG=sqrt(dot(dgx,dgx)+dot(dgy,dgy))*0.5;
-    float strokeW=0.16;
-    float glyphAlpha=(1.0-smoothstep(strokeW-aaG,strokeW+aaG,glyphDist))*vAttr.y;
-    float a=max(outline,glyphAlpha);
     // UI accent orange (--accent: #ff7a18) so markers match the interface.
-    vec3 rgb=vec3(1.0,0.478,0.094)*a+vec3(1.0,0.95,0.85)*glow*1.6;
+    vec3 rgb=vec3(1.0,0.478,0.094)*(0.38+0.62*lighting)*a
+      +vec3(1.0,0.95,0.85)*(specular*a+glow*1.6);
     frag=vec4(rgb,min(1.0,a+glow*0.8));
   }else{
     if(uWireframe>0.5){
@@ -734,7 +673,7 @@ void main(){
 // Thick connector "lines" from planet surface to floating POI markers, drawn as
 // camera-facing quads (GL line width is effectively 1px on most drivers). Built
 // in aspect-corrected NDC for constant on-screen thickness, with screen-space
-// derivative AA across the width. The outer end stops at the marker circle rim.
+// derivative AA across the width. The outer end stops at the pin head's rim.
 const LINE_VERT = `#version 300 es
 layout(location=0) in vec3 aInner;
 layout(location=1) in vec3 aOuter;
@@ -758,11 +697,11 @@ void main(){
   dir=len>1e-6?dir/len:vec2(0.0,1.0);
   vec2 perp=vec2(-dir.y,dir.x);
   // Marker point size matches the POINT shader's fixed-screen sizing (aParam.z
-  // is the NDC half-extent); the rim sits at uv 0.85 so pull the connector end
+  // is the NDC half-extent); the rim sits at uv 0.32 so pull the connector end
   // back to it.
   float pointPx=clamp(aParam.z*uHeight,1.0,256.0);
-  float circleR=0.85*pointPx/uHeight;
-  ao=ao-dir*circleR;
+  float pinR=0.32*pointPx/uHeight;
+  ao=ao-dir*pinR;
   bool isOuter=aParam.y>0.5;
   vec2 chosen=isOuter?ao:ai;
   float z=isOuter?co.z:ci.z;

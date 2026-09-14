@@ -3,7 +3,7 @@
 // 1px). One instanced quad (2 triangles) per POI. The quad is built in
 // aspect-corrected NDC so the line keeps a constant on-screen thickness, with
 // screen-space-derivative anti-aliasing across its width. The outer end stops
-// at the marker circle's rim rather than its center. Additive, depth-tested
+// at the pin head's rim rather than its center. Additive, depth-tested
 // like the markers so the planet occludes connectors on its far side.
 struct Frame {
   viewProj : mat4x4<f32>,
@@ -15,9 +15,8 @@ struct Frame {
 
 // Half-thickness of the connector in aspect-corrected NDC (constant pixels).
 const HALF_THICK : f32 = 0.0035;
-// Marker circle rim radius in NDC per unit of marker `size` (the billboard
-// draws its rim at uv radius 0.85).
-const CIRCLE_R : f32 = 0.85;
+// Pin head radius in billboard UV units, matching poi.wgsl.
+const PIN_R : f32 = 0.32;
 // UI accent orange (--accent: #ff7a18) so connectors match the interface.
 const UI_ACCENT : vec3<f32> = vec3<f32>(1.0, 0.478, 0.094);
 
@@ -33,7 +32,7 @@ struct VSOut {
 fn vs(
   @builtin(vertex_index) vid : u32,
   @location(0) inner : vec3<f32>,    // point on the planet surface
-  @location(1) outer : vec3<f32>,    // floating marker position (circle center)
+  @location(1) outer : vec3<f32>,    // floating pin head position
   @location(2) attribs : vec4<f32>,  // x=size y=dim z=accentR w=accentG
   @location(3) accentB : f32,
 ) -> VSOut {
@@ -59,8 +58,8 @@ fn vs(
   dir = select(vec2<f32>(0.0, 1.0), dir / len, len > 1e-6);
   let perp = vec2<f32>(-dir.y, dir.x);
 
-  // Stop the line at the rim of the marker circle instead of its center.
-  ao = ao - dir * (CIRCLE_R * attribs.x);
+  // Stop the line at the pin head's rim instead of its center.
+  ao = ao - dir * (PIN_R * attribs.x);
 
   let chosen = select(ai, ao, isOuter);
   let z = select(clipInner.z, clipOuter.z, isOuter);

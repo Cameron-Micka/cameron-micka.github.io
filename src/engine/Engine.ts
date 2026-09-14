@@ -684,12 +684,9 @@ export class Engine {
       const center: Vec3 = [0, 0, model.z];
       const rot = this.orientations[focused] ?? quat.identity();
       const markerDist = poiMarkerDistance(model.radius);
-      // POI markers are rendered as fixed-screen-size billboards, so their
-      // pick collider must also be screen-size: a world-space radius equal to
-      // what the marker's on-screen circle subtends at the marker's distance
-      // from the camera. markerNdc is the marker circle's NDC half-extent at
-      // full focus (size factor 0.027 + 0.021 * focus, rim at uv 0.85); the
-      // world radius at camera distance d is markerNdc * d / projY.
+      // Keep the original screen-space pick radius around the smaller pin
+      // heads so they remain easy to click or tap. The world radius at camera
+      // distance d is markerNdc * d / projY.
       const markerNdc = (0.027 + 0.021) * 0.85;
       const projY = this.camera.proj[5]!;
       const camPos = this.camera.position;

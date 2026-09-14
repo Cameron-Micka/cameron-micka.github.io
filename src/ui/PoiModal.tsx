@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Maximize2, Minimize2, X } from 'lucide-react';
 import type { Company, Media } from '@/content/schema';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import { Markdown } from './Markdown';
@@ -206,45 +207,24 @@ export function PoiModal({ companies }: { companies: Company[] }) {
               type="button"
               className="icon-btn"
               aria-label={expanded ? UI.collapse : UI.expand}
+              title={expanded ? UI.collapse : UI.expand}
               aria-pressed={expanded}
               onClick={() => setExpanded((v) => !v)}
             >
               {expanded ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <Minimize2 size={17} aria-hidden="true" />
               ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <Maximize2 size={17} aria-hidden="true" />
               )}
             </button>
             <button
               type="button"
               className="icon-btn close"
               aria-label={UI.close}
+              title={UI.close}
               onClick={() => engine.closePoi()}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M6 6l12 12M18 6 6 18"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <X size={18} aria-hidden="true" />
             </button>
           </div>
         </div>

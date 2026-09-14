@@ -1,76 +1,83 @@
-import { NavLink } from 'react-router-dom';
+import { SlidersHorizontal } from 'lucide-react';
+import { Link, NavLink } from 'react-router-dom';
 import { NAV, SITE, UI } from './strings';
 
 export function TopNav({
   onToggleSettings,
+  settingsOpen = false,
   solid = false,
 }: {
   onToggleSettings?: () => void;
+  settingsOpen?: boolean;
   /** Opaque bar for static content pages, so scrolled text passes behind it. */
   solid?: boolean;
 }) {
   return (
     <header className={`topnav${solid ? ' solid' : ''}`}>
-      <div className="brand">
-        <span className="name">
-          <span className="brand-mark glitch" aria-hidden="true">
-            //
-          </span>
-          {SITE.name}
+      <Link className="brand" to="/" aria-label={`${SITE.name}, home`}>
+        <span className="brand-text">
+          <span className="name">{SITE.name}</span>
+          <span className="role">{SITE.role}</span>
         </span>
-      </div>
+      </Link>
       <nav aria-label="Primary">
         <NavLink
           to="/"
           end
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
+          <span className="nav-number" aria-hidden="true">
+            01
+          </span>
           {NAV.home}
         </NavLink>
         <NavLink
           to="/about"
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
+          <span className="nav-number" aria-hidden="true">
+            02
+          </span>
           {NAV.about}
         </NavLink>
         <NavLink
           to="/contact"
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
+          <span className="nav-number" aria-hidden="true">
+            03
+          </span>
           {NAV.contact}
         </NavLink>
         <NavLink
           to="/blog"
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
+          <span className="nav-number" aria-hidden="true">
+            04
+          </span>
           {NAV.blog}
         </NavLink>
         <NavLink
           to="/photography"
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
+          <span className="nav-number" aria-hidden="true">
+            05
+          </span>
           {NAV.photography}
         </NavLink>
         {onToggleSettings && (
           <button
             type="button"
-            className="icon-btn"
+            className={`icon-btn${settingsOpen ? ' active' : ''}`}
             aria-label={UI.settings}
+            aria-expanded={settingsOpen}
+            aria-controls={settingsOpen ? 'system-settings' : undefined}
             title={UI.settings}
             onClick={onToggleSettings}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-                stroke="currentColor"
-                strokeWidth="1.6"
-              />
-              <path
-                d="M19.4 13a7.6 7.6 0 0 0 .05-2l1.7-1.3-1.9-3.3-2 .8a7.5 7.5 0 0 0-1.7-1l-.3-2.1H9.7l-.3 2.1a7.5 7.5 0 0 0-1.7 1l-2-.8L3.8 9.7 5.5 11a7.6 7.6 0 0 0 0 2l-1.7 1.3 1.9 3.3 2-.8c.5.4 1.1.7 1.7 1l.3 2.1h4.6l.3-2.1c.6-.3 1.2-.6 1.7-1l2 .8 1.9-3.3-1.5-1.3Z"
-                stroke="currentColor"
-                strokeWidth="1.2"
-              />
-            </svg>
+            <SlidersHorizontal size={18} strokeWidth={1.7} aria-hidden="true" />
           </button>
         )}
       </nav>

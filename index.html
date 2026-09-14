@@ -3,8 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0a0806" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#c6c5c9" />
 
     <title>Cameron Micka — Principal Software Engineer</title>
     <meta
@@ -14,7 +17,10 @@
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Cameron Micka — Principal Software Engineer" />
+    <meta
+      property="og:title"
+      content="Cameron Micka — Principal Software Engineer"
+    />
     <meta
       property="og:description"
       content="A WebGPU 'Time Machine' career timeline. Microsoft · Fun Bits · LucasArts · DigiPen."
@@ -23,11 +29,11 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="/og.png" />
 
-    <!-- Display face for the wordmarks. Everything else uses the system mono. -->
+    <!-- Instrument labels and display typography. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Michroma&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
 
@@ -38,33 +44,32 @@
       #root {
         margin: 0;
         height: 100%;
-        background: #0a0806;
-        color: #f4dcbe;
+        color: #f1f0f2;
         font-family:
-          ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas,
-          'DejaVu Sans Mono', monospace;
+          'IBM Plex Mono', 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      html {
+        background: #202023;
       }
       #boot-skeleton {
         position: fixed;
         inset: 0;
         display: grid;
         place-items: center;
-        background: radial-gradient(
-          120% 120% at 50% 40%,
-          #1c0d03 0%,
-          #0b0705 55%,
-          #050403 100%
-        );
+        background: #18181b;
         z-index: 9999;
         transition: opacity 0.6s ease;
       }
       #boot-skeleton .pulse {
-        width: 46px;
-        height: 46px;
-        border: 2px solid #ff7a18;
-        box-shadow:
-          0 0 24px 2px rgba(255, 122, 24, 0.45),
-          inset 0 0 18px rgba(255, 122, 24, 0.25);
+        width: 96px;
+        height: 8px;
+        background: repeating-linear-gradient(
+          90deg,
+          #ff510b 0 5px,
+          transparent 5px 8px
+        );
+        border-radius: 4px;
+        box-shadow: 0 0 18px rgba(255, 81, 11, 0.2);
         animation: bootpulse 1.8s ease-in-out infinite;
       }
       /* Scanlines so the pre-hydration frame reads the same as the app. */
@@ -85,11 +90,9 @@
       @keyframes bootpulse {
         0%,
         100% {
-          transform: scale(0.85) rotate(0deg);
           opacity: 0.6;
         }
         50% {
-          transform: scale(1.05) rotate(45deg);
           opacity: 1;
         }
       }
