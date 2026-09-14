@@ -1817,15 +1817,16 @@ a:hover {
   .brand-text {
     width: 100%;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 3px 12px;
   }
   .topnav .brand .name {
     white-space: nowrap;
   }
   .topnav .brand .role {
-    max-width: 16ch;
+    white-space: nowrap;
   }
 }
 
