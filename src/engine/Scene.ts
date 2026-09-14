@@ -16,7 +16,7 @@ export interface PlanetModel {
   paletteLow: Vec3;
   paletteMid: Vec3;
   paletteHigh: Vec3;
-  poiDirs: { slug: string; dir: Vec3; surfaceDir: Vec3; accent: Vec3 }[];
+  poiDirs: { slug: string; dir: Vec3; accent: Vec3 }[];
   moonSpecs: {
     orbitRadius: number;
     size: number;
@@ -79,20 +79,6 @@ function moonPalette(rand: () => number): {
   };
 }
 
-// Nudge a unit direction by up to `maxDeg` degrees in a random azimuth, using
-// the supplied RNG so the offset is stable for a given planet/POI.
-function jitterDir(dir: Vec3, rand: () => number, maxDeg: number): Vec3 {
-  const theta = Math.sqrt(rand()) * (maxDeg * Math.PI) / 180;
-  const phi = rand() * Math.PI * 2;
-  const up: Vec3 = Math.abs(dir[1]) < 0.99 ? [0, 1, 0] : [1, 0, 0];
-  const t = vec3.normalize(vec3.cross(up, dir));
-  const b = vec3.cross(dir, t);
-  const tangent = vec3.add(vec3.scale(t, Math.cos(phi)), vec3.scale(b, Math.sin(phi)));
-  return vec3.normalize(
-    vec3.add(vec3.scale(dir, Math.cos(theta)), vec3.scale(tangent, Math.sin(theta))),
-  );
-}
-
 export function buildPlanetModels(companies: Company[]): PlanetModel[] {
   return companies.map((company, index) => {
     const seed = hashString(company.seed);
@@ -103,13 +89,11 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
     const radius = Math.min(3, Math.max(0.7, 0.44 + 0.26 * years));
 
     const dirs = fibonacciSpherePoints(company.pois.length, seed);
-    const surfRand = mulberry32(seed ^ 0x6b43a9f1);
     const poiDirs = company.pois.map((poi, i) => {
       const dir = dirs[i] ?? ([0, 1, 0] as Vec3);
       return {
         slug: poi.slug,
         dir,
-        surfaceDir: jitterDir(dir, surfRand, 6),
         accent: hexToRgb(poi.accent),
       };
     });
@@ -176,7 +160,7 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
 // marker clear of the surface so it never intersects the planet, leaving room
 // for a connector line back down to the surface.
 export function poiMarkerDistance(effectiveRadius: number): number {
-  return effectiveRadius * 1.18 + 0.3;
+  return effectiveRadius * 1.14 + 0.22;
 }
 
 // Spacecraft trajectory polyline that hops through every planet on the

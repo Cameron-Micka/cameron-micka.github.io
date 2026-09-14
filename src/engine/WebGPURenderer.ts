@@ -1734,8 +1734,7 @@ export class WebGPURenderer implements SceneRenderer {
     for (let i = 0; i < p.pois.length; i++) {
       const poi = p.pois[i]!;
       const dir = quat.rotateVec3(rot, poi.dir);
-      const surfDir = quat.rotateVec3(rot, poi.surfaceDir);
-      const inner = vec3.add(p.center, vec3.scale(surfDir, effectiveRadius));
+      const inner = vec3.add(p.center, vec3.scale(dir, effectiveRadius));
       const outer = vec3.add(p.center, vec3.scale(dir, markerDist));
       const dim = fade;
       const size = (0.027 + 0.021 * p.focus) * vis;

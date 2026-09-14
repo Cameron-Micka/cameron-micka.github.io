@@ -103,15 +103,11 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let dx = dpdx(d);
   let dy = dpdy(d);
   let aa = max(length(vec2<f32>(dx, dy)), 1e-4);
-  let alpha = (1.0 - smoothstep(radius - aa, radius + aa, d)) * in.dim;
-  let pinUv = in.uv / radius;
-  let dome = sqrt(max(1.0 - dot(pinUv, pinUv), 0.0));
-  let normal = vec3<f32>(pinUv, dome);
-  let lighting = clamp(dot(normal, normalize(vec3<f32>(-0.4, 0.5, 1.0))), 0.0, 1.0);
-  let specular = pow(lighting, 18.0) * 0.35;
+  let ring = abs(d - (radius - 0.05));
+  let alpha = (1.0 - smoothstep(0.05 - aa, 0.05 + aa, ring)) * in.dim;
   let halo = (1.0 - smoothstep(0.0, 4.0 * aa, abs(d - radius))) * in.dim;
   let glow = halo * pulse;
-  let rgb = UI_ACCENT * (0.38 + 0.62 * lighting) * alpha
-    + vec3<f32>(1.0, 0.95, 0.85) * (specular * alpha + glow * 1.6);
+  let rgb = UI_ACCENT * alpha
+    + vec3<f32>(1.0, 0.95, 0.85) * glow * 1.6;
   return vec4<f32>(rgb, min(1.0, alpha + glow * 0.8));
 }
