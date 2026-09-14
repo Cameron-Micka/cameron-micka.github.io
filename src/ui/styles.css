@@ -1754,6 +1754,9 @@ a:hover {
     flex-direction: column;
     gap: 8px;
   }
+  .transport-keys svg {
+    transform: rotate(90deg);
+  }
   .freecam {
     right: max(16px, env(safe-area-inset-right));
     top: calc(var(--nav-height) + 16px);
@@ -1805,6 +1808,28 @@ a:hover {
      container its own gutter so the bar never covers text or media. */
   .modal.expanded:not(.poi-modal) .modal-content {
     padding-right: 12px;
+  }
+}
+
+@media (max-width: 720px) and (orientation: portrait) {
+  :root {
+    --nav-height: 96px;
+  }
+  .topnav .brand {
+    align-self: stretch;
+  }
+  .brand-text {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .topnav .brand .name {
+    white-space: nowrap;
+  }
+  .topnav .brand .role {
+    max-width: 16ch;
   }
 }
 
@@ -1894,6 +1919,9 @@ a:hover {
   .transport-keys {
     flex-direction: row;
     gap: 6px;
+  }
+  .transport-keys svg {
+    transform: none;
   }
 }
 
