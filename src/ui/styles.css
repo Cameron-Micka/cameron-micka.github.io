@@ -1,35 +1,35 @@
 /* ============================================================
-  Silver hardware, charcoal displays, signal orange,
+  Beige hardware, warm charcoal displays, signal orange,
   and softly rounded instrument controls.
    ============================================================ */
 :root {
-  --bg: #202023;
-  --bg-deep: #121214;
-  --fg: #f1f0f2;
-  --muted: #aeaeb5;
+  --bg: #24211c;
+  --bg-deep: #15120f;
+  --fg: #f5eddd;
+  --muted: #bdb09b;
   --accent: #ff510b;
   --accent-2: #ff9966;
   --accent-ink: #b53705;
   --accent-soft: rgba(255, 81, 11, 0.12);
-  --glass: rgba(29, 29, 32, 0.96);
-  --glass-border: rgba(225, 225, 230, 0.2);
-  --rule: #aaaab0;
-  --grid-line: rgba(240, 240, 244, 0.028);
+  --glass: rgba(33, 29, 24, 0.96);
+  --glass-border: rgba(235, 220, 194, 0.2);
+  --rule: #b6a589;
+  --grid-line: rgba(245, 237, 221, 0.028);
   --danger: #ff795e;
-  --panel: #c6c5c9;
-  --panel-light: #e5e4e7;
-  --panel-edge: #98989f;
+  --panel: #d2bea0;
+  --panel-light: #ecdfc5;
+  --panel-edge: #a18b6d;
   --panel-grain: url('data:image/png;base64,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');
-  --ink: #232326;
-  --ink-muted: #57575e;
-  --phosphor: #f0f0f2;
-  --key-top: #f2f1f3;
-  --key-bottom: #cbcace;
-  --key-hover: #faf9fb;
-  --key-shadow: #85858d;
-  --screen: #232326;
-  --screen-top: #343438;
-  --screen-edge: #151517;
+  --ink: #2c251c;
+  --ink-muted: #60513e;
+  --phosphor: #f4e8cf;
+  --key-top: #f7eedb;
+  --key-bottom: #d7c3a3;
+  --key-hover: #fff7e6;
+  --key-shadow: #8e785b;
+  --screen: #28241d;
+  --screen-top: #3a342a;
+  --screen-edge: #18140f;
   --orange-top: #ff6a20;
   --orange-bottom: #ef4708;
   --orange-edge: #c14216;
@@ -39,7 +39,7 @@
   --radius-screen: 12px;
   --shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 20px 56px rgba(0, 0, 0, 0.32);
   --glow: 0 0 9px rgba(255, 81, 11, 0.22);
-  --text-glow: 0 0 9px rgba(240, 240, 242, 0.08);
+  --text-glow: 0 0 9px rgba(244, 232, 207, 0.08);
   --font:
     'IBM Plex Mono', 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
   --font-display: 'Space Grotesk', sans-serif;
@@ -150,17 +150,17 @@ a:hover {
 /* ---- Scrollbars ---- */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #85858e transparent;
+  scrollbar-color: var(--key-shadow) transparent;
 }
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 *::-webkit-scrollbar-track {
-  background: rgba(225, 225, 230, 0.04);
+  background: rgba(235, 220, 194, 0.04);
 }
 *::-webkit-scrollbar-thumb {
-  background: #85858e;
+  background: var(--key-shadow);
   border: 3px solid transparent;
   background-clip: padding-box;
 }
@@ -211,11 +211,11 @@ a:hover {
   background:
     var(--panel-grain),
     linear-gradient(180deg, var(--panel-light), var(--panel));
-  border-top: 1px solid #f9f8fa;
+  border-top: 1px solid var(--key-hover);
   border-bottom: 1px solid var(--panel-edge);
   border-radius: 0 0 var(--radius) var(--radius);
   box-shadow:
-    inset 0 -2px 0 rgba(100, 100, 108, 0.12),
+    inset 0 -2px 0 rgba(110, 89, 61, 0.12),
     0 5px 20px #0004;
 }
 /* Static content pages scroll, so the bar needs to be opaque to hide the text
@@ -311,7 +311,7 @@ a:hover {
   box-shadow:
     inset 0 1px 0 #fff9,
     0 1px 0 var(--key-shadow),
-    0 2px 4px #23232620;
+    0 2px 4px #2c251c20;
   cursor: pointer;
   transition:
     color 0.14s linear,
@@ -320,7 +320,7 @@ a:hover {
 }
 .navlink:hover {
   color: var(--ink);
-  border-color: #7e7e87;
+  border-color: var(--key-shadow);
   background: var(--key-hover);
   text-shadow: none;
   text-decoration: none;
@@ -368,7 +368,7 @@ a:hover {
     box-shadow 0.14s linear;
 }
 .icon-btn:hover {
-  border-color: #7e7e87;
+  border-color: var(--key-shadow);
   color: var(--accent-ink);
   background: var(--key-hover);
 }
@@ -394,12 +394,12 @@ a:hover {
 .icon-btn:disabled {
   opacity: 0.4;
   cursor: default;
-  box-shadow: inset 0 1px 2px #23232626;
+  box-shadow: inset 0 1px 2px #2c251c26;
 }
 .icon-btn:active:not(:disabled),
 .navlink:active {
   box-shadow:
-    inset 0 2px 3px #23232640,
+    inset 0 2px 3px #2c251c40,
     0 1px 0 #fff7;
 }
 
@@ -496,9 +496,9 @@ a:hover {
   height: 14px;
   border-radius: 50%;
   border: 1px solid var(--panel-edge);
-  background: #b8b7bd;
+  background: var(--key-bottom);
   box-shadow:
-    inset 0 1px 2px #23232630,
+    inset 0 1px 2px #2c251c30,
     0 1px 0 #fff8;
   transition:
     background 0.15s ease,
@@ -574,7 +574,7 @@ a:hover {
   border-radius: var(--radius);
   box-shadow:
     inset 0 1px 0 #fff9,
-    inset 0 -2px 0 #85858d30,
+    inset 0 -2px 0 #8e785b30,
     var(--shadow);
   z-index: 16;
 }
@@ -584,20 +584,24 @@ a:hover {
   inset: 10px;
   pointer-events: none;
   background:
-    radial-gradient(circle at 2px 2px, #85858d 1.5px, transparent 2px),
+    radial-gradient(
+      circle at 2px 2px,
+      var(--key-shadow) 1.5px,
+      transparent 2px
+    ),
     radial-gradient(
       circle at calc(100% - 2px) 2px,
-      #85858d 1.5px,
+      var(--key-shadow) 1.5px,
       transparent 2px
     ),
     radial-gradient(
       circle at 2px calc(100% - 2px),
-      #85858d 1.5px,
+      var(--key-shadow) 1.5px,
       transparent 2px
     ),
     radial-gradient(
       circle at calc(100% - 2px) calc(100% - 2px),
-      #85858d 1.5px,
+      var(--key-shadow) 1.5px,
       transparent 2px
     );
 }
@@ -634,8 +638,8 @@ a:hover {
   width: 5px;
   height: 8px;
   border-radius: 1px;
-  background: #96969e;
-  box-shadow: inset 0 1px 1px #23232630;
+  background: var(--panel-edge);
+  box-shadow: inset 0 1px 1px #2c251c30;
 }
 .channel-meter > .active {
   background: var(--accent);
@@ -702,7 +706,7 @@ a:hover {
 .ribbon .location::before {
   content: '/';
   margin-right: 8px;
-  color: #85858e;
+  color: var(--key-shadow);
 }
 .ribbon-transport {
   display: flex;
@@ -742,7 +746,7 @@ a:hover {
   padding-bottom: max(18px, env(safe-area-inset-bottom));
   padding-left: max(18px, env(safe-area-inset-left));
   padding-right: max(18px, env(safe-area-inset-right));
-  background: rgba(12, 12, 15, 0.65);
+  background: rgba(15, 12, 9, 0.65);
   animation: fade-in 0.2s ease;
 }
 .modal-scrim:has(.modal.expanded) {
@@ -767,7 +771,7 @@ a:hover {
   border-radius: calc(var(--radius) + 4px);
   background:
     var(--panel-grain),
-    repeating-linear-gradient(0deg, transparent 0 3px, #f0f0f203 3px 4px),
+    repeating-linear-gradient(0deg, transparent 0 3px, #f4e8cf03 3px 4px),
     linear-gradient(130deg, var(--screen-top), var(--screen));
   border: 8px solid var(--panel);
   box-shadow:
@@ -849,7 +853,7 @@ a:hover {
   line-height: 1.75;
   font-family: var(--font-display);
   font-size: 16px;
-  color: #d7d6dc;
+  color: #e2d6c1;
   overflow-wrap: anywhere;
 }
 .modal .body p {
@@ -985,7 +989,7 @@ a:hover {
   border: 1px solid var(--panel-edge);
   box-shadow:
     inset 0 1px 0 #fff9,
-    inset 0 -2px 0 #85858d30,
+    inset 0 -2px 0 #8e785b30,
     var(--shadow);
   padding: 20px;
   animation: rise 0.2s ease;
@@ -1022,7 +1026,7 @@ a:hover {
   margin: 0;
   padding: 12px 0;
   min-height: 48px;
-  border-bottom: 1px solid #b0afb7;
+  border-bottom: 1px solid var(--rule);
   font-size: 11px;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -1043,10 +1047,10 @@ a:hover {
   margin: 0;
   display: grid;
   place-items: center;
-  background: #9999a1;
-  border: 1px solid #85858e;
+  background: var(--panel-edge);
+  border: 1px solid var(--key-shadow);
   border-radius: 999px;
-  box-shadow: inset 0 1px 3px #23232630;
+  box-shadow: inset 0 1px 3px #2c251c30;
   cursor: pointer;
 }
 .settings input[type='checkbox']:checked {
@@ -1061,13 +1065,13 @@ a:hover {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: linear-gradient(180deg, #ffffff, #e7e6ed);
+  background: linear-gradient(180deg, var(--key-hover), var(--key-top));
   box-shadow: 0 1px 3px #0005;
   transition: transform 0.15s ease;
 }
 .settings input[type='checkbox']:checked::after {
   transform: translateX(16px);
-  background: #ffffff;
+  background: var(--key-hover);
 }
 .settings select {
   width: 138px;
@@ -1195,7 +1199,7 @@ a:hover {
   z-index: 60;
   display: grid;
   place-items: center;
-  background: #18181b;
+  background: var(--bg-deep);
   opacity: 1;
   transition: opacity 0.5s ease;
 }
