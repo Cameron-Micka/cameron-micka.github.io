@@ -17,7 +17,6 @@ export function TopNav({
       <Link className="brand" to="/" aria-label={`${SITE.name}, home`}>
         <span className="brand-text">
           <span className="name">{SITE.name}</span>
-          <span className="role">{SITE.role}</span>
         </span>
       </Link>
       <nav aria-label="Primary">
