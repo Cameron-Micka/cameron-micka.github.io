@@ -10,6 +10,8 @@ struct Frame {
 
 // UI accent orange (--accent: #ff7a18) so the 3D markers match the interface.
 const UI_ACCENT : vec3<f32> = vec3<f32>(1.0, 0.478, 0.094);
+// Match the connector's HALF_THICK in poi_line.wgsl, then convert to billboard UV.
+const HALF_THICK : f32 = 0.0035;
 
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
@@ -18,6 +20,7 @@ struct VSOut {
   @location(2) dim : f32,
   @location(3) ordinal : f32,
   @location(4) count : f32,
+  @location(5) halfThick : f32,
 };
 
 @vertex
@@ -41,6 +44,7 @@ fn vs(
   out.dim = attribs.y;
   out.ordinal = ordinal;
   out.count = count;
+  out.halfThick = HALF_THICK / attribs.x;
   return out;
 }
 
@@ -103,8 +107,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let dx = dpdx(d);
   let dy = dpdy(d);
   let aa = max(length(vec2<f32>(dx, dy)), 1e-4);
-  let ring = abs(d - (radius - 0.05));
-  let alpha = (1.0 - smoothstep(0.05 - aa, 0.05 + aa, ring)) * in.dim;
+  let ring = abs(d - (radius - in.halfThick));
+  let alpha = (1.0 - smoothstep(in.halfThick - aa, in.halfThick + aa, ring)) * in.dim;
   let halo = (1.0 - smoothstep(0.0, 4.0 * aa, abs(d - radius))) * in.dim;
   let glow = halo * pulse;
   let rgb = UI_ACCENT * alpha

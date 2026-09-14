@@ -575,7 +575,7 @@ void main(){
   // independent of camera distance.
   float ps=(uMode<0.5)?(aAttr.x/max(clip.w,0.001)):(aAttr.x*uHeight);
   gl_PointSize=clamp(ps,1.0,256.0);
-  vAttr=vec4(twinkle,aAttr.y,uMode,aAttr.x);
+  vAttr=vec4(twinkle,aAttr.y,uMode,(uMode<0.5)?aAttr.x:gl_PointSize/uHeight);
   vColor=aColor;
   vOrdinal=aAttr.z;
   vCount=aAttr.w;
@@ -640,8 +640,10 @@ void main(){
     float pulse=shimmer(pinUv,vOrdinal,vCount);
     float radius=0.32+0.02*pulse;
     float aa=max(length(vec2(dFdx(d),dFdy(d))),1e-4);
-    float ring=abs(d-(radius-0.05));
-    float a=(1.0-smoothstep(0.05-aa,0.05+aa,ring))*vAttr.y;
+    // Match the connector's uThick in NDC, converted to the clamped point's UV.
+    float halfThick=0.0035/vAttr.w;
+    float ring=abs(d-(radius-halfThick));
+    float a=(1.0-smoothstep(halfThick-aa,halfThick+aa,ring))*vAttr.y;
     float halo=(1.0-smoothstep(0.0,4.0*aa,abs(d-radius)))*vAttr.y;
     float glow=halo*pulse;
     // UI accent orange (--accent: #ff7a18) so markers match the interface.
