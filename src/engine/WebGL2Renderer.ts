@@ -8,8 +8,12 @@ import { poiMarkerDistance, poiFocusFade } from './Scene';
 import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
 
-// Lower-fidelity mirror of the WebGPU experience: procedural planets, a nebula
-// backdrop, additive star + POI points. No HDR/bloom post — rendered directly.
+type PostTarget = {
+  framebuffer: WebGLFramebuffer;
+  texture: WebGLTexture;
+};
+
+// WebGL mirror of the WebGPU experience, with an HDR scene target when supported.
 // Must match CLOUD_SHELL_SCALE in clouds.wgsl / planet.wgsl / PLANET_FRAG /
 // CLOUDS_FRAG: cloud-shadow projection in the planet shader assumes the
 // shell sits exactly here in unit-sphere local space.
@@ -33,6 +37,8 @@ in vec2 vUv;
 out vec4 frag;
 uniform float uTime;
 uniform mat4 uInvViewProj;
+uniform float uTier;
+uniform float uHeight;
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise3(vec3 x){
@@ -41,7 +47,7 @@ float vnoise3(vec3 x){
   float n001=hash3(i+vec3(0,0,1)),n101=hash3(i+vec3(1,0,1)),n011=hash3(i+vec3(0,1,1)),n111=hash3(i+vec3(1,1,1));
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
-float fbm3(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vnoise3(p);p*=2.03;a*=.5;}return v;}
+float fbm3(vec3 p,int octaves){float v=0.,a=.5;for(int i=0;i<4;i++){if(i>=octaves)break;v+=a*vnoise3(p);p*=2.03;a*=.5;}return v;}
 void main(){
   vec2 ndc=vec2(vUv.x*2.0-1.0,vUv.y*2.0-1.0);
   vec4 nearH=uInvViewProj*vec4(ndc,0.0,1.0);
@@ -61,24 +67,31 @@ void main(){
   vec3 glow=vec3(0.70,0.42,0.16);
   vec3 cool=vec3(0.04,0.06,0.14);
   vec3 deep=vec3(0.008,0.014,0.035);
-  float jitter=hash21(gl_FragCoord.xy)*0.10;
+  float jitter=hash21(vec2(gl_FragCoord.x,uHeight-gl_FragCoord.y))*0.10;
   float t=0.45+jitter;
   vec3 col=vec3(0.0);
   float alpha=0.0;
-  for(int i=0;i<24;i++){
+  bool medium=uTier>0.5;
+  bool low=uTier>1.5;
+  int steps=low?14:(medium?20:28);
+  int octaves=medium?3:4;
+  float stepLength=low?0.20:(medium?0.14:0.10);
+  float increment=low?1.9:(medium?1.35:1.0);
+  for(int i=0;i<28;i++){
+    if(i>=steps)break;
     vec3 p=ro+rd*t;
-    float n=fbm3(p*1.05+drift);
+    float n=fbm3(p*1.05+drift,octaves);
     float dens=smoothstep(0.46,0.78,n);
     float coreFade=exp(-rad*1.10);
     float density=dens*(0.35+0.95*coreFade);
     float warmth=coreFade*(0.35+0.65*smoothstep(0.5,0.85,n));
     vec3 samp=mix(cool,warm,clamp(warmth,0.0,1.0));
     samp=mix(samp,glow,smoothstep(0.72,1.0,n)*coreFade*0.65);
-    float inc=density*0.14;
+    float inc=density*0.14*increment;
     col+=samp*inc*(1.0-alpha);
     alpha+=inc*(1.0-alpha);
     if(alpha>0.97) break;
-    t+=0.10+t*0.020;
+    t+=stepLength+t*0.020;
   }
   vec3 bg=mix(deep,cool*0.55,smoothstep(0.0,1.4,rad));
   col+=bg*(1.0-alpha);
@@ -107,6 +120,7 @@ precision highp float;
 in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
+uniform float uHdr;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
 uniform float uCityLights;uniform float uFlow;uniform float uCraters;
@@ -322,7 +336,7 @@ void main(){
   vec3 viewDir=normalize(uCamera-vWorld);
   vec3 lightDir=normalize(uLight);
   float rim=pow(1.0-clamp(dot(n,viewDir),0.0,1.0),3.0);
-  vec3 sp=vLocal*2.2+vec3(uSeed*0.001);
+  vec3 sp=vLocal*(2.2+uSeed*0.0001)+vec3(uSeed*0.001);
   // Flow-field advection (after Emil Dziewanowski,
   // https://emildziewanowski.com/flowfields/): when uFlow is on, advect the
   // marbled surface detail along a tangent flow field, cross-fading two
@@ -550,7 +564,7 @@ void main(){
   col+=uHigh*rim*NdL*0.55*shadow;
   col*=(0.85+0.3*uFocus);
   col=mix(col,FOG_COLOR,fogFactor(vWorld,uCamera));
-  frag=vec4(aces(col),1.0);
+  frag=vec4(uHdr>0.5?col:aces(col),1.0);
 }`;
 
 const POINT_VERT = `#version 300 es
@@ -856,10 +870,6 @@ precision highp float;
 out vec4 frag;
 void main(){ frag=vec4(0.25,1.0,0.85,1.0); }`;
 
-// Final present pass: samples the resolved scene texture and applies the sRGB
-// OETF (gamma ~2.2). The scene is rendered/tonemapped in linear space into an
-// offscreen buffer; without this encode the canvas displays linear values as
-// if sRGB, which looks much too dark. Mirrors the tail of composite.wgsl.
 // Planetary ring: a flat annulus mesh oriented by uModel. Ported from
 // ring.wgsl. Curved bands (angular sin modulation) + layered fBm + Cassini
 // gaps; palette zones, planet-shadow dimming, forward-scatter, Kajiya-Kay
@@ -1045,14 +1055,41 @@ void main(){
   vUv = p * 0.5 + 0.5;
   gl_Position = vec4(p, 0.0, 1.0);
 }`;
-const PRESENT_FRAG = `#version 300 es
+const BLIT_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uScene;
+out vec4 frag;
+void main(){frag=vec4(texture(uScene,vUv).rgb,1.0);}
+`;
+
+const DOWNSAMPLE_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uScene;
+uniform vec2 uFxTexel;
+out vec4 frag;
+vec3 sampleSrc(vec2 uv){return texture(uScene,clamp(uv,0.001,0.999)).rgb;}
+void main(){
+  vec2 offset=uFxTexel*0.25;
+  vec3 col=sampleSrc(vUv+vec2(-offset.x,-offset.y))
+    +sampleSrc(vUv+vec2(offset.x,-offset.y))
+    +sampleSrc(vUv+vec2(-offset.x,offset.y))
+    +sampleSrc(vUv+vec2(offset.x,offset.y));
+  frag=vec4(col*0.25,1.0);
+}`;
+
+const POSTFX_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
 uniform sampler2D uScene;
 uniform vec3 uFlare;   // xy = sun screen uv, z = strength
 uniform float uAspect; // width / height
-uniform float uBarrel; // CRT lens curvature, 0 = flat
+uniform vec2 uFxTexel;
+uniform float uBlur;
+uniform float uBloom;
 out vec4 frag;
+vec3 sampleSrc(vec2 uv){return texture(uScene,clamp(uv,0.001,0.999)).rgb;}
 // Deep-space lens flare (mu6k 4sX3Rs): chromatic ghost discs through screen
 // centre and reflection halos. uv/pos centred + aspect.
 vec3 lensflare(vec2 uv, vec2 pos){
@@ -1090,7 +1127,7 @@ vec3 sunFlare(vec2 uv){
 // bright part of the scene with exponential decay so planets carve ray gaps.
 vec3 godRays(vec2 uv){
   if(uFlare.z<=0.001) return vec3(0.0);
-  const int NUM=48;
+  const int NUM=64;
   float density=0.6;
   float decay=0.96;
   float exposure=0.016;
@@ -1100,13 +1137,60 @@ vec3 godRays(vec2 uv){
   float acc=0.0;
   for(int i=0;i<NUM;i++){
     coord-=delta;
-    float lum=dot(texture(uScene,clamp(coord,0.001,0.999)).rgb,vec3(0.2126,0.7152,0.0722));
+    float lum=dot(sampleSrc(coord),vec3(0.2126,0.7152,0.0722));
     float m=clamp((lum-0.85)*3.0,0.0,1.0);
     acc+=m*illum;
     illum*=decay;
   }
   return vec3(acc)*(exposure*uFlare.z)*vec3(1.0,0.92,0.78);
 }
+vec3 bloom(vec2 uv){
+  vec3 acc=vec3(0.0);
+  float weights=0.0;
+  for(int column=-2;column<=2;column++){
+    for(int row=-2;row<=2;row++){
+      vec2 offset=vec2(float(column),float(row));
+      float weight=exp(-dot(offset,offset)*0.30);
+      acc+=max(sampleSrc(uv+offset*uFxTexel)-vec3(0.7),vec3(0.0))*weight;
+      weights+=weight;
+    }
+  }
+  return acc/weights;
+}
+vec3 blurScene(vec2 uv){
+  vec3 acc=vec3(0.0);
+  float weights=0.0;
+  vec2 radius=uFxTexel*2.2*uBlur;
+  for(int column=-3;column<=3;column++){
+    for(int row=-3;row<=3;row++){
+      vec2 offset=vec2(float(column)+0.5,-(float(row)+0.5));
+      float weight=exp(-dot(offset,offset)*0.16);
+      acc+=sampleSrc(uv+offset*radius)*weight;
+      weights+=weight;
+    }
+  }
+  return acc/weights;
+}
+void main(){
+  vec3 col=vec3(0.0);
+  if(uBlur>0.001) col=blurScene(vUv);
+  if(uBloom>0.001) col+=bloom(vUv)*uBloom;
+  col+=sunFlare(vUv)+godRays(vUv);
+  frag=vec4(col,1.0);
+}`;
+
+const PRESENT_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uScene;
+uniform sampler2D uFx;
+uniform vec3 uPost;
+uniform float uFxOn;
+uniform float uBarrel;
+uniform float uHdr;
+out vec4 frag;
+vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
+vec3 sampleScene(vec2 uv){return texture(uScene,clamp(uv,0.001,0.999)).rgb;}
 // CRT lens curvature: bow the sample coordinates outward with r^2, then divide
 // by the corner factor (r^2 = 0.5) so the corners still land exactly on the
 // frame edge and the warped image keeps filling the canvas.
@@ -1117,11 +1201,23 @@ vec2 barrel(vec2 uv){
   return 0.5 + c*((1.0+uBarrel*r2)/(1.0+uBarrel*0.5));
 }
 void main(){
-  vec2 uv = barrel(vUv);
-  vec3 c = texture(uScene, uv).rgb;
-  c += sunFlare(uv);
-  c += godRays(uv);
-  frag = vec4(pow(c, vec3(1.0/2.2)), 1.0);
+  vec2 uv=barrel(vUv);
+  vec3 col;
+  if(uFxOn>0.5 && uPost.x>0.001){
+    col=texture(uFx,uv).rgb;
+  }else{
+    if(uPost.z>0.00001){
+      vec2 offset=(uv-0.5)*uPost.z;
+      col=vec3(sampleScene(uv+offset).r,sampleScene(uv).g,sampleScene(uv-offset).b);
+    }else{
+      col=sampleScene(uv);
+    }
+    if(uFxOn>0.5) col+=texture(uFx,uv).rgb;
+  }
+  vec3 mapped=uHdr>0.5?aces(col):clamp(col,0.0,1.0);
+  if(uPost.y>0.001) mapped*=1.0-uPost.y*smoothstep(0.35,0.85,distance(uv,vec2(0.5)));
+  mapped*=1.0-0.25*uPost.x;
+  frag=vec4(pow(mapped,vec3(1.0/2.2)),1.0);
 }`;
 
 // Single-scattering atmosphere, matching atmosphere.wgsl in shell-thickness units.
@@ -1131,6 +1227,7 @@ precision highp float;
 in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
+uniform float uHdr;
 uniform vec3 uColor;uniform vec3 uCenter;
 uniform float uInner;uniform float uOuter;uniform float uFocus;uniform float uIntensity;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
@@ -1206,9 +1303,9 @@ void main(){
   float intensity=uIntensity*(0.85+0.3*uFocus);
   col*=5.0*intensity;
   // Distance fog (additive shell -> attenuate).
-  float dist=distance(vWorld,ro);float fs=dist*0.030;
+  float dist=distance(vWorld,ro);float fs=dist*0.018;
   col*=exp(-fs*fs);
-  frag=vec4(aces(col),1.0);
+  frag=vec4(uHdr>0.5?col:aces(col),1.0);
 }`;
 
 // Cloud shell (alpha-blended, drawn between the planet surface and the
@@ -1217,6 +1314,7 @@ void main(){
 // cloudShadow so the projected shadow lines up with the rendered puff.
 const CLOUDS_FRAG = `#version 300 es
 precision highp float;
+uniform float uTier;
 in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
@@ -1258,6 +1356,7 @@ float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf){
   vec3 r2=normalize(uModel[2].xyz);
   vec3 localSun=normalize(vec3(dot(r0,worldSun),dot(r1,worldSun),dot(r2,worldSun)));
   float d1=cloudDensity(normalize(localDir+localSun*0.045),time,seedf);
+  if(uTier>0.5)return 1.0-clamp(d1*0.85,0.0,1.0)*0.70;
   float d2=cloudDensity(normalize(localDir+localSun*0.090),time,seedf);
   float d3=cloudDensity(normalize(localDir+localSun*0.160),time,seedf);
   float occ=clamp(0.55*d1+0.30*d2+0.15*d3,0.0,1.0);
@@ -1357,7 +1456,7 @@ void main(){
   float alpha=max(baseA,stormA);
   // Distance fog attenuation on the alpha so far clouds don't punch holes
   // in the haze.
-  float dist=distance(vWorld,uCamera);float sd=dist*0.030;
+  float dist=distance(vWorld,uCamera);float sd=dist*0.018;
   alpha*=exp(-sd*sd);
   frag=vec4(col,alpha);
 }`;
@@ -1476,14 +1575,14 @@ void main(){
 
 // The scene's star — mirror of sun.wgsl. Reuses PLANET_VERT (gives vNrm/vLocal/
 // vWorld). Emissive surface with granulation + dark sunspots + limb darkening;
-// no lighting and no distance fog (it is a light source). The WebGL2 scene
-// target is RGBA8, so the body is kept near/below 1.0 with clearly darker spots
-// rather than relying on HDR bloom.
+// no lighting and no distance fog (it is a light source). Preserve HDR energy
+// for bloom, with a dimmer body only on the RGBA8 fallback.
 const SUN_FRAG = `#version 300 es
 precision highp float;
 in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform float uTime;uniform float uSeed;
+uniform float uHdr;
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
   vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
@@ -1534,7 +1633,7 @@ void main(){
   float ndv=max(dot(normalize(vNrm),V),0.0);
   float limb=0.55+0.45*pow(ndv,0.55);
   col*=limb;
-  frag=vec4(col*1.3,1.0);
+  frag=vec4(col*(uHdr>0.5?2.2:1.3),1.0);
 }`;
 
 // Camera-facing additive corona billboard — mirror of sun.wgsl corona.
@@ -1609,6 +1708,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private height = 1;
 
   private nebula!: Program;
+  private backdrop!: Program;
   private planet!: Program;
   private point!: Program;
   private line!: Program;
@@ -1620,17 +1720,25 @@ export class WebGL2Renderer implements SceneRenderer {
   private flight!: Program;
   private sun!: Program;
   private corona!: Program;
+  private downsample!: Program;
+  private postfx!: Program;
   private present!: Program;
 
-  // Offscreen scene target: the scene is rendered (and per-shader tonemapped)
-  // in linear space into a multisampled buffer, resolved to a texture, then
-  // presented to the canvas with the sRGB gamma encode. Mirrors the WebGPU
-  // HDR-scene + composite split so both backends match in brightness.
+  // Blend in linear HDR before applying the WebGPU tone curve at presentation.
+  // Devices without float color attachments retain the RGBA8 fallback.
+  private hdr = false;
+  private sceneSamples = 0;
+  private dpr = 1;
   private msaaFbo: WebGLFramebuffer | null = null;
   private msaaColor: WebGLRenderbuffer | null = null;
   private msaaDepth: WebGLRenderbuffer | null = null;
   private resolveFbo: WebGLFramebuffer | null = null;
   private sceneTex: WebGLTexture | null = null;
+  private fxSource: PostTarget | null = null;
+  private fxTarget: PostTarget | null = null;
+  private fxWidth = 0;
+  private fxHeight = 0;
+  private backdropTarget: (PostTarget & { width: number; height: number }) | null = null;
 
   // Sphere meshes, one per LOD level (index 0 = finest). Each body selects a
   // level from its on-screen angular size so distant planets, moons and the
@@ -1697,6 +1805,7 @@ export class WebGL2Renderer implements SceneRenderer {
     if (!gl) throw new Error('WebGL2 not available');
     this.gl = gl;
     this.canvas = canvas;
+    this.hdr = !!gl.getExtension('EXT_color_buffer_float');
 
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -1704,11 +1813,12 @@ export class WebGL2Renderer implements SceneRenderer {
     });
 
     await report(0.35, 'Compiling shaders…');
-    this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj']);
+    this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj', 'uTier', 'uHeight']);
+    this.backdrop = this.makeProgram(PRESENT_VERT, BLIT_FRAG, ['uScene']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow', 'uCraters',
-      'uTime', 'uCloudShadow',
+      'uTime', 'uCloudShadow', 'uHdr',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
@@ -1720,12 +1830,12 @@ export class WebGL2Renderer implements SceneRenderer {
     this.wire = this.makeProgram(PLANET_VERT, WIRE_FRAG, ['uViewProj', 'uModel']);
     this.atmosphere = this.makeProgram(PLANET_VERT, ATMOSPHERE_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uColor', 'uCenter',
-      'uInner', 'uOuter', 'uFocus', 'uIntensity',
+      'uInner', 'uOuter', 'uFocus', 'uIntensity', 'uHdr',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.clouds = this.makeProgram(PLANET_VERT, CLOUDS_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uTint', 'uCenter',
-      'uTime', 'uSeed', 'uVisibility',
+      'uTime', 'uSeed', 'uVisibility', 'uTier',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.aurora = this.makeProgram(PLANET_VERT, AURORA_FRAG, [
@@ -1741,12 +1851,14 @@ export class WebGL2Renderer implements SceneRenderer {
       'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe', 'uTime',
     ]);
     this.sun = this.makeProgram(PLANET_VERT, SUN_FRAG, [
-      'uViewProj', 'uModel', 'uCamera', 'uTime', 'uSeed',
+      'uViewProj', 'uModel', 'uCamera', 'uTime', 'uSeed', 'uHdr',
     ]);
     this.corona = this.makeProgram(CORONA_VERT, CORONA_FRAG, [
       'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime',
     ]);
-    this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene', 'uFlare', 'uAspect', 'uBarrel']);
+    this.downsample = this.makeProgram(PRESENT_VERT, DOWNSAMPLE_FRAG, ['uScene', 'uFxTexel']);
+    this.postfx = this.makeProgram(PRESENT_VERT, POSTFX_FRAG, ['uScene', 'uFlare', 'uAspect', 'uFxTexel', 'uBlur', 'uBloom']);
+    this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene', 'uFx', 'uPost', 'uFxOn', 'uBarrel', 'uHdr']);
 
     await report(0.75, 'Building scene geometry…');
     this.buildSphere();
@@ -2025,9 +2137,10 @@ export class WebGL2Renderer implements SceneRenderer {
     return n;
   }
 
-  resize(width: number, height: number): void {
+  resize(width: number, height: number, dpr = 1): void {
     this.width = Math.max(1, Math.floor(width));
     this.height = Math.max(1, Math.floor(height));
+    this.dpr = Math.max(1, dpr);
     this.canvas.width = this.width;
     this.canvas.height = this.height;
     this.gl.viewport(0, 0, this.width, this.height);
@@ -2045,13 +2158,18 @@ export class WebGL2Renderer implements SceneRenderer {
     if (this.msaaFbo) gl.deleteFramebuffer(this.msaaFbo);
     if (this.sceneTex) gl.deleteTexture(this.sceneTex);
     if (this.resolveFbo) gl.deleteFramebuffer(this.resolveFbo);
+    this.destroyPostTargets();
+    this.destroyBackdropTarget();
 
-    const maxSamples = gl.getParameter(gl.MAX_SAMPLES) as number;
-    const samples = Math.min(4, maxSamples);
+    const colorFormat = this.hdr ? gl.RGBA16F : gl.RGBA8;
+    const colorSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, colorFormat, gl.SAMPLES) as Int32Array;
+    const depthSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) as Int32Array;
+    const samples = Math.max(0, ...Array.from(colorSamples).filter((sample) => sample <= 4 && depthSamples.includes(sample)));
+    this.sceneSamples = samples;
 
     const color = gl.createRenderbuffer()!;
     gl.bindRenderbuffer(gl.RENDERBUFFER, color);
-    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.RGBA8, w, h);
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, colorFormat, w, h);
     const depth = gl.createRenderbuffer()!;
     gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
     gl.renderbufferStorageMultisample(
@@ -2065,10 +2183,11 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, msaa);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+    const sceneComplete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
 
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, colorFormat, w, h, 0, gl.RGBA, this.hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -2076,6 +2195,7 @@ export class WebGL2Renderer implements SceneRenderer {
     const resolve = gl.createFramebuffer()!;
     gl.bindFramebuffer(gl.FRAMEBUFFER, resolve);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    const resolveComplete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindRenderbuffer(gl.RENDERBUFFER, null);
@@ -2086,12 +2206,103 @@ export class WebGL2Renderer implements SceneRenderer {
     this.msaaDepth = depth;
     this.resolveFbo = resolve;
     this.sceneTex = tex;
+
+    if (!sceneComplete || !resolveComplete) {
+      if (this.hdr) {
+        this.hdr = false;
+        this.ensureSceneTargets();
+        return;
+      }
+      throw new Error('WebGL2 scene framebuffer is incomplete');
+    }
+    for (const program of [this.planet, this.atmosphere, this.sun, this.present]) {
+      gl.useProgram(program.prog);
+      gl.uniform1f(program.uniforms.uHdr!, this.hdr ? 1 : 0);
+    }
+  }
+
+  private createPostTarget(width: number, height: number): PostTarget {
+    const gl = this.gl;
+    const texture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, this.hdr ? gl.RGBA16F : gl.RGBA8, width, height, 0, gl.RGBA, this.hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const framebuffer = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      gl.deleteFramebuffer(framebuffer);
+      gl.deleteTexture(texture);
+      throw new Error('WebGL2 post-processing framebuffer is incomplete');
+    }
+    return { framebuffer, texture };
+  }
+
+  private destroyPostTargets(): void {
+    for (const target of [this.fxSource, this.fxTarget]) {
+      if (!target) continue;
+      this.gl.deleteFramebuffer(target.framebuffer);
+      this.gl.deleteTexture(target.texture);
+    }
+    this.fxSource = null;
+    this.fxTarget = null;
+    this.fxWidth = 0;
+    this.fxHeight = 0;
+  }
+
+  private ensurePostTargets(scale: number): void {
+    const [width, height] = this.auxSize(scale);
+    if (width === this.fxWidth && height === this.fxHeight) return;
+    this.destroyPostTargets();
+    this.fxSource = this.createPostTarget(width, height);
+    this.fxTarget = this.createPostTarget(width, height);
+    this.fxWidth = width;
+    this.fxHeight = height;
+  }
+
+  private auxSize(scale: number): [number, number] {
+    const factor = Math.max(0.1, Math.min(1, scale)) / this.dpr;
+    return [
+      Math.max(1, Math.min(this.width, Math.round(this.width * factor))),
+      Math.max(1, Math.min(this.height, Math.round(this.height * factor))),
+    ];
+  }
+
+  private destroyBackdropTarget(): void {
+    if (!this.backdropTarget) return;
+    this.gl.deleteFramebuffer(this.backdropTarget.framebuffer);
+    this.gl.deleteTexture(this.backdropTarget.texture);
+    this.backdropTarget = null;
+  }
+
+  private ensureBackdropTarget(scale: number): void {
+    const [width, height] = this.auxSize(scale);
+    if (this.backdropTarget?.width === width && this.backdropTarget.height === height) return;
+    this.destroyBackdropTarget();
+    this.backdropTarget = { ...this.createPostTarget(width, height), width, height };
   }
 
   render(frame: FrameState): void {
     const gl = this.gl;
     this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: this.estimateMemoryMB() };
     if (!this.msaaFbo) this.ensureSceneTargets();
+    const tier = frame.quality.tier === 'high' ? 0 : frame.quality.tier === 'low' ? 2 : 1;
+    this.ensureBackdropTarget(frame.quality.backdropScale);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.backdropTarget!.framebuffer);
+    gl.viewport(0, 0, this.backdropTarget!.width, this.backdropTarget!.height);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+    gl.useProgram(this.nebula.prog);
+    gl.uniform1f(this.nebula.uniforms.uTime!, frame.time);
+    gl.uniform1f(this.nebula.uniforms.uTier!, tier);
+    gl.uniform1f(this.nebula.uniforms.uHeight!, this.backdropTarget!.height);
+    gl.uniformMatrix4fv(this.nebula.uniforms.uInvViewProj!, false, frame.invViewProj);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    this.stats.drawCalls++;
     // Render the scene into the offscreen multisampled (linear) target; the
     // present pass below resolves it and applies the sRGB gamma encode.
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.msaaFbo);
@@ -2101,9 +2312,10 @@ export class WebGL2Renderer implements SceneRenderer {
 
     // Nebula (no depth).
     gl.disable(gl.DEPTH_TEST);
-    gl.useProgram(this.nebula.prog);
-    gl.uniform1f(this.nebula.uniforms.uTime!, frame.time);
-    gl.uniformMatrix4fv(this.nebula.uniforms.uInvViewProj!, false, frame.invViewProj);
+    gl.useProgram(this.backdrop.prog);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.backdropTarget!.texture);
+    gl.uniform1i(this.backdrop.uniforms.uScene!, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.stats.drawCalls++;
 
@@ -2225,7 +2437,7 @@ export class WebGL2Renderer implements SceneRenderer {
       // body slows in lockstep with the cloud shell when the planet pauses.
       gl.uniform1f(this.planet.uniforms.uTime!, p.cloudTime);
       const planetLod = selectSphereLod(p.center, er, frame.cameraPos);
-      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, planetLod, p.cityLights, p.flowMap);
+      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, planetLod, p.cityLights, p.flowMap && tier === 0);
       for (const m of p.moons) {
         const orbit = m.orbitRadius * vis;
         // Moon orbit offset lives in the planet's local frame; rotate it by
@@ -2313,6 +2525,7 @@ export class WebGL2Renderer implements SceneRenderer {
       // appear only as a thin silhouette rim).
       gl.frontFace(gl.CW);
       gl.useProgram(this.clouds.prog);
+      gl.uniform1f(this.clouds.uniforms.uTier!, tier);
       gl.uniformMatrix4fv(this.clouds.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform3fv(this.clouds.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.clouds.uniforms.uLight!, frame.keyLightDir);
@@ -2354,6 +2567,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.depthMask(false);
     gl.enable(gl.CULL_FACE);
     gl.cullFace(gl.BACK);
+    gl.frontFace(gl.CW);
     gl.useProgram(this.atmosphere.prog);
     gl.uniformMatrix4fv(this.atmosphere.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.atmosphere.uniforms.uCamera!, frame.cameraPos);
@@ -2371,7 +2585,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform1f(this.atmosphere.uniforms.uInner!, er);
       gl.uniform1f(this.atmosphere.uniforms.uOuter!, outerR);
       gl.uniform1f(this.atmosphere.uniforms.uFocus!, p.focus);
-      gl.uniform1f(this.atmosphere.uniforms.uIntensity!, 0.9 * vis);
+      gl.uniform1f(this.atmosphere.uniforms.uIntensity!, 1.4 * vis);
       const mesh = this.sphereLods[selectSphereLod(p.center, er, frame.cameraPos)]!;
       gl.bindVertexArray(mesh.vao);
       gl.drawElements(
@@ -2383,6 +2597,7 @@ export class WebGL2Renderer implements SceneRenderer {
       this.stats.drawCalls++;
     }
     gl.disable(gl.CULL_FACE);
+    gl.frontFace(gl.CCW);
     gl.depthMask(true);
 
     // Auroral shells (additive, camera-facing hemisphere only). Drawn after the
@@ -2580,8 +2795,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.disable(gl.BLEND);
 
     // Resolve the multisampled scene into the single-sample texture, then
-    // present it to the canvas with the sRGB gamma encode (matches the
-    // pow(1/2.2) tail of the WebGPU composite pass).
+    // run reduced-resolution effects, then apply the WebGPU composite curve.
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msaaFbo);
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.resolveFbo);
     gl.blitFramebuffer(
@@ -2589,6 +2803,37 @@ export class WebGL2Renderer implements SceneRenderer {
       0, 0, this.width, this.height,
       gl.COLOR_BUFFER_BIT, gl.NEAREST,
     );
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+    const lowNoPost = frame.quality.tier === 'low';
+    const blur = lowNoPost ? 0 : frame.blur;
+    const bloom = lowNoPost || frame.quality.bloomMips === 0 ? 0 : 0.8;
+    const flare = computeSunFlare(frame);
+    const flareStrength = lowNoPost ? 0 : flare.strength;
+    const fxEnabled = blur > 0.001 || bloom > 0.001 || flareStrength > 0.001;
+    if (fxEnabled) {
+      this.ensurePostTargets(frame.quality.postScale);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fxSource!.framebuffer);
+      gl.viewport(0, 0, this.fxWidth, this.fxHeight);
+      gl.useProgram(this.downsample.prog);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
+      gl.uniform1i(this.downsample.uniforms.uScene!, 0);
+      gl.uniform2f(this.downsample.uniforms.uFxTexel!, 1 / this.fxWidth, 1 / this.fxHeight);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fxTarget!.framebuffer);
+      gl.useProgram(this.postfx.prog);
+      gl.bindTexture(gl.TEXTURE_2D, this.fxSource!.texture);
+      gl.uniform1i(this.postfx.uniforms.uScene!, 0);
+      gl.uniform2f(this.postfx.uniforms.uFxTexel!, 1 / this.fxWidth, 1 / this.fxHeight);
+      gl.uniform3f(this.postfx.uniforms.uFlare!, flare.u, 1 - flare.v, flareStrength);
+      gl.uniform1f(this.postfx.uniforms.uAspect!, this.width / this.height);
+      gl.uniform1f(this.postfx.uniforms.uBlur!, blur);
+      gl.uniform1f(this.postfx.uniforms.uBloom!, bloom);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      this.stats.drawCalls += 2;
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.width, this.height);
     gl.disable(gl.DEPTH_TEST);
@@ -2597,11 +2842,14 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
     gl.uniform1i(this.present.uniforms.uScene!, 0);
-    const flare = computeSunFlare(frame);
-    gl.uniform3f(this.present.uniforms.uFlare!, flare.u, flare.v, flare.strength);
-    gl.uniform1f(this.present.uniforms.uAspect!, this.width / this.height);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.fxTarget?.texture ?? this.sceneTex);
+    gl.uniform1i(this.present.uniforms.uFx!, 1);
+    gl.uniform1f(this.present.uniforms.uFxOn!, fxEnabled ? 1 : 0);
+    gl.uniform3f(this.present.uniforms.uPost!, blur, lowNoPost ? 0 : 0.55, !lowNoPost && frame.quality.chromaticAberration ? 0.0035 : 0);
     gl.uniform1f(this.present.uniforms.uBarrel!, frame.crtBarrel);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.activeTexture(gl.TEXTURE0);
     this.stats.drawCalls++;
   }
 
@@ -2830,7 +3078,11 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   private estimateMemoryMB(): number {
-    return (this.width * this.height * 4 + this.starCount * 40) / (1024 * 1024);
+    const colorBytes = this.hdr ? 8 : 4;
+    const sceneBytes = this.width * this.height * ((colorBytes + 4) * Math.max(1, this.sceneSamples) + colorBytes);
+    const postBytes = this.fxWidth * this.fxHeight * colorBytes * 2;
+    const backdropBytes = this.backdropTarget ? this.backdropTarget.width * this.backdropTarget.height * colorBytes : 0;
+    return (sceneBytes + postBytes + backdropBytes + this.starCount * 40) / (1024 * 1024);
   }
 
   getStats(): RenderStats {
@@ -2842,6 +3094,8 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   destroy(): void {
+    this.destroyPostTargets();
+    this.destroyBackdropTarget();
     const ext = this.gl?.getExtension('WEBGL_lose_context');
     ext?.loseContext();
   }

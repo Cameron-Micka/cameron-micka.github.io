@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import type { QualityPreference } from '@/engine/QualityManager';
 import type { ReducedMotionPref, BackendPref } from '@/settings';
@@ -35,19 +34,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       tabIndex={-1}
       ref={panelRef}
     >
-      <div className="settings-header">
-        <h3>{UI.settings}</h3>
-        <button
-          type="button"
-          className="icon-btn close"
-          aria-label="Close settings"
-          title="Close settings"
-          onClick={onClose}
-        >
-          <X size={17} aria-hidden="true" />
-        </button>
-      </div>
-
       <div className="settings-controls">
         <div className="row">
           <label htmlFor="set-quality">Quality</label>

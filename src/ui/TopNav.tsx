@@ -15,6 +15,11 @@ export function TopNav({
   return (
     <header className={`topnav${solid ? ' solid' : ''}`}>
       <Link className="brand" to="/" aria-label={`${SITE.name}, home`}>
+        <span className="brand-mark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
         <span className="brand-text">
           <span className="name">{SITE.name}</span>
         </span>

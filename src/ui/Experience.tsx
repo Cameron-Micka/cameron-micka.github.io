@@ -144,13 +144,15 @@ export function Experience({ companies }: { companies: Company[] }) {
               onToggleSettings={() => setSettingsOpen((o) => !o)}
               settingsOpen={settingsOpen}
             />
-            <SideRuler companies={companies} />
+            <div className="timeline-controls">
+              <SideRuler companies={companies} />
+              <FreeCameraButton />
+            </div>
             <BottomRibbon companies={companies} />
             <PoiModal companies={companies} />
             {settingsOpen && (
               <SettingsPanel onClose={() => setSettingsOpen(false)} />
             )}
-            <FreeCameraButton />
             <DebugHud />
           </div>
           <Backend />

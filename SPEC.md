@@ -146,13 +146,19 @@ POIs are positioned on each planet's sphere using **Poisson-disk sampling on the
 
 ### 3.8 Post-processing
 
-Compositing pipeline (post-FX chain executed each frame):
+Both backends use the same compositing order:
 
-1. Tonemapping (ACES Filmic)
-2. **Bloom** on the central glow + bright POIs (3-tap downsample/upsample, 3 mips). Mandatory.
-3. **Chromatic aberration** (subtle, radial). Disabled on Low.
-4. **Vignette** (subtle, dark corners). Always on.
-5. Gamma encode
+1. Render and blend the scene in linear HDR.
+2. Downsample to the FX buffer for bloom, lens flare, god rays, and modal blur.
+3. Sample the full-resolution scene with optional chromatic aberration and add the FX layer; modal blur replaces the scene with the blurred FX image.
+4. Apply ACES Filmic once, followed by vignette and modal dimming.
+5. Gamma encode for display.
+
+Low skips the FX chain, chromatic aberration, vignette, and modal dimming.
+WebGL2 uses `RGBA16F` when `EXT_color_buffer_float` and framebuffer validation
+allow it, otherwise retaining an RGBA8 path with reduced highlight range.
+The WebGL2 preset uses a 35%-resolution sky and 50%-resolution FX buffers,
+measured in CSS pixels, matching WebGPU Medium's low-frequency effects.
 
 ---
 
@@ -403,9 +409,9 @@ Because backside POIs are visible (just dimmed), users may try to click them. **
 | High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Top of the Auto ramp |
 | Med       | 1.25    | 2k    | off  | on     | on  | 2          | 4x   |                    |
 | Low       | 1.0     | 0     | off  | off    | off | 1          | 4x   | Auto starting tier / hard fallback |
-| WebGL2    | 1.0     | 2k    | off  | on     | off | 1          | off  | The fallback renderer always runs at this fidelity ceiling |
+| WebGL2    | 1.0     | 2k    | off  | on     | on  | 1          | up to 4x | Fixed Medium-style shading, shadows, and HDR effects when supported |
 
-> MSAA applies to the WebGPU scene pass only. WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x.
+> WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x. WebGL2 selects a common supported color/depth sample count up to 4, including single-sample rendering when float MSAA is unavailable.
 
 **Selection:** Under Auto on WebGPU, the engine starts at the `Low` tier and ramps **up** one tier at a time (`Low` → `Med` → `High`). It steps up only after frame time stays good (≤ 18ms, ~55 FPS) and stable for 3+ continuous seconds; a janky frame resets the stability window, and the ramp stops once `High` is reached. It also steps back **down** one tier if frame time stays bad (≥ 28ms, ~36 FPS) for 1.5+ continuous seconds — see §7.8. Frames between the two thresholds neither earn a step up nor force a step down. Mobile (coarse-pointer) devices stay on `Low`.
 

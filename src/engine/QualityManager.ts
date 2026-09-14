@@ -42,12 +42,12 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     dprCap: 1,
     starCount: 2000,
     ssao: false,
-    chromaticAberration: false,
+    chromaticAberration: true,
     bloomMips: 1,
     msaa: 1,
-    shadows: false,
-    backdropScale: 1,
-    postScale: 1,
+    shadows: true,
+    backdropScale: 0.35,
+    postScale: 0.5,
   },
 };
 

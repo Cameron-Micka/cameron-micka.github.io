@@ -29,7 +29,7 @@ src/
     math/         vec3 / mat4 / quat / easing / rng / raycast
     shaders/      WGSL (WebGPU) shaders, imported with ?raw
     WebGPURenderer.ts   Primary: HDR scene pass + composite (bloom/tonemap/CA)
-    WebGL2Renderer.ts   Lower-fidelity fallback, inline GLSL
+    WebGL2Renderer.ts   Matching HDR/composite path with an RGBA8 fallback
     Scene.ts      Procedural planet models (radius from tenure, seeded POIs)
     Camera.ts     Single-axis dolly camera + fly-in cinematic
     InputController.ts  wheel / pointer / touch / keyboard -> intents
@@ -53,6 +53,15 @@ up one tier at a time (`low` → `med` → `high`) whenever frame time stays goo
 stable for 3+ seconds. Users can override quality, motion,
 sound, and a debug HUD from the settings panel; preferences persist in
 `localStorage`.
+
+WebGL2 uses the same linear HDR composition, ACES tone mapping, gamma encoding,
+bloom, lens effects, vignette, and modal blur as WebGPU when
+`EXT_color_buffer_float` is available. Its fixed preset uses Medium-style
+sky/cloud shading, shadows, and chromatic aberration, with the sky at 35% and
+post-effects at 50% of CSS resolution. MSAA uses the highest common color/depth
+sample count up to 4; devices without float MSAA use a single-sample HDR target.
+If float targets are unavailable or incomplete, rendering falls back to RGBA8
+with per-material tone mapping, which cannot preserve the same HDR highlights.
 
 Both backends use single-scattering atmospheres with exponential Rayleigh/Mie
 density profiles and wavelength-dependent Beer-Lambert attenuation on both

@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, RotateCcw, Video } from 'lucide-react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { tenureLabel, type Company } from '@/content/schema';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 
@@ -9,25 +9,7 @@ function formatDates(c: Company): string {
 export function BottomRibbon({ companies }: { companies: Company[] }) {
   const engine = useEngine();
   const { focusedIndex, openPoi, freeCamera } = useEngineSnapshot();
-  if (openPoi) return null;
-  if (freeCamera) {
-    return (
-      <div className="ribbon flight-console" aria-live="polite">
-        <div className="flight-status">
-          <Video size={20} aria-hidden="true" />
-          <span>Free camera</span>
-        </div>
-        <button
-          type="button"
-          className="navlink return-timeline"
-          onClick={() => engine.setFreeCamera(false)}
-        >
-          <RotateCcw size={15} aria-hidden="true" />
-          Timeline
-        </button>
-      </div>
-    );
-  }
+  if (openPoi || freeCamera) return null;
   const company = companies[focusedIndex];
   if (!company) return null;
   const logoSrc = company.logo
@@ -84,7 +66,7 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
             disabled={focusedIndex === 0}
             onClick={() => engine.jumpToPlanet(focusedIndex - 1)}
           >
-            <ArrowLeft size={19} aria-hidden="true" />
+            <ArrowUp size={19} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -94,7 +76,7 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
             disabled={focusedIndex === companies.length - 1}
             onClick={() => engine.jumpToPlanet(focusedIndex + 1)}
           >
-            <ArrowRight size={19} aria-hidden="true" />
+            <ArrowDown size={19} aria-hidden="true" />
           </button>
         </div>
       </div>

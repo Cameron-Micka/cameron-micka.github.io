@@ -19,6 +19,7 @@
   --panel: #d2bea0;
   --panel-light: #ecdfc5;
   --panel-edge: #a18b6d;
+  --panel-wear: url('/panel-wear.webp');
   --panel-grain: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAQAElEQVR4AVTbiVIcVwyF4R7ABrzm/d8yqxfGnuhT+afaVVEkHR0d6d5uBoyTu9vt9nHs/dinsc9jf4zB5OLnyd/9MjxYhgfD/TAc/U/jxbxcvxiHx9ePw+PQFzM5DqPPYPhiOkyPnMc1R45HB4aXwejgiPGe747juI7x38f/GPs6xsNfJn77y96Mfxjzz8/5121MH+63ib+M+efev8Z4HH1Pk+OJLxPD2YT7j5r878nMx6NNQ80uZsvNZnHo4fJ4OCNzqMuZnNEvp/eo0QF5jQsOUx7exbgMByUghlvkcfiGfRzvEOnwclp4OA4Dk8P/mx6YC5rwMP95AnWmhs8GPmA4dpBXd/j2hfcw8O2BZ+dPU7Qv/N+Jv1lCQpDwYPtGFBM2HMcBmBxOSJ9YH5weg+sxVI1ZQs1CDObg+nDp0Id7C2B4dsFharR5huPgHoZZOOaE6Wf06OPpF9t/3wBLGaJIQExMkwGWYoTVCRJQMwi3ZXDk6jBaepg5vAUYDowe3Hx8tV1uBLwhOHLzmBkuTn97yWnQYnj8SBzwdxPQgTG9Zu0bIHFYQ8TDPZDkYmKW4jXB8AjCyuPoNRSHh+Pk09Drss64nC4NX24OSAeXZ/ayr8uB18/ro8GbbRauHNceLlAN/zAMUJGoIUTEBCyhAcdTKiZGuDoPo0mDwRgeLZg6HfEZo0/bYup49GDFcjy9zO4uBO4p21ud1yP2maIO42F6zb5DspxXWZFYor1WGsI04TNPqBpB/bwDFDuIi8RVcxg1c2jg0oSp24PZy8WZ68MKj+HBcB0sjpoZ9rE3fVyHtgOvx3z6at6M7wYpakxAEUYUCUe9T1Z1QoYTx4MxQ5jD6cGBWwgPLuflafNyNXvQd3H6PgzoknAm3G9vZojtZwd83A5nf6aP2cPFmAvXS+OJqCID5jUxTcR5ZliLwong8XADaFpMDHcRtPH04NGB48odWi62A2seHF8/TVreAlreAofGl+O6ODmew+KKaTMcudn3/oXEG1CRZxoIamA4DmVYPWK8cDwLWFpsQXWL0KQhhsvp4DkMDaZO11N1OQ6Oa1dcPXjNUBPzenh1mnSYHiamgbPfBSwL0ABEYnDmScgdAod3CEJyMW9JNcvz6hZ2UBx1+sxiarhmZw4LwzGTBq66mlydHo45amIHV5Pj2V3d/Ga1J86aIYT/nAxp3IHkqRNzq3IcQuK82OB/pslAWoaKLcNwfHYwWuriaTnSdBiatOAuiukNo4kHp2OmeWFi+9LBqVe/OTAG14Mr3x+EAJ9nsoUN0vR+cgT5hIeaJmIuys0yXE/IYAeznEO6wOpyHJ4eLk1vFo6lMjya6rQcTMzsiWcXP3bDaPm8iaduP7lZepizwNTgzdifAxQNc0BFRN4AMVF1mOEEcR1I7BBqlmEWchA1OR18Q/FoiuG0LUVDrs7k+s1lMD16GS7cLDv5VgljZnkYYkaLZ/bRj0Pvp6SCZZjiucmCNeKrx+NhNLpIF4OjDy7uADye4Q4oZ3Tyajh0HQ4up2MvB6erh8FdOI43j/d2qdGig4/3MoG3mK499wchpMEPC2sWW05uuMPjGE5Eo7r8jOvTzwzFpaFfDFPDg+unE847nMXNZZ4knJmrH45DQ7+Ylhl96crhuPXwjBZc/Sox1KCKPHE1sYWJi5nYwQ3Xy8Px5LTcsoVhBuGoWcxwObw8zZ6MOp4d6OiVm4sj5s2F4Ynhcj30+bTNYuq+ZOB7AV6XXiEggqfmEgg6BCPoYDBmoEXVCIdZJj2xGg6MLh6Mlv445vmahuPAmd72MlMNDyZ2SHpiGjR7CM4C4/Wa7+J8iMofDEBww0QaRsDFEIPxBvJ6YJYwPLNAA3wtOghtfNo0mV48+jiWsxTDddF45tG2m8vT58nR1Kuml9HXB1PHx0lDLx0mZvouBko0IrsVuWYEYgym5pB6DHQZeoji8HgO5YAOxONbzlLmyHFo4cjp6MXD8Sc78+hWk+PHs4NeebgdaNAW67Gns+DAmy3eH4UT0UiMb6hl5IZpCCdKXM4TdWm9FXo8LT00O4g+MV19Fstwz1i5HjFT10tDbA6c2cVZ8M1U5+nDnMED0cNwf/iXAgCJMIzBNRMygBGA4zM85tPXJVjOInQ8cT1w2nRaiAYOD9MnpiUX02Fys3j7FNMu1y/nffl4EHj64Xg8XTPMlv/2BiARMIgIAhHm4L81DomIg6mzgfY3SQ7qdfMKquuV08MJM0uNt6jlaPJm0eT1+EyRq+HY1RwHpasmx6Xp8mkyXDPwePPpsv3DkAJhAAEDLIwsZ4RwDGEGqnu6lsAxiNev7ktC7iLMYHTyLhlXP01L20GvJWEMn076OPaT+6yQ06VnH3iadrCn3cPtw/TsD0IEDDLYTROXazLYknGIWIgAb1FD8NSYfjUcQ2jBaeDpgTkwHn5cdVwepu4AZsBxeXbejx5dTx+f4bgI56Kllw4O7vZYCoERVLS05mpwdUtplBsQL+9AYkvrp0UDX67mMuVienSL9cn1wcySM3206DCxfjyxXoYLj+PA5qWJr85w9s8CGg1AMpRg5gbdlAbYNknGDGMwwuq0prT/iL2SllBjLo6e2Ey9NDTgwuX0YDT80VdfuH51NYfj6eAzNTow9fOZ0qi+PwcQRGTEiPgWhqTZcBjDZYR4mK89sX6HoKGet4hXUL1D4+PQVud9J6nHXNrMm6WXBh5Mv1ea4cqrmSFn9FyIWTwNOMP76pDAnn6D/CISLieCTMDw8yA1f90EJ2ohmEPBGuwQcBwzxTg06dFnLhCGw/TzTK991Hl8byijh2Oms8hxXI45zBwcn3POJn8DQDLIcAIwT5X3+iaE53Vk8YgQ08/00LGkoXrE+GKLyXmLOpSaWC8NmF48teabBaeDI1d36S7BhZgN04tDD4+Gujm+c/Dm7QUgSggj8wiENBFhRDxJHAeoLjZQrtcAHBhdC7YYHRiPL3aBDkYH12H0wnma9qCBz8R61PTxZuqXZ9cZggefcP/IzzOaN2LIDmeYAm9BhkQcHtcgS3ZxxPXg+OtnXm84bb0W0WuemDYuTGwOXR4fbgYtfBgvx6HD4Lw59OyiF0+cx6FHw+XK91diSBo9dQtsYQDeISbcv2C0pGH4vjTgxD2NeP6Y2QA8A3kLiy3Jw/Bo8BYS4zFzmB2YA5Xj2aUeMQyPvp3o49tLbqa6L23eDGfY7wKELKHgEnjNvEZ1wpqIGYYPlxsCI+4NsBBMD6OJR4/B6OPoc+kuTp+65cU4YpgYlxav1wFcDIzhMLPs58POLFq8/X15OpOczosGIG+QQxHjiSBq1MRweGaQBQ3Ahem1HEwf0+PbqoNaGBfGLOnbn2VYdX16vF149jDvdrlc/hoiTE7Trup2YXp5u4hx7cbsZb7zjsxxESAAiWhC0iiGazRMHZdplsNpyC3PG65fn5yG3EXLmT4+Di19uHTE+HagD+eP2+3mg1iuny4NenHb354uWN2biU/bLNjyiBqmIEbiDYjIGwBnhnrdvYJyXD4eDWaAGvNWmGMpXPPktGA8npqc129ReUYXVy9MznC9CTDa+mjgimFqzdCjtr8PQHBAgKaKmgyCG6CZOagDeT3l8fSJeThdrzGuHjMsIaZHFwdXT714cCZW4+1iPzGvjwaPiyc3g+Hjwr0d5orxzVfb3wcAkXk/5NTcAdWQieOIcbwBYl+HODBPwXLxcNQsyONbRozD8C2FQ8Ny3jA1OK7ZzKtsnlp8uMvjzXdQfQwPhmsODzeH7v4+wEBNQD8CExIjOIAmWBdCgLksHHWHYobQg9G0mNjB9ViGNsxy+h1IjxgPTisOD6fnu4U3St0l6cNnOHBeLjbf7rTNtnNnovvWwgiIkXgCMAOY4QbDmD6XxcuJO5iYuSy6cDGN+vXQM0PsQ81MfN4B4DiMLo0u0CHqdUg4fReJ62C09LqkMHs5fHya+4MQQqbRcANgmpjFGNyhxIRw5OdF4HTUmIUYHm3L8rRw5T7xHVxcrzrTy9uDd5E8nH4xnB6MDr698Hw3oGtue5i3F+AwEkS3RgQZRjwxuZhosR5cPW5UbIg+Ho9ZChfOW9Zc8yxqKTUYrh5aMDPPWub7WUDdXBx8HG+BmKmZRU8PT8tsZvb+HKCowRIamGbCmVfJcoYSsTSeuKFeZXxaagbQEcMtyKu7LHWYuXALekXVzYLp52Fic9X88MSr0aClH45rpt2aY2+4s9LRB9tvgxJF4jUSk1frcEQJqKsRbGka6g7kwsTqePhMTb/hngLMAeI1n5bX1g64OHQcFOf+crn4LKDFqtHrgdiLrpl24XH1uzz5fgl0S5otbigSghqyAXCLEeUtRlifoXj6cA1nYkPxcdT18XppyfEc2Hxcs30uqOm3B2+W2E+E6na6zmX4eUMfM5cOntxF49EyB5eOt2UvwO0S55EtZhlNcqYBhxH2JHi4w+AW01F3YB4Oo4MrZ7RcmsPy3jJ1S9PTa2FzHBZfDUfsQHQe5sdjv5WicdUwRsvlqjvPQPsfWssdnAat11+KAiKJ3aJGBocZStRgGAExnDkkviFiXAdxEZbTo+ZgesUwGjyDObB+HLpmw/NqaZhXn1l4MJ7huQya5uhtFxe/b4DGcwGhwZoQibYQD8fTZ4E04HJWj6dnGVyvJm11ORyPl3tLaNG2PNzBzRSr4ZkjV7MfPRw1WDG+zwpcc8xWF6vtdwGDCADENRNDhDVEM8P3lhDG490yPh11Onq9AfoNdxkO6YDeEAfBlfvWpl8fDTzaMBzcLpAe3C6eMG0/JuMxNZ7RsitPzz5msP3vA4gQtiyiQYhyJEvDicF8PhBxYINbxgCHchn65bQtqB+PWU4fnhzXYc3RY7457aRuNj4tMQ4T0zDH5wCuPjpwZp4Lpqnejmr73worEEZiChY0wAUYolEMs6wD8cQNYy4E1wJwunKm1wyYmoVdIl29OHBzHVSObx4uXF2/GG5X5kD09ZjtQ44GXK9cTY+H10y1/bOAgABDRCBgoJyJYWJLOKxFDFET1+9iaKrpsZRFxS7Oweio69FL00WYTVudV8/U4PR4pqZXTD8zjzkwjpjZzTyXb8f9QQhQoyEK7LygGM8gHJ6JmRpxGLOUN0ncgV0U3MH0mKFuttwTspiLoGcmLh4Oz3qitMzAdThadMTVfFmp6+NxaNKmuX87bKBbsgCvQITXqIEgHownRFBNH7MM3BIuA4bDYHoNVhMzuoyOnLbZ5roMXJowFpdXY7Tl+s3Mu3iz5fQYLUbLzNe/GgMiJISgmU/AE4R1UMtaAO7iGB0cr57FaOqHWc7r62B4cHU6Lka/nNkDH4/J6cEcjJfrEdtDTounQV9uNguH6dOz/9+gA1gMya04NBJPSKxGACbXLA63IB3LwixJyyC5HlpwOjD9MByXgk+DFlyPHFfsQHpgfHy7eygM3g5+5JXrN8NDwTGfHmz/O0FLOZACUNEwN8sTsBAjWqSjBQAAAZlJREFUzmBqljBEn69Ny9THq/MO1SHNouEgdPTawXyz8dX10BbDcJk9eDq8D1Ycb5F56nppivWqy3nmZwac/QywgGUYsoNZhniYRZghcHVCckNgcrh+MYyeS4GLeTUz5bgW4eV66DG5mh57uBx9+pmaXA+up2ufchreAv344Wb5bZaeL4qJIxGAOSwBZE/OIBgROM/gvJp+S8n1WdhSnpQaTlg5LVw5rWI6en2Kq9kJhpOOveWMDm08dbm3wVtJkxaeWF2svn87bGFi/JmAaHmvDmGXowluKTcIN0wfzEA6MDlT8/VHyxx9cHq8xXmGm6fDyvVZPL5+l0LTXg5pH3WxHXgY8yDpNcM++4OQryEEBYdjRJEN4OUWwbUEjp68YTjMYryapZlLpI+njwZtPi4+jsPgqZntS4iHw1xmr7ZDZHRx6NmVhtk0WW8TDTmN11+LuzWH0+AAeSLI6sS7UXW5YcyCOHAH02eQWL+6JyC2nBou3OJydZgDwdh5F7F+B8HRexsxFyfG189w28sO8qHu/5yNK/a2Pv4PAAD//zRG9CcAAAAGSURBVAMAxyHRdkUysVEAAAAASUVORK5CYII=');
   --ink: #2c251c;
   --ink-muted: #60513e;
@@ -192,6 +193,14 @@ a:hover {
   pointer-events: auto;
 }
 
+.timeline-controls {
+  display: contents;
+  pointer-events: none;
+}
+.timeline-controls > .ruler {
+  pointer-events: auto;
+}
+
 /* ---- Top nav ---- */
 .topnav {
   position: fixed;
@@ -209,6 +218,7 @@ a:hover {
   z-index: 20;
   color: var(--ink);
   background:
+    var(--panel-wear) 0 0 / 384px 384px,
     var(--panel-grain),
     linear-gradient(180deg, var(--panel-light), var(--panel));
   border-top: 1px solid var(--key-hover);
@@ -222,25 +232,9 @@ a:hover {
    passing beneath it. */
 .topnav.solid {
   background:
+    var(--panel-wear) 0 0 / 384px 384px,
     var(--panel-grain),
     linear-gradient(180deg, var(--panel-light), var(--panel));
-}
-/* Drafted double rule beneath the bar. */
-.topnav::after {
-  content: '';
-  position: absolute;
-  left: clamp(14px, 3vw, 32px);
-  right: clamp(14px, 3vw, 32px);
-  bottom: 5px;
-  height: 2px;
-  background: linear-gradient(
-    to right,
-    var(--accent) 0 36px,
-    var(--ink) 36px 60px,
-    var(--key-top) 60px 84px,
-    var(--panel-edge) 84px
-  );
-  pointer-events: none;
 }
 .topnav .brand {
   position: relative;
@@ -262,17 +256,32 @@ a:hover {
   gap: 3px;
 }
 .topnav .brand .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  color: var(--bg-deep);
-  background: linear-gradient(180deg, var(--orange-top), var(--orange-bottom));
-  border: 1px solid var(--orange-edge);
-  border-radius: var(--radius-screen);
-  box-shadow:
-    inset 0 1px 0 #ffbf9380,
-    inset 0 -2px 0 #b53a1050;
+  position: relative;
+  display: block;
+  width: 76px;
+  height: 24px;
+  flex: 0 0 76px;
+}
+.topnav .brand-mark > span {
+  position: absolute;
+  top: -48px;
+  left: 54px;
+  width: 14px;
+  height: 94px;
+  border-radius: 999px;
+  background: var(--accent);
+  transform-origin: top left;
+  transform: rotate(45deg) translateX(var(--stripe-offset, 0px));
+}
+.topnav .brand-mark > span:nth-child(2) {
+  --stripe-offset: 14px;
+  height: 74px;
+  background: var(--ink);
+}
+.topnav .brand-mark > span:nth-child(3) {
+  --stripe-offset: 28px;
+  height: 54px;
+  background: var(--key-top);
 }
 .topnav .brand .name {
   font-family: var(--font-display);
@@ -290,6 +299,13 @@ a:hover {
 }
 .topnav nav > .icon-btn {
   margin-left: 8px;
+  border-radius: 50%;
+}
+.topnav:has(nav > .icon-btn) {
+  padding-right: calc(max(24px, env(safe-area-inset-right)) - 3px);
+}
+.topnav .navlink {
+  border-radius: 999px;
 }
 .nav-number {
   margin-right: 8px;
@@ -380,6 +396,14 @@ a:hover {
     inset 0 2px 4px #90300960,
     0 1px 0 #fff7;
 }
+.modal-actions > .icon-btn,
+.icon-btn.close {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  padding: 0;
+  border-radius: 50%;
+}
 .icon-btn.close {
   background: linear-gradient(180deg, var(--orange-top), var(--orange-bottom));
   border-color: var(--orange-edge);
@@ -406,8 +430,8 @@ a:hover {
 /* ---- Free-camera toggle (bottom-right) ---- */
 .freecam {
   position: fixed;
-  right: max(clamp(14px, 3vw, 32px), env(safe-area-inset-right));
-  bottom: max(24px, env(safe-area-inset-bottom));
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
   z-index: 20;
   display: flex;
   flex-direction: column;
@@ -418,8 +442,8 @@ a:hover {
 .freecam-btn {
   pointer-events: auto;
   flex: none;
-  width: 48px;
-  height: 48px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
 }
 
@@ -438,7 +462,9 @@ a:hover {
   border: 1px solid var(--panel-edge);
   border-radius: calc(var(--radius) - 4px);
   background:
-    var(--panel-grain), linear-gradient(90deg, var(--panel-light), var(--panel));
+    var(--panel-wear) 58px 24px / 384px 384px,
+    var(--panel-grain),
+    linear-gradient(90deg, var(--panel-light), var(--panel));
   box-shadow:
     inset 1px 0 0 #fff9,
     var(--shadow);
@@ -556,7 +582,7 @@ a:hover {
 .ribbon {
   position: fixed;
   left: 50%;
-  bottom: max(24px, env(safe-area-inset-bottom));
+  bottom: max(10px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   display: grid;
   grid-template-columns: 68px minmax(0, 1fr) 92px;
@@ -568,6 +594,7 @@ a:hover {
   text-align: left;
   color: var(--ink);
   background:
+    var(--panel-wear) 116px 48px / 384px 384px,
     var(--panel-grain),
     linear-gradient(180deg, var(--panel-light), var(--panel));
   border: 1px solid var(--panel-edge);
@@ -718,6 +745,9 @@ a:hover {
   display: flex;
   gap: 6px;
 }
+.transport-keys .icon-btn {
+  border-radius: 50%;
+}
 .flight-console {
   display: flex;
   justify-content: space-between;
@@ -786,7 +816,7 @@ a:hover {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 4px;
   opacity: 0.6;
   border-radius: 0;
 }
@@ -888,13 +918,17 @@ a:hover {
   top: var(--modal-actions-top);
   right: var(--modal-pad);
   display: flex;
+  align-items: center;
+  min-height: var(--modal-actions-size);
   gap: 8px;
 }
 /* POI modal: the actions live in a header bar the content scrolls under, and
    the scroll container runs to the modal's right edge so its scrollbar sits
    outside the text column instead of on top of it. */
 .modal.poi-modal {
+  padding-top: 10px;
   padding-right: 0;
+  border-width: 3px;
 }
 .modal.poi-modal .modal-header {
   flex: none;
@@ -903,9 +937,9 @@ a:hover {
   justify-content: space-between;
   gap: 12px;
   min-height: var(--modal-actions-size);
-  margin-bottom: 14px;
-  padding-right: var(--modal-pad);
-  padding-bottom: 12px;
+  margin-bottom: 8px;
+  padding-right: 12px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--glass-border);
 }
 .modal.poi-modal .modal-header .modal-title {
@@ -918,10 +952,6 @@ a:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.modal.poi-modal .modal-header .modal-title::before {
-  content: 'ARCHIVE / ';
-  color: var(--muted);
 }
 .modal.poi-modal .modal-header .modal-actions {
   position: static;
@@ -963,9 +993,12 @@ a:hover {
   padding-bottom: 20px;
 }
 .modal.poi-modal.expanded {
+  padding-top: max(10px, env(safe-area-inset-top));
   padding-right: 0;
 }
-.modal.poi-modal.expanded .modal-header,
+.modal.poi-modal.expanded .modal-header {
+  padding-right: max(12px, env(safe-area-inset-right));
+}
 .modal.poi-modal.expanded .modal-content {
   padding-right: max(var(--modal-pad), env(safe-area-inset-right));
 }
@@ -983,6 +1016,7 @@ a:hover {
   z-index: 30;
   border-radius: var(--radius);
   background:
+    var(--panel-wear) 32px 96px / 384px 384px,
     var(--panel-grain),
     linear-gradient(130deg, var(--panel-light), var(--panel));
   color: var(--ink);
@@ -991,17 +1025,8 @@ a:hover {
     inset 0 1px 0 #fff9,
     inset 0 -2px 0 #8e785b30,
     var(--shadow);
-  padding: 20px;
+  padding: 12px 20px 20px;
   animation: rise 0.2s ease;
-}
-.settings-header {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--panel-edge);
 }
 .settings-controls {
   flex: 1 1 auto;
@@ -1009,15 +1034,6 @@ a:hover {
   overflow-y: auto;
   margin: 0 -8px;
   padding: 0 8px;
-}
-.settings h3 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--ink);
 }
 .settings .row {
   display: flex;
@@ -1127,7 +1143,7 @@ a:hover {
 /* ---- Debug HUD ---- */
 .hud {
   position: fixed;
-  bottom: 10px;
+  bottom: max(10px, env(safe-area-inset-bottom));
   left: 10px;
   z-index: 30;
   font-family: var(--font);
@@ -1210,7 +1226,7 @@ a:hover {
 .loading-card {
   width: min(400px, 86vw);
   padding: 28px;
-  border: 8px solid var(--panel);
+  border: 3px solid var(--panel);
   border-radius: calc(var(--radius) + 4px);
   background: var(--panel-grain), var(--screen);
   box-shadow:
@@ -1346,7 +1362,7 @@ a:hover {
   align-items: center;
   gap: 10px;
   padding: 16px 18px;
-  border-radius: var(--radius-screen);
+  border-radius: 999px;
   background: linear-gradient(180deg, var(--panel-light), var(--panel));
   border: 1px solid var(--panel-edge);
   box-shadow:
@@ -1386,7 +1402,7 @@ a:hover {
 .photo-jump a {
   padding: 6px 12px;
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-control);
+  border-radius: 999px;
   background: var(--glass);
   color: var(--accent-2);
   font-size: 11px;
@@ -1658,6 +1674,25 @@ a:hover {
   }
 }
 
+@media (min-width: 721px) {
+  .timeline-controls:has(> .ruler) {
+    position: fixed;
+    top: 50%;
+    right: max(24px, env(safe-area-inset-right));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    transform: translateY(-50%);
+    z-index: 18;
+  }
+  .timeline-controls:has(> .ruler) > .ruler,
+  .timeline-controls:has(> .ruler) > .freecam {
+    position: static;
+    transform: none;
+  }
+}
+
 @media (max-width: 980px) {
   :root {
     --nav-height: 88px;
@@ -1705,9 +1740,8 @@ a:hover {
     padding-right: max(16px, env(safe-area-inset-right));
     padding-left: max(16px, env(safe-area-inset-left));
   }
-  .topnav::after {
-    left: 16px;
-    right: 16px;
+  .topnav:has(nav > .icon-btn) {
+    padding-right: max(16px, env(safe-area-inset-right));
   }
   .nav-number {
     display: none;
@@ -1720,12 +1754,24 @@ a:hover {
     margin-left: 2px;
   }
   .ribbon {
-    bottom: max(16px, env(safe-area-inset-bottom));
     width: calc(100% - 32px);
     grid-template-columns: minmax(0, 1fr) 40px;
     gap: 10px;
     padding: 8px;
     min-height: 120px;
+  }
+  .ribbon::before {
+    background:
+      radial-gradient(
+        circle at calc(100% - 2px) 2px,
+        var(--key-shadow) 1.5px,
+        transparent 2px
+      ),
+      radial-gradient(
+        circle at calc(100% - 2px) calc(100% - 2px),
+        var(--key-shadow) 1.5px,
+        transparent 2px
+      );
   }
   .ribbon-channel,
   .transport-label {
@@ -1752,17 +1798,10 @@ a:hover {
     flex-direction: column;
     gap: 8px;
   }
-  .transport-keys svg {
-    transform: rotate(90deg);
-  }
   .freecam {
-    right: max(16px, env(safe-area-inset-right));
+    right: calc(max(16px, env(safe-area-inset-right)) + 3px);
     top: calc(var(--nav-height) + 16px);
     bottom: auto;
-  }
-  .freecam-btn {
-    width: 40px;
-    height: 40px;
   }
   .flight-console {
     display: none;
@@ -1865,7 +1904,6 @@ a:hover {
     gap: 16px;
     padding: 4px 16px 10px;
   }
-  .topnav .brand-mark,
   .nav-number {
     display: none;
   }
@@ -1895,7 +1933,6 @@ a:hover {
     width: min(460px, calc(100% - 100px));
     min-height: 100px;
     grid-template-columns: minmax(0, 1fr) 86px;
-    bottom: max(12px, env(safe-area-inset-bottom));
   }
   .ribbon-readout {
     padding: 8px 10px;
@@ -1907,19 +1944,14 @@ a:hover {
     flex-direction: row;
     gap: 6px;
   }
-  .transport-keys svg {
-    transform: none;
-  }
 }
 
 @media (min-width: 721px) and (max-height: 500px) {
   .ribbon {
     display: none;
   }
-  .freecam {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
+  .timeline-controls:has(> .ruler) {
+    top: calc(50% + var(--nav-height) / 2);
   }
 }
 
