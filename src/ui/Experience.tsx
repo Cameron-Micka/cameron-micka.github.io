@@ -178,6 +178,7 @@ function FreeCameraButton() {
   const { freeCamera, freeCameraState, reducedMotion } = useEngineSnapshot();
   const iconRef = useRef<SVGSVGElement>(null);
   const angleRef = useRef(0);
+  const lastTimeRef = useRef<number | null>(null);
   // The icon points right; yaw zero faces -Z (up in a top-down XZ view).
   const targetAngle = freeCamera ? (freeCameraState?.yawDeg ?? 0) - 90 : 0;
 
@@ -186,15 +187,18 @@ function FreeCameraButton() {
     if (!icon) return;
     if (!freeCamera || resolveReducedMotion(reducedMotion)) {
       angleRef.current = targetAngle;
+      lastTimeRef.current = null;
       icon.style.transform = `rotate(${targetAngle}deg)`;
       return;
     }
 
     let frame = 0;
-    let lastTime = performance.now();
     const animate = (time: number) => {
-      const dt = Math.max(0, (time - lastTime) / 1000);
-      lastTime = time;
+      const dt =
+        lastTimeRef.current === null
+          ? 1 / 60
+          : Math.max(0, Math.min(0.05, (time - lastTimeRef.current) / 1000));
+      lastTimeRef.current = time;
       // Take the shortest turn, including across the normalized yaw boundary.
       const delta =
         ((((targetAngle - angleRef.current) % 360) + 540) % 360) - 180;
@@ -204,6 +208,7 @@ function FreeCameraButton() {
         : angleRef.current + delta * (1 - Math.exp(-18 * dt));
       icon.style.transform = `rotate(${angleRef.current}deg)`;
       if (!settled) frame = requestAnimationFrame(animate);
+      else lastTimeRef.current = null;
     };
     frame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frame);
