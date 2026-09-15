@@ -268,13 +268,15 @@ export function PoiModal({ companies }: { companies: Company[] }) {
         tabIndex={-1}
         ref={cardRef}
       >
-        <span
-          className="accent-bar"
-          style={{ background: activeCompany?.palette.high }}
-          aria-hidden="true"
-        />
         <div className="modal-header">
-          <div className="modal-title">{activeCompany?.name}</div>
+          <div className="modal-title">
+            <span
+              className="accent-bar"
+              style={{ background: activeCompany?.palette.high }}
+              aria-hidden="true"
+            />
+            {activeCompany?.name}
+          </div>
           <div className="modal-actions">
             <button
               type="button"
