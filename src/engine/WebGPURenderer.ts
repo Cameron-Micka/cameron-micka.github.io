@@ -1071,7 +1071,7 @@ export class WebGPURenderer implements SceneRenderer {
     // shaders to slowed-down variants.
     f[25] = frame.poiShimmer ? 1 : 0;
     // misc.z: wireframe debug-view flag. POI marker / connector shaders
-    // sample this to switch to a wireframe-styled rendering (cyan tint,
+    // sample this to switch to a wireframe-styled rendering (orange tint,
     // outline only) so the overlay matches the wireframe planet body.
     f[26] = frame.wireframe ? 1 : 0;
     f[27] = this.width / this.height;

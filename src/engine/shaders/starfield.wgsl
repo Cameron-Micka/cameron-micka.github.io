@@ -37,7 +37,7 @@ fn vs(
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let wf = frame.misc.z;
   if (wf > 0.5) {
-    // Wireframe debug: render the underlying billboard quad as cyan
+    // Wireframe debug: render the underlying billboard quad as orange
     // edges + the diagonal that splits its two triangles, matching the
     // planet wireframe style instead of a glowing point.
     let edgeDist = min(1.0 - abs(in.uv.x), 1.0 - abs(in.uv.y));
@@ -45,7 +45,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let lineDist = min(edgeDist, diagDist);
     let aaLine = length(vec2<f32>(dpdx(lineDist), dpdy(lineDist)));
     let a = 1.0 - smoothstep(0.0, 1.5 * aaLine, lineDist);
-    return vec4<f32>(vec3<f32>(0.25, 1.0, 0.85) * a, a);
+    return vec4<f32>(vec3<f32>(1.0, 0.478, 0.094) * a, a);
   }
   let d = length(in.uv);
   let glow = smoothstep(1.0, 0.0, d);

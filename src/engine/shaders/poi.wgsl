@@ -90,7 +90,7 @@ fn shimmer(uv : vec2<f32>, ordinal : f32, count : f32) -> f32 {
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let wf = frame.misc.z;
   if (wf > 0.5) {
-    // Wireframe debug: render the underlying billboard quad as cyan edges
+    // Wireframe debug: render the underlying billboard quad as orange edges
     // plus the diagonal that splits its two triangles (the shared edge
     // runs (1,-1) -> (-1,1), i.e. uv.x + uv.y = 0). Matches the planet
     // wireframe style instead of faking a circle.
@@ -99,7 +99,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let lineDist = min(edgeDist, diagDist);
     let aaLine = length(vec2<f32>(dpdx(lineDist), dpdy(lineDist)));
     let a = (1.0 - smoothstep(0.0, 1.5 * aaLine, lineDist)) * in.dim;
-    return vec4<f32>(vec3<f32>(0.25, 1.0, 0.85) * a, a);
+    return vec4<f32>(vec3<f32>(1.0, 0.478, 0.094) * a, a);
   }
   let d = length(in.uv);
   let pulse = shimmer(in.uv, in.ordinal, in.count);

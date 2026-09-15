@@ -644,7 +644,7 @@ void main(){
   float d=length(uv);
   if(vAttr.z>0.5){
     if(uWireframe>0.5){
-      // Wireframe debug: render the underlying billboard quad as cyan
+      // Wireframe debug: render the underlying billboard quad as orange
       // edges plus the diagonal that splits its two triangles (matches
       // WebGPU: shared edge runs (1,-1) -> (-1,1), i.e. uv.x+uv.y=0).
       float edgeDist=min(1.0-abs(uv.x),1.0-abs(uv.y));
@@ -652,7 +652,7 @@ void main(){
       float lineDist=min(edgeDist,diagDist);
       float aaLine=length(vec2(dFdx(lineDist),dFdy(lineDist)));
       float a=(1.0-smoothstep(0.0,1.5*aaLine,lineDist))*vAttr.y;
-      frag=vec4(vec3(0.25,1.0,0.85)*a,a);
+      frag=vec4(vec3(1.0,0.478,0.094)*a,a);
       return;
     }
     // gl_PointCoord's Y is flipped relative to the WebGPU billboards.
@@ -672,14 +672,14 @@ void main(){
     frag=vec4(rgb,min(1.0,a+glow*0.8));
   }else{
     if(uWireframe>0.5){
-      // Wireframe debug: render the billboard quad as cyan edges + diagonal,
+      // Wireframe debug: render the billboard quad as orange edges + diagonal,
       // matching the planet wireframe style instead of a glowing point.
       float edgeDist=min(1.0-abs(uv.x),1.0-abs(uv.y));
       float diagDist=abs(uv.x+uv.y)*0.70710678;
       float lineDist=min(edgeDist,diagDist);
       float aaLine=length(vec2(dFdx(lineDist),dFdy(lineDist)));
       float a=1.0-smoothstep(0.0,1.5*aaLine,lineDist);
-      frag=vec4(vec3(0.25,1.0,0.85)*a,a);
+      frag=vec4(vec3(1.0,0.478,0.094)*a,a);
       return;
     }
     float core=pow(smoothstep(1.0,0.0,d),4.0)*vAttr.x;
@@ -752,7 +752,7 @@ void main(){
     float covA=1.0-smoothstep(0.0,1.5*aaA,axialD);
     float covD=1.0-smoothstep(0.0,1.5*aaD,diagD);
     float a=max(covE,max(covA,covD));
-    frag=vec4(vec3(0.25,1.0,0.85)*a,a);
+    frag=vec4(vec3(1.0,0.478,0.094)*a,a);
     return;
   }
   float aa=fwidth(vEdge);
@@ -853,7 +853,7 @@ void main(){
     float covD=1.0-smoothstep(0.0,1.5*aaD,diagD);
     float ribbonCov=max(covE,max(covA,covD));
     float a = vShape>0.5 ? 1.0 : ribbonCov;
-    frag=vec4(vec3(0.25,1.0,0.85)*a,a);
+    frag=vec4(vec3(1.0,0.478,0.094)*a,a);
     return;
   }
   float aa=fwidth(vEdge);
@@ -874,7 +874,7 @@ void main(){
 const WIRE_FRAG = `#version 300 es
 precision highp float;
 out vec4 frag;
-void main(){ frag=vec4(0.25,1.0,0.85,1.0); }`;
+void main(){ frag=vec4(1.0,0.478,0.094,1.0); }`;
 
 // Planetary ring: a flat annulus mesh oriented by uModel. Ported from
 // ring.wgsl. Curved bands (angular sin modulation) + layered fBm + Cassini
