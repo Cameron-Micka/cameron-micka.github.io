@@ -651,6 +651,7 @@ export class Engine {
     this.freePitch -= dy * LOOK_SENSITIVITY;
     if (this.freePitch > PITCH_LIMIT) this.freePitch = PITCH_LIMIT;
     else if (this.freePitch < -PITCH_LIMIT) this.freePitch = -PITCH_LIMIT;
+    this.commit();
   }
 
   private handlePick(ndcX: number, ndcY: number): void {

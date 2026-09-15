@@ -440,11 +440,20 @@ a:hover {
   pointer-events: none;
 }
 .freecam-btn {
+  position: relative;
   pointer-events: auto;
   flex: none;
   width: 34px;
   height: 34px;
   border-radius: 50%;
+}
+.freecam-btn[aria-pressed='true']::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 /* ---- Side ruler ---- */
