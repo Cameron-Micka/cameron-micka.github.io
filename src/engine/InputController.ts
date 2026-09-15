@@ -69,6 +69,10 @@ export class InputController {
   private freeLookX = 0;
   private freeLookY = 0;
   private freeTap: { id: number; x: number; y: number } | null = null;
+  private freeBodyId: number | null = null;
+  private freeBodyStartX = 0;
+  private freeBodyStartY = 0;
+  private freeBodyDragging = false;
 
   constructor(handlers: InputHandlers) {
     this.h = handlers;
@@ -134,6 +138,11 @@ export class InputController {
   // left drifting from a touch that was cancelled, lost, or mode-switched away.
   private clearFreeTouch(): void {
     this.freeTap = null;
+    if (this.freeBodyId !== null) {
+      this.freeBodyId = null;
+      this.h.onBodyDragEnd();
+    }
+    this.freeBodyDragging = false;
     this.freeMoveId = null;
     this.freeLookId = null;
     this.touchForward = 0;
@@ -192,7 +201,7 @@ export class InputController {
   }
 
   private onPointerDown = (e: PointerEvent): void => {
-    if (e.pointerType === 'touch' || this.pointerDown) return; // touch handled separately
+    if (e.pointerType === 'touch' || this.pointerDown || this.freeBodyId !== null) return; // touch handled separately
     this.pointerDown = true;
     this.pointerId = e.pointerId;
     this.pointerButton = e.button;
@@ -333,10 +342,12 @@ export class InputController {
   };
 
   // ---- Free-fly touch controls (dual-zone): left half drives a virtual
-  // movement thumbstick, right half drives the look camera. ----
+  // movement thumbstick, right half drives the look camera. A touch starting
+  // on a body takes ownership of the gesture before either zone. ----
   private onFreeTouchStart(e: TouchEvent): void {
     if (!this.el) return;
     e.preventDefault();
+    if (this.pointerDown || this.freeBodyId !== null) return;
     this.h.onUserInteract();
     const first = e.touches[0];
     this.freeTap = e.touches.length === 1 && first
@@ -346,6 +357,18 @@ export class InputController {
     const mid = r.left + r.width / 2;
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i]!;
+      if (
+        this.freeMoveId === null &&
+        this.freeLookId === null &&
+        this.h.onBodyDragStart(...this.toNDC(t.clientX, t.clientY))
+      ) {
+        this.freeTap = null;
+        this.freeBodyId = t.identifier;
+        this.freeBodyStartX = t.clientX;
+        this.freeBodyStartY = t.clientY;
+        this.freeBodyDragging = false;
+        return;
+      }
       if (t.clientX < mid) {
         // Strict zone ownership: only the first left-half touch is the stick.
         if (this.freeMoveId === null) {
@@ -371,7 +394,17 @@ export class InputController {
           Math.hypot(t.clientX - this.freeTap.x, t.clientY - this.freeTap.y) > DRAG_THRESHOLD) {
         this.freeTap = null;
       }
-      if (t.identifier === this.freeLookId) {
+      if (t.identifier === this.freeBodyId) {
+        if (
+          Math.hypot(t.clientX - this.freeBodyStartX, t.clientY - this.freeBodyStartY) >
+          DRAG_THRESHOLD
+        ) {
+          this.freeBodyDragging = true;
+        }
+        if (this.freeBodyDragging) {
+          this.h.onBodyDrag(...this.toNDC(t.clientX, t.clientY));
+        }
+      } else if (t.identifier === this.freeLookId) {
         this.h.onLook(t.clientX - this.freeLookX, t.clientY - this.freeLookY);
         this.freeLookX = t.clientX;
         this.freeLookY = t.clientY;
@@ -402,7 +435,9 @@ export class InputController {
         }
         this.freeTap = null;
       }
-      if (id === this.freeMoveId) {
+      if (id === this.freeBodyId) {
+        this.clearFreeTouch();
+      } else if (id === this.freeMoveId) {
         this.freeMoveId = null;
         this.touchForward = 0;
         this.touchRight = 0;
