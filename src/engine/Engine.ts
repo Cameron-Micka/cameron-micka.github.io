@@ -11,6 +11,7 @@ import type {
 import { WebGPURenderer } from './WebGPURenderer';
 import { WebGL2Renderer } from './WebGL2Renderer';
 import { Camera } from './Camera';
+import { selectionOutline } from './selectionOutline';
 import {
   buildPlanetModels,
   buildFlightPath,
@@ -84,6 +85,7 @@ export type EngineEvents = {
   ready: null;
   flyInDone: null;
   loadProgress: LoadState;
+  bodySelectionChanged: string | null;
 };
 
 // Startup progress surfaced to the loading bar. `frac` is monotonic 0..1 and
@@ -135,7 +137,7 @@ export class Engine {
   private readonly initialSunCenter: Vec3;
   private readonly sceneCenter: Vec3;
   private bodyDrag: {
-    body: { center: Vec3 };
+    body: { center: Vec3; radius: number };
     planePoint: Vec3;
     planeNormal: Vec3;
     offset: Vec3;
@@ -254,7 +256,10 @@ export class Engine {
       onLook: (dx, dy) => this.onLook(dx, dy),
       onBodyDragStart: (x, y) => this.startBodyDrag(x, y),
       onBodyDrag: (x, y) => this.moveBodyDrag(x, y),
-      onBodyDragEnd: () => { this.bodyDrag = null; },
+      onBodyDragEnd: () => {
+        this.bodyDrag = null;
+        this.events.emit('bodySelectionChanged', null);
+      },
     });
 
     this.snapshot = this.buildSnapshot();
@@ -606,6 +611,20 @@ export class Engine {
       flightPath: this.settings.flightPath ? this.flightPath : new Float32Array(0),
     };
     r.render(frame);
+    if (this.bodyDrag) {
+      this.events.emit(
+        'bodySelectionChanged',
+        this.settings.freeCamera && !this.openPoi
+          ? selectionOutline(
+              this.bodyDrag.body,
+              this.camera,
+              this.canvas.clientWidth,
+              this.canvas.clientHeight,
+              frame.crtBarrel,
+            )
+          : null,
+      );
+    }
   }
 
   private trackFps(ts: number, frameMs: number): void {
