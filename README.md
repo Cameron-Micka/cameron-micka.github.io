@@ -48,11 +48,12 @@ stats).
 ### Free camera
 
 Use the compass button to enter free camera. On desktop, WASD flies, Shift
-boosts, and Space slows movement. Click and drag a planet or the sun to move
-it across the view; drag empty space (or right-drag anywhere) to look around.
-Planet moons, satellites, and the flight path follow the moved planet.
-Leaving free camera restores the original scene layout for timeline navigation.
-Touch controls remain left-half drag to fly and right-half drag to look.
+boosts, and Space slows movement. Press the sun's solid disc and drag to move
+only the sun across the view; release to stop moving it. Drag anywhere else
+(or right-drag anywhere) to look around. Planets and the flight path stay fixed.
+Leaving free camera restores the sun's original position and lighting.
+On touch screens, drag the sun to move it; elsewhere, drag the left half to fly
+and the right half to look.
 
 ### Backends & quality
 
