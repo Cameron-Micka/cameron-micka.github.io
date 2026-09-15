@@ -21,6 +21,7 @@ import {
 } from './Scene';
 import { QualityManager, QUALITY_PRESETS, type QualityPreference } from './QualityManager';
 import { InputController } from './InputController';
+import { Moons } from './Moons';
 import { TinyEventEmitter } from './TinyEventEmitter';
 import { clamp, damp, easing, lerp } from './math/easing';
 import { rayFromNDC, rayPointAt, raySphere } from './math/raycast';
@@ -166,6 +167,7 @@ export class Engine {
   // reduced motion without affecting the global time used by shaders
   // (cloud rotation, etc. already apply their own reduced-motion multipliers).
   private moonTime = 0;
+  private moons = new Moons();
   private focusedIndex = 0;
   private openPoi: OpenPoiRef | null = null;
   private lastOrbitIndex = -1;
@@ -397,7 +399,7 @@ export class Engine {
       this.camera.setZoom(this.zoomCurrent);
       this.camera.update(this.scrubCurrent);
     }
-    this.renderFrame();
+    this.renderFrame(!modalOpen && !this.motionPaused() ? dt : 0);
 
     if (!this.ready) {
       this.ready = true;
@@ -543,7 +545,7 @@ export class Engine {
     }
   }
 
-  private renderFrame(): void {
+  private renderFrame(dt: number): void {
     const r = this.renderer;
     if (!r) return;
     const planets = this.models.map((m, i) => {
@@ -557,18 +559,16 @@ export class Engine {
         this.planetVisibility(i),
       );
     });
+    this.moons.update(planets, this.moonTime, dt, this.sun);
     // Free-fly mode is for exploring the scene, not the resume content, so hide
     // the POI markers + connector lines. Instances are rebuilt each frame, so
     // clearing here is safe and leaves picking (which uses this.models) intact.
     if (this.settings.freeCamera) {
       for (const p of planets) p.pois = [];
     }
-    // Frustum-cull whole planets: drop any planet whose entire system bounding
-    // sphere (body + ring/atmosphere margin + moon orbits + satellites) lies
-    // outside the view frustum, which also discards its moons and satellites
-    // for free. Shadow casters are still gathered from the full list below so an
-    // off-screen body can keep casting onto a visible one. Renderers further
-    // cull individual moons and the sun against this same frustum.
+    // Cull planets with their shells and satellites. Moons are independent:
+    // launching one must not hide it when its former parent leaves the view.
+    // Keep off-screen planets in the shadow-caster list below.
     const frustum = this.camera.frustum;
     const visiblePlanets = planets.filter((p) =>
       frustum.intersectsSphere(p.center, this.planetSystemRadius(p)),
@@ -587,6 +587,7 @@ export class Engine {
         : KEY_LIGHT,
       sun: this.sun,
       planets: visiblePlanets,
+      moons: this.moons.instances,
       quality: this.activeQuality,
       shadowCasters: this.activeQuality.shadows
         ? planets
@@ -677,7 +678,7 @@ export class Engine {
 
   private handlePick(ndcX: number, ndcY: number): void {
     if (this.openPoi) return;
-    const ray = rayFromNDC(ndcX, ndcY, this.camera.invViewProj);
+    const ray = this.bodyPointerRay(ndcX, ndcY);
 
     let hitIndex = -1;
     let hitT = Infinity;
@@ -692,6 +693,15 @@ export class Engine {
         hitT = t;
         hitIndex = i;
       }
+    }
+
+    const sunT = raySphere(ray, this.sun.center, this.sun.radius);
+    const moon = this.moons.pick(ray, Math.min(hitT, sunT >= 0 ? sunT : Infinity));
+    const moonT = moon ? raySphere(ray, moon.center, moon.radius) : Infinity;
+    // Free camera allows moon taps, but never opens POIs or changes focus.
+    if (this.settings.freeCamera) {
+      if (moon) this.moons.launch(moon, ray.dir);
+      return;
     }
 
     // POIs are only active on the focused ("current") planet, matching what's
@@ -734,7 +744,7 @@ export class Engine {
     }
 
     // A clicked POI marker (in front of the planet) wins over the planet body.
-    if (bestPoi >= 0) {
+    if (bestPoi >= 0 && bestT < moonT) {
       const model = this.models[focused]!;
       const poi = model.poiDirs[bestPoi]!;
       this.scrubTarget = focused;
@@ -742,6 +752,10 @@ export class Engine {
       return;
     }
 
+    if (moon) {
+      this.moons.launch(moon, ray.dir);
+      return;
+    }
     if (hitIndex >= 0) this.jumpToPlanet(hitIndex);
   }
 
@@ -765,7 +779,7 @@ export class Engine {
         body = candidate;
       }
     }
-    if (!body) return false;
+    if (!body || this.moons.pick(ray, distance)) return false;
     const planePoint = rayPointAt(ray, distance);
     const view = this.camera.view;
     this.bodyDrag = {
@@ -937,17 +951,12 @@ export class Engine {
   }
 
   // Conservative radius of the sphere (centered on the planet) that bounds the
-  // whole planet system: the body plus a margin for its ring/atmosphere/cloud
-  // shells, every moon's orbit, and every orbiting satellite. Used for coarse
-  // frustum culling so a planet is only dropped when nothing it owns could be
-  // on screen. Moon/satellite orbits are scaled by visibility at render time
-  // (≤ 1), so the unscaled extent used here always over-estimates — safe.
+  // planet's body, ring/atmosphere/cloud shells, and orbiting satellites.
+  // Satellite orbits are scaled by visibility at render time (≤ 1), so
+  // the unscaled extent used here always over-estimates — safe.
   private planetSystemRadius(p: PlanetInstance): number {
     // ~1.35× covers the atmosphere/cloud shells and ring outer edge.
     let r = p.radius * 1.35;
-    for (const m of p.moons) {
-      r = Math.max(r, m.orbitRadius + m.size);
-    }
     for (const s of p.satellites) {
       const d = Math.hypot(s.offset[0], s.offset[1], s.offset[2]);
       r = Math.max(r, d + s.size);

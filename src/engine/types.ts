@@ -81,6 +81,18 @@ export interface PlanetInstance {
   visibility: number; // 0..1 fade; planets more recent than focus fade out
 }
 
+export interface MoonInstance {
+  id: string;
+  center: Vec3;
+  radius: number;
+  orientation: Quat;
+  seed: number;
+  focus: number;
+  paletteLow: Vec3;
+  paletteMid: Vec3;
+  paletteHigh: Vec3;
+}
+
 export interface FrameState {
   time: number; // seconds
   // Moon-orbit/spin clock. Independent of `time` so reduced motion can freeze
@@ -105,6 +117,7 @@ export interface FrameState {
   // shader (bright emissive surface + sunspots + corona), not the planet shader.
   sun: { center: Vec3; radius: number };
   planets: PlanetInstance[];
+  moons: MoonInstance[];
   quality: QualitySettings;
   // Sphere occluders used for analytic shadow casting. Empty when shadows are
   // disabled by the active quality tier. Limited to MAX_SHADOW_CASTERS (8).

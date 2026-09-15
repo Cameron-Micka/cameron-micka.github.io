@@ -1296,58 +1296,35 @@ export class WebGPURenderer implements SceneRenderer {
           objIndex++;
         }
       }
+    }
 
-      for (const m of p.moons) {
-        if (objIndex >= MAX_OBJECTS - 1) break;
-        const orbit = m.orbitRadius * vis;
-        // Compute the moon's offset in the planet's local frame, then rotate
-        // it by the planet's orientation so moons stay locked to the planet
-        // as it spins or the user drags it.
-        const localOffset: [number, number, number] = [
-          Math.cos(m.angle) * orbit,
-          Math.sin(m.angle * 0.5) * orbit * 0.2,
-          Math.sin(m.angle) * orbit,
-        ];
-        const worldOffset = quat.rotateVec3(rot, localOffset);
-        const moonCenter: [number, number, number] = [
-          p.center[0] + worldOffset[0],
-          p.center[1] + worldOffset[1],
-          p.center[2] + worldOffset[2],
-        ];
-        const moonR = m.size * vis;
-        // Per-moon frustum cull: a moon can swing well clear of its parent, so
-        // skip any whose own bounding sphere is fully off screen even when the
-        // planet itself is visible.
-        if (!frame.frustum.intersectsSphere(moonCenter, moonR)) continue;
-        // Compose the planet's orientation with the moon's own slow spin so
-        // the moon's surface frame inherits the planet's rotation too.
-        const moonRot = quat.multiply(
-          rot,
-          quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
-        );
-        const moonLod = selectSphereLod(moonCenter, moonR, frame.cameraPos);
-        mat4.fromRotationTranslationScale(model, moonRot, moonCenter, moonR);
-        this.writeObject(
-          objIndex,
-          model,
-          m.size,
-          (p.seed + 7) % 100000,
-          frame.time,
-          0,
-          m.paletteLow as [number, number, number],
-          m.paletteMid as [number, number, number],
-          m.paletteHigh as [number, number, number],
-          p.focus,
-          0,
-          0,
-          0, // no oceans
-          0, // no city lights
-          0, // no flow map
-          1, // meteorite impact craters
-        );
-        objects.push({ kind: 3, index: objIndex, lod: moonLod });
-        objIndex++;
-      }
+    for (const m of frame.moons) {
+      if (objIndex >= MAX_OBJECTS - 1) break;
+      const moonCenter = m.center;
+      const moonR = m.radius;
+      if (!frame.frustum.intersectsSphere(moonCenter, moonR)) continue;
+      const moonLod = selectSphereLod(moonCenter, moonR, frame.cameraPos);
+      mat4.fromRotationTranslationScale(model, m.orientation, moonCenter, moonR);
+      this.writeObject(
+        objIndex,
+        model,
+        m.radius,
+        (m.seed + 7) % 100000,
+        frame.time,
+        0,
+        m.paletteLow as [number, number, number],
+        m.paletteMid as [number, number, number],
+        m.paletteHigh as [number, number, number],
+        m.focus,
+        0,
+        0,
+        0, // no oceans
+        0, // no city lights
+        0, // no flow map
+        1, // meteorite impact craters
+      );
+      objects.push({ kind: 3, index: objIndex, lod: moonLod });
+      objIndex++;
     }
 
     d.queue.writeBuffer(
