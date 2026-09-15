@@ -986,12 +986,11 @@ void main(){
   float nl=dot(N,L);float nv=dot(N,V);
   float muL=max(abs(nl),0.08);float muV=max(abs(nv),0.15);
   float a=edge*structure*(1.0-exp(-tau/muV))*(0.8+0.2*uFocus);
-  // Diffuse reflection / transmission, rather than a metallic specular streak.
-  float sameSide=smoothstep(-0.02,0.02,nl*nv);
+  // Light particles on both faces; avoid a dark transmission mode on rotation.
+  // Keep the incidence response and sparse dust's forward scattering.
   float fwd=pow(max(dot(V,-L),0.0),6.0);
   float reflected=1.7*muL/(muL+muV);
-  float transmitted=exp(-tau/muL)*(0.35+1.6*fwd);
-  float lighting=mix(transmitted,reflected,sameSide)+0.35*fwd*(1.0-density);
+  float lighting=reflected+0.35*fwd*(1.0-density);
   float shadow=shadowFactor(vWorld,L);
   vec3 col=baseCol*(0.035+shadow*lighting);
   float dCam=distance(vWorld,uCamera);
