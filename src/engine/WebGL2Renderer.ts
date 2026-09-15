@@ -945,14 +945,12 @@ void main(){
   float innerBroad=0.02+h2*0.18;
   float outerBroad=0.82+h3*0.12;
   float isThin=uThin;
-  float innerStart=mix(innerBroad,0.48,isThin);
-  float outerEnd=mix(outerBroad,0.76,isThin);
-  float edgeWidth=mix(0.06,0.025,isThin);
-  float outerFadeStart=mix(1.0,outerEnd,isThin);
-  float outerFadeEnd=mix(outerEnd,outerEnd-edgeWidth,isThin);
+  float innerStart=mix(innerBroad,0.62,isThin);
+  float outerEnd=mix(outerBroad,0.72,isThin);
+  float outerFadeStart=mix(1.0,outerEnd+0.06,isThin);
   float rw=fwidth(radial);
-  float edge=aaStep(innerStart,innerStart+edgeWidth,radial,rw)*
-             aaStep(outerFadeStart,outerFadeEnd,radial,rw);
+  float edge=aaStep(innerStart,innerStart+0.06,radial,rw)*
+             aaStep(outerFadeStart,outerEnd,radial,rw);
   // Saturn macro structure: faint C ring, dense B ring, near-empty Cassini
   // Division, medium A ring with the narrow Encke gap. Mirror of ring.wgsl.
   float span=max(outerEnd-innerStart,1e-3);
@@ -970,18 +968,17 @@ void main(){
   float encke=divEnd+(aEnd-divEnd)*(0.68+h4*0.10);
   float enckeSlot=clamp(aaStep(encke-0.012,encke-0.004,t,tw)-aaStep(encke+0.004,encke+0.012,t,tw),0.0,1.0);
   st*=1.0-0.95*enckeSlot;
+  float structure=mix(st,1.0,isThin);
   float detail=ringlets(t,tw,h1*100.0);
-  // Three soft ringlets with translucent gaps; fade subpixel bands to their mean.
-  float thinContrast=1.0-smoothstep(0.20,0.65,3.0*tw);
-  float thinBands=0.5-0.5*cos(t*18.84955592)*thinContrast;
-  float structure=mix(st,0.25+0.75*thinBands,isThin);
-  float density=mix(detail,mix(thinBands,detail,0.18),isThin);
+  float thinContrast=1.0-smoothstep(0.20,0.45,115.0*rw*0.15915494);
+  float thinBands=0.5+0.5*cos(radial*115.0)*thinContrast;
+  float density=mix(detail,thinBands,isThin);
   float tau=mix(0.25,1.8,density)*mix(0.55,1.0,structure);
   float ice=clamp(0.25+density*0.65+structure*0.15,0.0,1.0);
   vec3 saturnCol=mix(vec3(0.32,0.25,0.17),vec3(0.88,0.82,0.68),ice);
   vec3 pal01=mix(uLow,uMid,smoothstep(0.0,0.55,density));
   vec3 paletteCol=mix(pal01,uHigh,smoothstep(0.50,1.0,density));
-  vec3 baseCol=mix(saturnCol,paletteCol,mix(0.45,0.85,isThin));
+  vec3 baseCol=mix(saturnCol,paletteCol,mix(0.12,0.75,isThin));
   // Optical depth controls opacity; macro gaps remain transparent at grazing angles.
   vec3 N=normalize((uModel*vec4(0.0,1.0,0.0,0.0)).xyz);
   vec3 L=normalize(uLight);
@@ -989,10 +986,10 @@ void main(){
   float nl=dot(N,L);float nv=dot(N,V);
   float muL=max(abs(nl),0.08);float muV=max(abs(nv),0.15);
   float a=edge*structure*(1.0-exp(-tau/muV))*(0.8+0.2*uFocus);
-  // Light particles on both faces; avoid a dark transmission mode on rotation.
-  // Keep the incidence response and sparse dust's forward scattering.
+  // Wrapped two-sided lighting independent of the camera, matching ring.wgsl.
+  // Keep subsurface forward scattering additive and stronger in sparse dust.
   float fwd=pow(max(dot(V,-L),0.0),6.0);
-  float reflected=1.7*muL/(muL+muV);
+  float reflected=0.85*(0.75+0.25*muL);
   float lighting=reflected+0.35*fwd*(1.0-density);
   float shadow=shadowFactor(vWorld,L);
   vec3 col=baseCol*(0.035+shadow*lighting);
