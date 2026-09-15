@@ -27,7 +27,7 @@ export function selectionOutline(
   );
   const radius = body.radius * Math.sqrt(1 - ratio * ratio);
   const m = camera.viewProj;
-  const points: [number, number][] = [];
+  const points: ([number, number] | null)[] = [];
   for (let i = 0; i < 128; i++) {
     const angle = (i / 128) * Math.PI * 2;
     const p = vec3.add(
@@ -38,7 +38,10 @@ export function selectionOutline(
       ),
     );
     const w = m[3]! * p[0] + m[7]! * p[1] + m[11]! * p[2] + m[15]!;
-    if (w <= 0.1) return null;
+    if (w <= 0.1) {
+      points.push(null);
+      continue;
+    }
     let x = (m[0]! * p[0] + m[4]! * p[1] + m[8]! * p[2] + m[12]!) / w;
     let y = (m[1]! * p[0] + m[5]! * p[1] + m[9]! * p[2] + m[13]!) / w;
     // Invert the composite shader's screen-to-scene barrel sampling.
@@ -57,17 +60,27 @@ export function selectionOutline(
     points.push([(x + 1) * width * 0.5, (1 - y) * height * 0.5]);
   }
 
+  // Start after a gap so visible arcs stay connected across the array seam.
+  const gap = points.indexOf(null);
+  const ordered =
+    gap < 0 ? points : [...points.slice(gap + 1), ...points.slice(0, gap + 1)];
   // Offset along screen-space normals for a constant six CSS-pixel gap.
-  return (
-    points
-      .map(([x, y], i) => {
-        const prev = points[(i + points.length - 1) % points.length]!;
-        const next = points[(i + 1) % points.length]!;
-        const dx = next[0] - prev[0];
-        const dy = next[1] - prev[1];
-        const length = Math.hypot(dx, dy);
-        return `${i === 0 ? 'M' : 'L'}${x - (dy / length) * 6},${y + (dx / length) * 6}`;
-      })
-      .join(' ') + ' Z'
-  );
+  const path = ordered
+    .map((point, i) => {
+      if (!point) return '';
+      const [x, y] = point;
+      const prev = ordered[(i + ordered.length - 1) % ordered.length];
+      const next = ordered[(i + 1) % ordered.length];
+      if (!prev && !next) return '';
+      const before = prev ?? point;
+      const after = next ?? point;
+      const dx = after[0] - before[0];
+      const dy = after[1] - before[1];
+      const length = Math.hypot(dx, dy);
+      if (length === 0) return '';
+      return `${i === 0 || !prev ? 'M' : 'L'}${x - (dy / length) * 6},${y + (dx / length) * 6}`;
+    })
+    .filter(Boolean)
+    .join(' ');
+  return path ? path + (gap < 0 ? ' Z' : '') : null;
 }
