@@ -877,46 +877,45 @@ out vec4 frag;
 void main(){ frag=vec4(1.0,0.478,0.094,1.0); }`;
 
 // Planetary ring: a flat annulus mesh oriented by uModel. Ported from
-// ring.wgsl. Curved bands (angular sin modulation) + layered fBm + Cassini
-// gaps; palette zones, planet-shadow dimming, forward-scatter, Kajiya-Kay
-// anisotropic specular and distance fog. fwidth-based local AA band-limits the
-// high-frequency bands/gaps/edges. Needs the ring VAO's uv attribute.
+// ring.wgsl. Filtered radial ringlets, C/B/A density zones, ice/dust colors,
+// two-sided particle lighting, planet shadows and premultiplied distance fog.
 const RING_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
 layout(location=2) in vec2 aUv;
 uniform mat4 uViewProj;
 uniform mat4 uModel;
 out float vRadial;
-out float vAngle;
 out vec3 vWorld;
 void main(){
   vec4 world = uModel * vec4(aPos, 1.0);
   vWorld = world.xyz;
   vRadial = aUv.x;
-  vAngle = aUv.y * 6.2831853;
   gl_Position = uViewProj * world;
 }`;
 const RING_FRAG = `#version 300 es
 precision highp float;
 in float vRadial;
-in float vAngle;
 in vec3 vWorld;
 out vec4 frag;
 uniform mat4 uModel;
 uniform vec3 uCamera;uniform vec3 uLight;
-uniform float uTime;uniform float uSeed;uniform float uThin;uniform float uFocus;
+uniform float uSeed;uniform float uThin;uniform float uFocus;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
-float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float vnoise2(vec2 p){
-  vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);
-  return mix(mix(hash2(i),hash2(i+vec2(1.0,0.0)),u.x),
-             mix(hash2(i+vec2(0.0,1.0)),hash2(i+vec2(1.0,1.0)),u.x),u.y);
+float hash1(float p){return fract(sin(p*127.1)*43758.5453);}
+float radialNoise(float p){
+  float i=floor(p);float f=fract(p);float u=f*f*(3.0-2.0*f);
+  return mix(hash1(i),hash1(i+1.0),u);
 }
-float fbm2(vec2 p){
-  float v=0.0;float a=0.5;vec2 q=p;
-  for(int i=0;i<4;i++){v+=a*vnoise2(q);q*=2.03;a*=0.5;}
-  return v;
+// Fade subpixel octaves to their mean; radial-only sampling has no UV seam.
+float ringlets(float t,float width,float seed){
+  float v=0.0;float amplitude=0.5;float frequency=24.0;
+  for(int i=0;i<4;i++){
+    float contrast=1.0-smoothstep(0.20,0.65,frequency*width);
+    v+=amplitude*mix(0.5,radialNoise(t*frequency+seed+float(i)*19.0),contrast);
+    frequency*=3.0;amplitude*=0.5;
+  }
+  return v/0.9375;
 }
 float shadowFactor(vec3 p,vec3 L){
   float s=1.0;
@@ -938,21 +937,14 @@ float aaStep(float e0,float e1,float x,float w){
 }
 void main(){
   float radial=vRadial;
-  float angle=vAngle;
-  float time=uTime;
   float seed=uSeed;
   float h1=fract(sin(seed*0.937+1.0)*43758.5);
   float h2=fract(sin(seed*0.357+2.5)*21758.3);
   float h3=fract(sin(seed*0.713+5.7)*7853.7);
   float h4=fract(sin(seed*0.521+8.2)*51247.7);
-  float bandFreqBroad=120.0+h1*120.0;
-  float gap1Freq=5.0+h2*9.0;
-  float gap2Freq=12.0+h3*11.0;
-  float gap2Phase=h4*6.2831853;
   float innerBroad=0.02+h2*0.18;
   float outerBroad=0.82+h3*0.12;
   float isThin=uThin;
-  float bandFreq=mix(bandFreqBroad,115.0,isThin);
   float innerStart=mix(innerBroad,0.62,isThin);
   float outerEnd=mix(outerBroad,0.72,isThin);
   float outerFadeStart=mix(1.0,outerEnd+0.06,isThin);
@@ -968,91 +960,44 @@ void main(){
   float bEnd=0.54+h2*0.05;
   float divEnd=bEnd+0.05+h3*0.03;
   float aEnd=0.96;
-  float st=0.30;
+  float st=0.22;
   st=mix(st,1.00,aaStep(cEnd,cEnd+0.03,t,tw));
-  st=mix(st,0.08,aaStep(bEnd,bEnd+0.012,t,tw));
+  st=mix(st,0.015,aaStep(bEnd,bEnd+0.012,t,tw));
   st=mix(st,0.72,aaStep(divEnd,divEnd+0.012,t,tw));
   st=mix(st,0.00,aaStep(aEnd,aEnd+0.02,t,tw));
   float encke=divEnd+(aEnd-divEnd)*(0.68+h4*0.10);
   float enckeSlot=clamp(aaStep(encke-0.012,encke-0.004,t,tw)-aaStep(encke+0.004,encke+0.012,t,tw),0.0,1.0);
-  st*=1.0-0.85*enckeSlot;
+  st*=1.0-0.95*enckeSlot;
   float structure=mix(st,1.0,isThin);
-  float broadBands=0.5+0.5*cos(radial*bandFreq-0.25*sin(angle*7.0+time*0.03));
-  // Fine Saturn-style sub-striations carved into the broad bands; faded out for
-  // thin rings. Mirror of ring.wgsl.
-  float fineBands=0.5+0.5*cos(radial*bandFreq*2.6+0.10*sin(angle*11.0));
-  // Frequency-aware contrast attenuation (analytic AA): fade each band set to
-  // its mean as its on-screen rate (freq/(2pi)*fwidth) approaches the Nyquist
-  // limit so undersampled rings stop shimmering / moiré. Mirror of ring.wgsl.
-  float invTwoPi=0.15915494;
-  float broadAtt=1.0-smoothstep(0.20,0.45,bandFreq*rw*invTwoPi);
-  float fineAtt=1.0-smoothstep(0.20,0.45,bandFreq*2.6*rw*invTwoPi);
-  // Bias the faded far-field mean above 0.5 so attenuated rings stay solid
-  // rather than washing out to half-translucent (mix to a constant adds no
-  // frequency, so no aliasing returns). Mirror of ring.wgsl.
-  float bandFar=0.8;
-  float broadF=mix(bandFar,broadBands,broadAtt);
-  float fineF=mix(bandFar,fineBands,fineAtt);
-  float fineAmt=0.45*(1.0-isThin);
-  float bands=broadF*(1.0-fineAmt+fineAmt*fineF);
-  vec2 np=vec2(radial*22.0,angle*3.2);
-  float n=fbm2(np)*0.65+fbm2(np*2.7+vec2(11.0,5.0))*0.35;
-  float dv=bands*0.85+n*0.35;
-  float density=aaStep(0.20,0.85,dv,fwidth(dv));
-  float s1=0.5+0.5*sin(radial*gap1Freq+h2*6.28);
-  float s2=0.5+0.5*sin(radial*gap2Freq+gap2Phase);
-  float g1=aaStep(0.88,0.95,s1,fwidth(s1));
-  float g2=aaStep(0.92,0.97,s2,fwidth(s2));
-  float gap=clamp(g1+g2*0.7,0.0,1.0);
-  float opaq=max(0.0,density-gap*0.85);
-  float a=edge*structure*(0.18+0.55*opaq)*(0.5+0.5*uFocus);
-  vec2 ang2=vec2(cos(angle),sin(angle));
-  float zoneR=fbm2(vec2(radial*4.5,1.7+h1*6.28));
-  float zoneA=fbm2(ang2*1.7+vec2(h4*5.0,radial*2.1));
-  float palT=clamp(zoneR*1.05+zoneA*0.18-0.10,0.0,1.0);
-  vec3 pal01=mix(uLow,uMid,smoothstep(0.0,0.55,palT));
-  vec3 paletteCol=mix(pal01,uHigh,smoothstep(0.50,1.0,palT));
-  float densityWarm=smoothstep(0.55,0.92,density);
-  vec3 zonedCol=mix(paletteCol,uHigh,densityWarm*0.30);
-  float chroma=vnoise2(ang2*7.3+vec2(radial*9.0,h2*5.0));
-  vec3 chromaCol=mix(uLow,uHigh,chroma);
-  vec3 variedCol=mix(zonedCol,chromaCol,0.07);
-  vec2 grainP=vec2(radial*22.0,0.0)+ang2*8.5;
-  float grain=vnoise2(grainP+vec2(33.0,17.0));
-  float grainBright=0.85+0.30*(grain-0.5);
-  float densityShade=mix(0.70,1.05,smoothstep(0.20,0.85,density));
-  float structShade=0.72+0.38*structure;
-  vec3 baseCol=variedCol*densityShade*structShade*grainBright;
+  float detail=ringlets(t,tw,h1*100.0);
+  float thinContrast=1.0-smoothstep(0.20,0.45,115.0*rw*0.15915494);
+  float thinBands=0.5+0.5*cos(radial*115.0)*thinContrast;
+  float density=mix(detail,thinBands,isThin);
+  float tau=mix(0.25,1.8,density)*mix(0.55,1.0,structure);
+  float ice=clamp(0.25+density*0.65+structure*0.15,0.0,1.0);
+  vec3 saturnCol=mix(vec3(0.32,0.25,0.17),vec3(0.88,0.82,0.68),ice);
+  vec3 pal01=mix(uLow,uMid,smoothstep(0.0,0.55,density));
+  vec3 paletteCol=mix(pal01,uHigh,smoothstep(0.50,1.0,density));
+  vec3 baseCol=mix(saturnCol,paletteCol,mix(0.12,0.75,isThin));
+  // Optical depth controls opacity; macro gaps remain transparent at grazing angles.
+  vec3 N=normalize((uModel*vec4(0.0,1.0,0.0,0.0)).xyz);
   vec3 L=normalize(uLight);
-  float shadow=shadowFactor(vWorld,L);
   vec3 V=normalize(uCamera-vWorld);
-  float fwd=pow(max(dot(V,-L),0.0),3.0)*shadow;
-  vec3 scatterTint=mix(uMid,uHigh,0.75);
-  float scatterBoost=1.0+fwd*3.2;
-  vec3 scatterCol=mix(vec3(1.0),scatterTint*1.7,fwd);
-  vec3 col0=baseCol*mix(0.0,1.0,shadow)*scatterBoost*scatterCol;
-  float cosA=cos(angle);
-  float sinA=sin(angle);
-  vec3 T=normalize((uModel*vec4(-sinA,0.0,cosA,0.0)).xyz);
-  vec3 HV=L+V;
-  float Hlen=max(length(HV),1e-4);
-  vec3 H=HV/Hlen;
-  float TdotH=dot(T,H);
-  float sinTH=sqrt(max(0.0,1.0-TdotH*TdotH));
-  float anisoBroad=pow(sinTH,18.0);
-  float anisoTight=pow(sinTH,72.0);
-  float aniso=anisoBroad*0.40+anisoTight*0.95;
-  float anisoMask=(0.25+0.75*smoothstep(0.25,0.85,density))
-                *(0.55+0.45*smoothstep(0.30,0.95,grain))
-                *shadow;
-  vec3 anisoCol=mix(uHigh,vec3(1.0),0.60)*1.35;
-  vec3 col=col0+anisoCol*aniso*anisoMask;
-  float alphaGain=1.0+fwd*(0.45+1.40*(1.0-smoothstep(0.45,0.92,density)));
-  float aFinal=a*alphaGain;
+  float nl=dot(N,L);float nv=dot(N,V);
+  float muL=max(abs(nl),0.08);float muV=max(abs(nv),0.15);
+  float a=edge*structure*(1.0-exp(-tau/muV))*(0.8+0.2*uFocus);
+  // Diffuse reflection / transmission, rather than a metallic specular streak.
+  float sameSide=smoothstep(-0.02,0.02,nl*nv);
+  float fwd=pow(max(dot(V,-L),0.0),6.0);
+  float reflected=1.7*muL/(muL+muV);
+  float transmitted=exp(-tau/muL)*(0.35+1.6*fwd);
+  float lighting=mix(transmitted,reflected,sameSide)+0.35*fwd*(1.0-density);
+  float shadow=shadowFactor(vWorld,L);
+  vec3 col=baseCol*(0.035+shadow*lighting);
   float dCam=distance(vWorld,uCamera);
-  float sf=dCam*0.030;
+  float sf=dCam*0.018;
   float fade=exp(-sf*sf);
-  frag=vec4(col*aFinal*1.4*fade,aFinal*fade);
+  frag=vec4(col*a*1.4*fade,a*fade);
 }`;
 const PRESENT_VERT = `#version 300 es
 out vec2 vUv;
@@ -1850,7 +1795,7 @@ export class WebGL2Renderer implements SceneRenderer {
     ]);
     this.ring = this.makeProgram(RING_VERT, RING_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
-      'uTime', 'uSeed', 'uThin', 'uFocus',
+      'uSeed', 'uThin', 'uFocus',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
@@ -2654,7 +2599,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.ring.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform3fv(this.ring.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.ring.uniforms.uLight!, frame.keyLightDir);
-      gl.uniform1f(this.ring.uniforms.uTime!, frame.time);
       this.bindShadowUniforms(this.ring, frame);
       gl.bindVertexArray(this.ringVao);
       const ringIdxType = this.ringU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
