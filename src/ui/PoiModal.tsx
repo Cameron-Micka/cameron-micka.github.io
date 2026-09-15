@@ -321,8 +321,10 @@ export function PoiModal({ companies }: { companies: Company[] }) {
               }}
             >
               <h2 id={titleId(entry.key)}>
-                <span className="poi-index">{entry.ordinal}.</span>{' '}
-                {entry.poi.title}
+                <span>
+                  <span className="poi-index">{entry.ordinal}.</span>{' '}
+                  {entry.poi.title}
+                </span>
               </h2>
               <div className="body">
                 <Markdown text={entry.poi.body} />
