@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { tenureLabel, type Company } from '@/content/schema';
 import { useEngine, useEngineSnapshot } from './EngineContext';
@@ -9,6 +10,14 @@ function formatDates(c: Company): string {
 export function BottomRibbon({ companies }: { companies: Company[] }) {
   const engine = useEngine();
   const { focusedIndex, openPoi, freeCamera } = useEngineSnapshot();
+  const readoutRef = useRef<HTMLButtonElement>(null);
+  const openedFromReadout = useRef(false);
+  useEffect(() => {
+    if (!openPoi && openedFromReadout.current) {
+      openedFromReadout.current = false;
+      readoutRef.current?.focus();
+    }
+  }, [openPoi]);
   if (openPoi || freeCamera) return null;
   const company = companies[focusedIndex];
   if (!company) return null;
@@ -36,11 +45,14 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
       <button
         type="button"
         className="ribbon-readout"
+        ref={readoutRef}
         aria-label={`Open ${company.name} POI info`}
         aria-haspopup="dialog"
         disabled={!firstPoi}
         onClick={() => {
-          if (firstPoi) engine.openPoiRef(company.slug, firstPoi.slug);
+          if (!firstPoi) return;
+          openedFromReadout.current = true;
+          engine.openPoiRef(company.slug, firstPoi.slug);
         }}
       >
         <span className="ribbon-identity">
