@@ -108,8 +108,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let wf = frame.misc.z;
   if (wf > 0.5) {
     // Wireframe debug: 4 quad edges + diagonal of each segment's two
-    // triangles, drawn in cyan to match the planet wireframe. The arrowhead
-    // is filled solid in the same cyan.
+    // triangles, drawn in orange to match the planet wireframe. The arrowhead
+    // is filled solid in the same orange.
     let edgeD = 1.0 - abs(in.edge);
     let axialD = min(in.axial, 1.0 - in.axial);
     let diagD = abs(in.axial - 0.5 * (in.edge + 1.0));
@@ -121,7 +121,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let covD = 1.0 - smoothstep(0.0, 1.5 * aaD, diagD);
     let ribbonCov = max(covE, max(covA, covD));
     let a = select(ribbonCov, 1.0, in.shape > 0.5);
-    return vec4<f32>(vec3<f32>(0.25, 1.0, 0.85) * a, a);
+    return vec4<f32>(vec3<f32>(1.0, 0.478, 0.094) * a, a);
   }
   let aa = fwidth(in.edge);
   let cov = 1.0 - smoothstep(1.0 - aa, 1.0, abs(in.edge));

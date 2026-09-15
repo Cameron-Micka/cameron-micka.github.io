@@ -33,5 +33,5 @@ fn vs(
 
 @fragment
 fn fs() -> @location(0) vec4<f32> {
-  return vec4<f32>(0.25, 1.0, 0.85, 1.0);
+  return vec4<f32>(1.0, 0.478, 0.094, 1.0);
 }

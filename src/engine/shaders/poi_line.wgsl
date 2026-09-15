@@ -94,7 +94,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let covA = 1.0 - smoothstep(0.0, 1.5 * aaA, axialD);
     let covD = 1.0 - smoothstep(0.0, 1.5 * aaD, diagD);
     let a = max(covE, max(covA, covD));
-    return vec4<f32>(vec3<f32>(0.25, 1.0, 0.85) * a, a);
+    return vec4<f32>(vec3<f32>(1.0, 0.478, 0.094) * a, a);
   }
   // Screen-space derivative AA across the line width.
   let aa = fwidth(in.edge);
