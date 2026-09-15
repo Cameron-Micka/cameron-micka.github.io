@@ -52,7 +52,9 @@ boosts, and Space slows movement. Click and drag a planet or the sun to move
 it across the view; drag empty space (or right-drag anywhere) to look around.
 Planet moons, satellites, and the flight path follow the moved planet.
 Leaving free camera restores the original scene layout for timeline navigation.
-Touch controls remain left-half drag to fly and right-half drag to look.
+On touch screens, drag a planet or the sun to move it. Drag empty space on
+the left half to fly or the right half to look; these two camera gestures can
+run simultaneously.
 
 ### Backends & quality
 
