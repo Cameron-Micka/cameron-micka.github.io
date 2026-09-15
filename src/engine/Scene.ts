@@ -11,7 +11,6 @@ export interface PlanetModel {
   company: Company;
   index: number;
   z: number;
-  center: Vec3;
   radius: number;
   seed: number;
   paletteLow: Vec3;
@@ -145,7 +144,6 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       company,
       index,
       z: index * PLANET_SPACING,
-      center: [0, 0, index * PLANET_SPACING],
       radius,
       seed,
       paletteLow: hexToRgb(company.palette.low),
@@ -168,7 +166,8 @@ export function poiMarkerDistance(effectiveRadius: number): number {
 // Spacecraft trajectory polyline that hops through every planet on the
 // timeline, looping around each one and connecting consecutive loops with a
 // cubic-Hermite arc. The polyline is sampled densely enough that a thin
-// ribbon line will read smoothly; rebuild when planet centers move. Returns a flat
+// ribbon line will read smoothly; planet centers never move, so the array
+// is computed once and uploaded as a static vertex buffer. Returns a flat
 // Float32Array of XYZ triples (length = N * 3 for N points).
 //
 // Route is reverse-chronological: starts at the most recent role's planet
@@ -207,7 +206,7 @@ export function buildFlightPath(models: PlanetModel[]): Float32Array {
     // Perpendicular to the orbit plane; the corkscrew wiggle is applied
     // along this axis so the loop "drifts" out of its plane as it sweeps.
     const w = vec3.normalize(vec3.cross(u, v));
-    return { center: m.center, radius: m.radius * 1.18, u, v, w };
+    return { center: [0, 0, m.z] as Vec3, radius: m.radius * 1.18, u, v, w };
   });
 
   // Position / orbit-tangent at angle `a` on orbit `i`. The tangent is the
@@ -385,7 +384,7 @@ export function instanceFromModel(
   const f = model.company.features;
   return {
     slug: model.company.slug,
-    center: model.center,
+    center: [0, 0, model.z],
     radius: model.radius,
     orientation,
     seed: model.seed,

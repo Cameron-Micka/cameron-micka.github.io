@@ -133,8 +133,7 @@ export class Engine {
   private readonly sun: { center: Vec3; radius: number };
   private readonly initialSunCenter: Vec3;
   private readonly sceneCenter: Vec3;
-  private bodyDrag: {
-    body: { center: Vec3 };
+  private sunDrag: {
     planePoint: Vec3;
     planeNormal: Vec3;
     offset: Vec3;
@@ -154,8 +153,9 @@ export class Engine {
   // shares the global clock and would keep drifting through a "stopped" planet.
   private cloudTimes: number[];
   private cloudPace: number[];
-  // Cached spacecraft trajectory; rebuilt when a planet is moved.
-  private flightPath: Float32Array;
+  // Static spacecraft trajectory polyline. Planet centers never move, so this
+  // is built once at startup and re-used every frame.
+  private readonly flightPath: Float32Array;
   private scrubCurrent = 0;
   private scrubTarget = 0;
   private zoomTarget = 1;
@@ -250,9 +250,9 @@ export class Engine {
         this.jumpToPlanet(t === 'start' ? 0 : this.models.length - 1),
       onUserInteract: () => this.onUserInteract(),
       onLook: (dx, dy) => this.onLook(dx, dy),
-      onBodyDragStart: (x, y) => this.startBodyDrag(x, y),
-      onBodyDrag: (x, y) => this.moveBodyDrag(x, y),
-      onBodyDragEnd: () => { this.bodyDrag = null; },
+      onSunDragStart: (x, y) => this.startSunDrag(x, y),
+      onSunDrag: (x, y) => this.moveSunDrag(x, y),
+      onSunDragEnd: () => { this.sunDrag = null; },
     });
 
     this.snapshot = this.buildSnapshot();
@@ -418,7 +418,7 @@ export class Engine {
     }
 
     // Keep the grab plane stable instead of drifting on residual fly momentum.
-    if (this.bodyDrag) {
+    if (this.sunDrag) {
       this.freeVelocity = [0, 0, 0];
       this.camera.updateFree(this.freePos, this.freeYaw, this.freePitch);
       return;
@@ -667,7 +667,7 @@ export class Engine {
 
   // Pointer drag in free-fly mode. Drag right → yaw++, drag down → pitch--.
   private onLook(dx: number, dy: number): void {
-    if (!this.settings.freeCamera || this.openPoi || this.bodyDrag) return;
+    if (!this.settings.freeCamera || this.openPoi || this.sunDrag) return;
     this.freeYaw += dx * LOOK_SENSITIVITY;
     this.freePitch -= dy * LOOK_SENSITIVITY;
     if (this.freePitch > PITCH_LIMIT) this.freePitch = PITCH_LIMIT;
@@ -687,7 +687,7 @@ export class Engine {
       const m = this.models[i]!;
       // Match the visual: the body is drawn at radius * visibility, so the
       // pick collider must shrink with the same factor as the planet fades.
-      const t = raySphere(ray, m.center, m.radius * vis);
+      const t = raySphere(ray, [0, 0, m.z], m.radius * vis);
       if (t >= 0 && t < hitT) {
         hitT = t;
         hitIndex = i;
@@ -703,7 +703,7 @@ export class Engine {
     const focused = this.focusedIndex;
     if (focused >= 0 && this.planetVisibility(focused) > 0.2) {
       const model = this.models[focused]!;
-      const center = model.center;
+      const center: Vec3 = [0, 0, model.z];
       const rot = this.orientations[focused] ?? quat.identity();
       const markerDist = poiMarkerDistance(model.radius);
       // Keep the original screen-space pick radius around the smaller pin
@@ -745,7 +745,7 @@ export class Engine {
     if (hitIndex >= 0) this.jumpToPlanet(hitIndex);
   }
 
-  private bodyPointerRay(ndcX: number, ndcY: number) {
+  private sunPointerRay(ndcX: number, ndcY: number) {
     // Match the composite shader's screen-to-scene barrel sampling.
     const amount = this.settings.crt ? CRT_BARREL : 0;
     const scale =
@@ -753,40 +753,42 @@ export class Engine {
     return rayFromNDC(ndcX * scale, ndcY * scale, this.camera.invViewProj);
   }
 
-  private startBodyDrag(ndcX: number, ndcY: number): boolean {
+  private startSunDrag(ndcX: number, ndcY: number): boolean {
     if (!this.settings.freeCamera || this.openPoi) return false;
-    const ray = this.bodyPointerRay(ndcX, ndcY);
-    let body: { center: Vec3; radius: number } | null = null;
-    let distance = Infinity;
-    for (const candidate of [...this.models, this.sun]) {
-      const t = raySphere(ray, candidate.center, candidate.radius);
-      if (t >= 0 && t < distance) {
-        distance = t;
-        body = candidate;
-      }
+    const ray = this.sunPointerRay(ndcX, ndcY);
+    const distance = raySphere(ray, this.sun.center, this.sun.radius);
+    if (distance < 0) return false;
+    // A planet in front of the sun must remain a camera-look target.
+    for (const model of this.models) {
+      const t = raySphere(ray, [0, 0, model.z], model.radius);
+      if (t >= 0 && t < distance) return false;
     }
-    if (!body) return false;
-    const planePoint = rayPointAt(ray, distance);
     const view = this.camera.view;
-    this.bodyDrag = {
-      body,
+    const planeNormal: Vec3 = [-view[2]!, -view[6]!, -view[10]!];
+    const planePoint: Vec3 = [...this.sun.center];
+    const denominator = vec3.dot(ray.dir, planeNormal);
+    if (Math.abs(denominator) < 1e-6) return false;
+    const t = vec3.dot(vec3.sub(planePoint, ray.origin), planeNormal) / denominator;
+    if (t < 0 || !Number.isFinite(t)) return false;
+    // Drag at the center's depth, not the sphere's front surface, so the
+    // projected center follows the pointer without lagging behind it.
+    this.sunDrag = {
       planePoint,
-      planeNormal: [-view[2]!, -view[6]!, -view[10]!],
-      offset: vec3.sub(body.center, planePoint),
+      planeNormal,
+      offset: vec3.sub(this.sun.center, rayPointAt(ray, t)),
     };
     return true;
   }
 
-  private moveBodyDrag(ndcX: number, ndcY: number): void {
-    const drag = this.bodyDrag;
+  private moveSunDrag(ndcX: number, ndcY: number): void {
+    const drag = this.sunDrag;
     if (!drag || !this.settings.freeCamera || this.openPoi) return;
-    const ray = this.bodyPointerRay(ndcX, ndcY);
+    const ray = this.sunPointerRay(ndcX, ndcY);
     const denominator = vec3.dot(ray.dir, drag.planeNormal);
     if (Math.abs(denominator) < 1e-6) return;
     const t = vec3.dot(vec3.sub(drag.planePoint, ray.origin), drag.planeNormal) / denominator;
     if (t < 0 || !Number.isFinite(t)) return;
-    drag.body.center = vec3.add(rayPointAt(ray, t), drag.offset);
-    if (drag.body !== this.sun) this.flightPath = buildFlightPath(this.models);
+    this.sun.center = vec3.add(rayPointAt(ray, t), drag.offset);
   }
 
   // ---- public API for React / routing ----
@@ -894,10 +896,7 @@ export class Engine {
     } else {
       this.input.setFreeMode(false);
       this.freeVelocity = [0, 0, 0];
-      // Free-camera rearrangements must not break the fixed timeline framing.
-      for (const model of this.models) model.center = [0, 0, model.z];
       this.sun.center = [...this.initialSunCenter];
-      this.flightPath = buildFlightPath(this.models);
     }
     this.commit();
   }

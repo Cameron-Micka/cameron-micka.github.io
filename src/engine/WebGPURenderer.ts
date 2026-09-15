@@ -130,7 +130,7 @@ export class WebGPURenderer implements SceneRenderer {
   // (re)allocated only when the polyline length changes.
   private flightPathBuf: GPUBuffer | null = null;
   private flightPathSegmentCount = 0;
-  private flightPathSource: Float32Array | null = null;
+  private flightPathPointCount = 0;
 
   private frameBG!: GPUBindGroup;
   private objBG!: GPUBindGroup;
@@ -1774,14 +1774,15 @@ export class WebGPURenderer implements SceneRenderer {
 
   // Build a per-segment instance buffer (prev.xyz, next.xyz, kind) from the
   // flight path polyline, plus one trailing arrowhead instance (kind=1) at the
-  // end point. Re-upload when the engine supplies a rebuilt polyline.
+  // end point. Only re-uploads when the polyline length changes, which in
+  // practice means once on first frame.
   private uploadFlightPath(path: Float32Array): void {
     const pointCount = path.length / 3;
     if (pointCount < 2) {
       this.flightPathSegmentCount = 0;
       return;
     }
-    if (path === this.flightPathSource && this.flightPathBuf) {
+    if (pointCount === this.flightPathPointCount && this.flightPathBuf) {
       // Buffer is still valid from a previous frame (e.g. user toggled the
       // path off and back on). Restore the segment count so the draw call
       // runs again.
@@ -1834,7 +1835,7 @@ export class WebGPURenderer implements SceneRenderer {
     });
     this.device.queue.writeBuffer(this.flightPathBuf, 0, instance);
     this.flightPathSegmentCount = segments;
-    this.flightPathSource = path;
+    this.flightPathPointCount = pointCount;
   }
 
   // Pack visible planets' satellites into the per-frame instance buffer. Each

@@ -8,9 +8,9 @@ export interface InputHandlers {
   onKeyJump(target: 'start' | 'end'): void;
   onUserInteract(): void;
   onLook(dx: number, dy: number): void;
-  onBodyDragStart(ndcX: number, ndcY: number): boolean;
-  onBodyDrag(ndcX: number, ndcY: number): void;
-  onBodyDragEnd(): void;
+  onSunDragStart(ndcX: number, ndcY: number): boolean;
+  onSunDrag(ndcX: number, ndcY: number): void;
+  onSunDragEnd(): void;
 }
 
 const DRAG_THRESHOLD = 6; // px before a press becomes an orbit drag
@@ -37,7 +37,8 @@ export class InputController {
 
   private pointerDown = false;
   private pointerId: number | null = null;
-  private bodyDrag = false;
+  private sunDrag = false;
+  private sunTouchId: number | null = null;
   private previousCursor = '';
   private dragging = false;
   private downX = 0;
@@ -131,6 +132,10 @@ export class InputController {
   // Drops any in-progress free-fly touch gestures so the camera can never be
   // left drifting from a touch that was cancelled, lost, or mode-switched away.
   private clearFreeTouch(): void {
+    if (this.sunTouchId !== null) {
+      this.sunTouchId = null;
+      this.h.onSunDragEnd();
+    }
     this.freeMoveId = null;
     this.freeLookId = null;
     this.touchForward = 0;
@@ -189,7 +194,7 @@ export class InputController {
   }
 
   private onPointerDown = (e: PointerEvent): void => {
-    if (e.pointerType === 'touch' || this.pointerDown) return; // touch handled separately
+    if (e.pointerType === 'touch' || this.pointerDown || this.sunTouchId !== null) return;
     this.pointerDown = true;
     this.pointerId = e.pointerId;
     this.dragging = false;
@@ -197,8 +202,8 @@ export class InputController {
     this.downY = this.lastY = e.clientY;
     this.h.onUserInteract();
     if (this.freeMode && e.button === 0) {
-      this.bodyDrag = this.h.onBodyDragStart(...this.toNDC(e.clientX, e.clientY));
-      if (this.bodyDrag && this.el) {
+      this.sunDrag = this.h.onSunDragStart(...this.toNDC(e.clientX, e.clientY));
+      if (this.sunDrag && this.el) {
         this.previousCursor = this.el.style.cursor;
         this.el.style.cursor = 'grabbing';
         this.el.setPointerCapture(e.pointerId);
@@ -217,7 +222,7 @@ export class InputController {
       this.dragging = true;
     }
     if (this.dragging) {
-      if (this.bodyDrag) this.h.onBodyDrag(...this.toNDC(e.clientX, e.clientY));
+      if (this.sunDrag) this.h.onSunDrag(...this.toNDC(e.clientX, e.clientY));
       else if (this.freeMode) this.h.onLook(dx, dy);
       else this.h.onOrbit(dx, dy);
     }
@@ -244,9 +249,9 @@ export class InputController {
     this.pointerId = null;
     this.pointerDown = false;
     this.dragging = false;
-    if (this.bodyDrag) {
-      this.bodyDrag = false;
-      this.h.onBodyDragEnd();
+    if (this.sunDrag) {
+      this.sunDrag = false;
+      this.h.onSunDragEnd();
       if (this.el) this.el.style.cursor = this.previousCursor;
     }
     if (id !== null && this.el?.hasPointerCapture(id)) {
@@ -333,11 +338,20 @@ export class InputController {
   private onFreeTouchStart(e: TouchEvent): void {
     if (!this.el) return;
     e.preventDefault();
+    if (this.pointerDown || this.sunTouchId !== null) return;
     this.h.onUserInteract();
     const r = this.el.getBoundingClientRect();
     const mid = r.left + r.width / 2;
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i]!;
+      if (this.h.onSunDragStart(...this.toNDC(t.clientX, t.clientY))) {
+        this.clearFreeTouch();
+        this.sunTouchId = t.identifier;
+        this.downX = t.clientX;
+        this.downY = t.clientY;
+        this.dragging = false;
+        return;
+      }
       if (t.clientX < mid) {
         // Strict zone ownership: only the first left-half touch is the stick.
         if (this.freeMoveId === null) {
@@ -359,6 +373,15 @@ export class InputController {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i]!;
+      if (this.sunTouchId !== null) {
+        if (t.identifier === this.sunTouchId) {
+          if (Math.hypot(t.clientX - this.downX, t.clientY - this.downY) > DRAG_THRESHOLD) {
+            this.dragging = true;
+          }
+          if (this.dragging) this.h.onSunDrag(...this.toNDC(t.clientX, t.clientY));
+        }
+        continue;
+      }
       if (t.identifier === this.freeLookId) {
         this.h.onLook(t.clientX - this.freeLookX, t.clientY - this.freeLookY);
         this.freeLookX = t.clientX;
@@ -382,7 +405,10 @@ export class InputController {
   private onFreeTouchEnd(e: TouchEvent): void {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const id = e.changedTouches[i]!.identifier;
-      if (id === this.freeMoveId) {
+      if (id === this.sunTouchId) {
+        this.clearFreeTouch();
+        this.dragging = false;
+      } else if (id === this.freeMoveId) {
         this.freeMoveId = null;
         this.touchForward = 0;
         this.touchRight = 0;
