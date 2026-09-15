@@ -140,6 +140,7 @@ export function Experience({ companies }: { companies: Company[] }) {
       {engine && (
         <EngineContext.Provider value={engine}>
           {!startError && <LoadingBar />}
+          <BodySelectionOutline />
           <div className="overlay">
             <TopNav
               onToggleSettings={() => setSettingsOpen((o) => !o)}
@@ -162,6 +163,24 @@ export function Experience({ companies }: { companies: Company[] }) {
         </EngineContext.Provider>
       )}
     </>
+  );
+}
+
+function BodySelectionOutline() {
+  const engine = useEngine();
+  const pathRef = useRef<SVGPathElement>(null);
+  useEffect(
+    () =>
+      engine.events.on('bodySelectionChanged', (outline) => {
+        pathRef.current?.setAttribute('d', outline ?? '');
+      }),
+    [engine],
+  );
+
+  return (
+    <svg className="body-selection-outline" aria-hidden="true">
+      <path ref={pathRef} />
+    </svg>
   );
 }
 
