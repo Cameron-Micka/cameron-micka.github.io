@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Video } from 'lucide-react';
 import type { Company } from '@/content/schema';
 import { Engine } from '@/engine/Engine';
+import { resolveReducedMotion } from '@/settings';
 import { EngineContext, useEngine, useEngineSnapshot } from './EngineContext';
 import { SoundManager } from './SoundManager';
 import { TopNav } from './TopNav';
@@ -174,18 +175,56 @@ function Backend() {
 // camera. The controls hint lives in the bottom ribbon while active.
 function FreeCameraButton() {
   const engine = useEngine();
-  const { freeCamera } = useEngineSnapshot();
+  const { freeCamera, freeCameraState, reducedMotion } = useEngineSnapshot();
+  const iconRef = useRef<SVGSVGElement>(null);
+  const angleRef = useRef(0);
+  const lastTimeRef = useRef<number | null>(null);
+  // The icon points right; yaw zero faces -Z (up in a top-down XZ view).
+  const targetAngle = freeCamera ? (freeCameraState?.yawDeg ?? 0) - 90 : 0;
+
+  useEffect(() => {
+    const icon = iconRef.current;
+    if (!icon) return;
+    if (!freeCamera || resolveReducedMotion(reducedMotion)) {
+      angleRef.current = targetAngle;
+      lastTimeRef.current = null;
+      icon.style.transform = `rotate(${targetAngle}deg)`;
+      return;
+    }
+
+    let frame = 0;
+    const animate = (time: number) => {
+      const dt =
+        lastTimeRef.current === null
+          ? 1 / 60
+          : Math.max(0, Math.min(0.05, (time - lastTimeRef.current) / 1000));
+      lastTimeRef.current = time;
+      // Take the shortest turn, including across the normalized yaw boundary.
+      const delta =
+        ((((targetAngle - angleRef.current) % 360) + 540) % 360) - 180;
+      const settled = Math.abs(delta) < 0.1;
+      angleRef.current = settled
+        ? targetAngle
+        : angleRef.current + delta * (1 - Math.exp(-18 * dt));
+      icon.style.transform = `rotate(${angleRef.current}deg)`;
+      if (!settled) frame = requestAnimationFrame(animate);
+      else lastTimeRef.current = null;
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [freeCamera, reducedMotion, targetAngle]);
+
   return (
     <div className="freecam">
       <button
         type="button"
-        className={`icon-btn freecam-btn${freeCamera ? ' active' : ''}`}
+        className="icon-btn freecam-btn"
         aria-label={UI.freeCamera}
         aria-pressed={freeCamera}
         title={UI.freeCamera}
         onClick={() => engine.setFreeCamera(!freeCamera)}
       >
-        <Video size={19} strokeWidth={1.7} aria-hidden="true" />
+        <Video ref={iconRef} size={19} strokeWidth={1.7} aria-hidden="true" />
       </button>
     </div>
   );
