@@ -115,20 +115,21 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let innerBroad = 0.02 + h2 * 0.18;        // 0.02..0.20
   let outerBroad = 0.82 + h3 * 0.12;        // 0.82..0.94
 
-  // "Thin ring" style: narrow band hugging the planet with only ~3 visible
-  // stripes. Selected per-planet via obj.p1.w (set when thinRing=true).
+  // "Thin ring" style: three distinct ringlets within a narrow envelope.
+  // Selected per-planet via obj.p1.w (set when thinRing=true).
   let isThin = obj.p1.w;
-  let innerStart = mix(innerBroad, 0.62, isThin);
-  let outerEnd = mix(outerBroad, 0.72, isThin);
-  // Broad rings keep the original wide soft fade to the geometry edge; thin
-  // rings use a tight 0.06-wide outer fade so the band actually reads narrow.
-  let outerFadeStart = mix(1.0, outerEnd + 0.06, isThin);
+  let innerStart = mix(innerBroad, 0.48, isThin);
+  let outerEnd = mix(outerBroad, 0.76, isThin);
+  // Thin rings taper inside their envelope; broad rings retain the dusty halo.
+  let edgeWidth = mix(0.06, 0.025, isThin);
+  let outerFadeStart = mix(1.0, outerEnd, isThin);
+  let outerFadeEnd = mix(outerEnd, outerEnd - edgeWidth, isThin);
   // Screen-space footprint of the radial coordinate; drives local AA on every
   // radial threshold below so thin bands/edges don't shimmer when the ring is
   // far away or seen near edge-on.
   let rw = fwidth(radial);
-  let edge = aaStep(innerStart, innerStart + 0.06, radial, rw) *
-             aaStep(outerFadeStart, outerEnd, radial, rw);
+  let edge = aaStep(innerStart, innerStart + edgeWidth, radial, rw) *
+             aaStep(outerFadeStart, outerFadeEnd, radial, rw);
 
   // Saturn's macro structure: the disk is not a uniform sheet but a small
   // number of distinct radial zones — a faint inner C ring, the bright dense
@@ -157,21 +158,21 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     1.0,
   );
   st = st * (1.0 - 0.95 * enckeSlot);
-  // Thin rings keep their clean uniform look, so bypass the structure.
-  let structure = mix(st, 1.0, isThin);
-
   let detail = ringlets(t, tw, h1 * 100.0);
-  let thinContrast = 1.0 - smoothstep(0.20, 0.45, 115.0 * rw * 0.15915494);
-  let thinBands = 0.5 + 0.5 * cos(radial * 115.0) * thinContrast;
-  let density = mix(detail, thinBands, isThin);
+  // Resolve three soft bands across the envelope, fading to their mean at
+  // distance. Sparse gaps remain translucent even at grazing view angles.
+  let thinContrast = 1.0 - smoothstep(0.20, 0.65, 3.0 * tw);
+  let thinBands = 0.5 - 0.5 * cos(t * 18.84955592) * thinContrast;
+  let structure = mix(st, 0.25 + 0.75 * thinBands, isThin);
+  let density = mix(detail, mix(thinBands, detail, 0.18), isThin);
   let tau = mix(0.25, 1.8, density) * mix(0.55, 1.0, structure);
 
-  // Muted rocky inner bands and creamy water ice, with a little planet tint.
+  // Retain rocky dust and creamy ice while bringing out the planet's palette.
   let ice = clamp(0.25 + density * 0.65 + structure * 0.15, 0.0, 1.0);
   let saturnCol = mix(vec3<f32>(0.32, 0.25, 0.17), vec3<f32>(0.88, 0.82, 0.68), ice);
   let pal01 = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.0, 0.55, density));
   let paletteCol = mix(pal01, obj.palHigh.rgb, smoothstep(0.50, 1.0, density));
-  let baseCol = mix(saturnCol, paletteCol, mix(0.12, 0.75, isThin));
+  let baseCol = mix(saturnCol, paletteCol, mix(0.45, 0.85, isThin));
 
   // Optical depth increases at grazing view angles. Keep gaps as coverage
   // so they do not become opaque when the disk is viewed almost edge-on.
