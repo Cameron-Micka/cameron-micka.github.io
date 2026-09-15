@@ -54,6 +54,15 @@ Planet moons, satellites, and the flight path follow the moved planet.
 Leaving free camera restores the original scene layout for timeline navigation.
 Touch controls remain left-half drag to fly and right-half drag to look.
 
+### Moon launching
+
+Click or tap a moon to knock it out of orbit, away from the camera along the
+tap's direction. Flying moons bounce off planets and other moons, and are
+destroyed on contact with the sun. Tap one again to redirect it.
+This works in both timeline and free-camera modes. Detached moons no longer
+follow their parent planet or its visibility; reload the page to restore them.
+Paused motion and open POI dialogs also pause moon flight.
+
 ### Backends & quality
 
 WebGPU is used when available (two-step adapter+device probe); otherwise the app
