@@ -1787,7 +1787,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private flightVao: WebGLVertexArrayObject | null = null;
   private flightBuf: WebGLBuffer | null = null;
   private flightSegments = 0;
-  private flightPoints = 0;
+  private flightPathSource: Float32Array | null = null;
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
@@ -2859,8 +2859,7 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   // Build per-segment instance data (prev.xyz, next.xyz) from the trajectory
-  // polyline. Only re-allocates the buffer/VAO when the polyline length
-  // changes; in practice that happens once on first frame.
+  // polyline. Re-upload when the engine supplies a rebuilt polyline.
   private uploadFlightPath(path: Float32Array): void {
     const gl = this.gl;
     const points = path.length / 3;
@@ -2868,7 +2867,7 @@ export class WebGL2Renderer implements SceneRenderer {
       this.flightSegments = 0;
       return;
     }
-    if (points === this.flightPoints && this.flightVao && this.flightBuf) {
+    if (path === this.flightPathSource && this.flightVao && this.flightBuf) {
       // Buffer still valid from a previous frame (e.g. user toggled the path
       // off and back on). Restore the segment count so the draw runs again.
       this.flightSegments = points - 1;
@@ -2938,7 +2937,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.flightVao = vao;
     this.flightBuf = buf;
     this.flightSegments = segments;
-    this.flightPoints = points;
+    this.flightPathSource = path;
   }
 
   private drawSphere(

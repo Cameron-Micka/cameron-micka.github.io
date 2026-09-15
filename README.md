@@ -45,6 +45,15 @@ React subscribes to a small immutable snapshot via `useSyncExternalStore`, so
 the UI only updates on meaningful changes (focused planet, open POI, settings,
 stats).
 
+### Free camera
+
+Use the compass button to enter free camera. On desktop, WASD flies, Shift
+boosts, and Space slows movement. Click and drag a planet or the sun to move
+it across the view; drag empty space (or right-drag anywhere) to look around.
+Planet moons, satellites, and the flight path follow the moved planet.
+Leaving free camera restores the original scene layout for timeline navigation.
+Touch controls remain left-half drag to fly and right-half drag to look.
+
 ### Backends & quality
 
 WebGPU is used when available (two-step adapter+device probe); otherwise the app

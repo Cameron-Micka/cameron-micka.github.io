@@ -8,6 +8,9 @@ export interface InputHandlers {
   onKeyJump(target: 'start' | 'end'): void;
   onUserInteract(): void;
   onLook(dx: number, dy: number): void;
+  onBodyDragStart(ndcX: number, ndcY: number): boolean;
+  onBodyDrag(ndcX: number, ndcY: number): void;
+  onBodyDragEnd(): void;
 }
 
 const DRAG_THRESHOLD = 6; // px before a press becomes an orbit drag
@@ -33,6 +36,9 @@ export class InputController {
   private h: InputHandlers;
 
   private pointerDown = false;
+  private pointerId: number | null = null;
+  private bodyDrag = false;
+  private previousCursor = '';
   private dragging = false;
   private downX = 0;
   private downY = 0;
@@ -72,6 +78,8 @@ export class InputController {
     el.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
+    window.addEventListener('pointercancel', this.onPointerCancel);
+    el.addEventListener('lostpointercapture', this.onPointerCancel);
     el.addEventListener('touchstart', this.onTouchStart, { passive: false });
     el.addEventListener('touchmove', this.onTouchMove, { passive: false });
     el.addEventListener('touchend', this.onTouchEnd);
@@ -92,6 +100,8 @@ export class InputController {
     el.removeEventListener('pointerdown', this.onPointerDown);
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('pointercancel', this.onPointerCancel);
+    el.removeEventListener('lostpointercapture', this.onPointerCancel);
     el.removeEventListener('touchstart', this.onTouchStart);
     el.removeEventListener('touchmove', this.onTouchMove);
     el.removeEventListener('touchend', this.onTouchEnd);
@@ -104,11 +114,13 @@ export class InputController {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
     this.heldCodes.clear();
+    this.clearPointer();
     this.clearFreeTouch();
     this.el = null;
   }
 
   setFreeMode(enabled: boolean): void {
+    this.clearPointer();
     this.freeMode = enabled;
     // Always drop any movement keys when switching modes so a key held during
     // the toggle doesn't ghost-move the camera.
@@ -177,16 +189,25 @@ export class InputController {
   }
 
   private onPointerDown = (e: PointerEvent): void => {
-    if (e.pointerType === 'touch') return; // touch handled separately
+    if (e.pointerType === 'touch' || this.pointerDown) return; // touch handled separately
     this.pointerDown = true;
+    this.pointerId = e.pointerId;
     this.dragging = false;
     this.downX = this.lastX = e.clientX;
     this.downY = this.lastY = e.clientY;
     this.h.onUserInteract();
+    if (this.freeMode && e.button === 0) {
+      this.bodyDrag = this.h.onBodyDragStart(...this.toNDC(e.clientX, e.clientY));
+      if (this.bodyDrag && this.el) {
+        this.previousCursor = this.el.style.cursor;
+        this.el.style.cursor = 'grabbing';
+        this.el.setPointerCapture(e.pointerId);
+      }
+    }
   };
 
   private onPointerMove = (e: PointerEvent): void => {
-    if (!this.pointerDown || e.pointerType === 'touch') return;
+    if (!this.pointerDown || e.pointerId !== this.pointerId) return;
     const dx = e.clientX - this.lastX;
     const dy = e.clientY - this.lastY;
     if (
@@ -196,7 +217,8 @@ export class InputController {
       this.dragging = true;
     }
     if (this.dragging) {
-      if (this.freeMode) this.h.onLook(dx, dy);
+      if (this.bodyDrag) this.h.onBodyDrag(...this.toNDC(e.clientX, e.clientY));
+      else if (this.freeMode) this.h.onLook(dx, dy);
       else this.h.onOrbit(dx, dy);
     }
     this.lastX = e.clientX;
@@ -204,15 +226,33 @@ export class InputController {
   };
 
   private onPointerUp = (e: PointerEvent): void => {
-    if (e.pointerType === 'touch') return;
+    if (e.pointerId !== this.pointerId) return;
     // No POI picking in free mode — a stray click shouldn't reset focus.
     if (this.pointerDown && !this.dragging && !this.freeMode) {
       const [x, y] = this.toNDC(e.clientX, e.clientY);
       this.h.onPick(x, y);
     }
+    this.clearPointer();
+  };
+
+  private onPointerCancel = (e: PointerEvent): void => {
+    if (e.pointerId === this.pointerId) this.clearPointer();
+  };
+
+  private clearPointer(): void {
+    const id = this.pointerId;
+    this.pointerId = null;
     this.pointerDown = false;
     this.dragging = false;
-  };
+    if (this.bodyDrag) {
+      this.bodyDrag = false;
+      this.h.onBodyDragEnd();
+      if (this.el) this.el.style.cursor = this.previousCursor;
+    }
+    if (id !== null && this.el?.hasPointerCapture(id)) {
+      this.el.releasePointerCapture(id);
+    }
+  }
 
   // ---- Touch (multi-touch scrub + pinch) ----
   private onTouchStart = (e: TouchEvent): void => {
@@ -399,6 +439,7 @@ export class InputController {
 
   private onWindowBlur = (): void => {
     this.heldCodes.clear();
+    this.clearPointer();
     this.clearFreeTouch();
   };
 
@@ -416,6 +457,7 @@ export class InputController {
   private onVisibilityChange = (): void => {
     if (typeof document !== 'undefined' && document.hidden) {
       this.heldCodes.clear();
+      this.clearPointer();
       this.clearFreeTouch();
     }
   };
