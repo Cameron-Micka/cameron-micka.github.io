@@ -37,6 +37,7 @@ export class InputController {
 
   private pointerDown = false;
   private pointerId: number | null = null;
+  private pointerButton = 0;
   private bodyDrag = false;
   private previousCursor = '';
   private dragging = false;
@@ -67,6 +68,7 @@ export class InputController {
   private freeLookId: number | null = null;
   private freeLookX = 0;
   private freeLookY = 0;
+  private freeTap: { id: number; x: number; y: number } | null = null;
   private freeBodyId: number | null = null;
   private freeBodyStartX = 0;
   private freeBodyStartY = 0;
@@ -135,6 +137,7 @@ export class InputController {
   // Drops any in-progress free-fly touch gestures so the camera can never be
   // left drifting from a touch that was cancelled, lost, or mode-switched away.
   private clearFreeTouch(): void {
+    this.freeTap = null;
     if (this.freeBodyId !== null) {
       this.freeBodyId = null;
       this.h.onBodyDragEnd();
@@ -201,6 +204,7 @@ export class InputController {
     if (e.pointerType === 'touch' || this.pointerDown || this.freeBodyId !== null) return; // touch handled separately
     this.pointerDown = true;
     this.pointerId = e.pointerId;
+    this.pointerButton = e.button;
     this.dragging = false;
     this.downX = this.lastX = e.clientX;
     this.downY = this.lastY = e.clientY;
@@ -236,8 +240,8 @@ export class InputController {
 
   private onPointerUp = (e: PointerEvent): void => {
     if (e.pointerId !== this.pointerId) return;
-    // No POI picking in free mode — a stray click shouldn't reset focus.
-    if (this.pointerDown && !this.dragging && !this.freeMode) {
+    // The engine limits free-mode picks to moons.
+    if (this.pointerDown && !this.dragging && this.pointerButton === 0) {
       const [x, y] = this.toNDC(e.clientX, e.clientY);
       this.h.onPick(x, y);
     }
@@ -323,7 +327,7 @@ export class InputController {
       this.onFreeTouchEnd(e);
       return;
     }
-    if (this.touchMode === 'orbit' && !this.dragging) {
+    if (e.type !== 'touchcancel' && this.touchMode === 'orbit' && !this.dragging) {
       const t = e.changedTouches[0];
       if (t) {
         const [x, y] = this.toNDC(t.clientX, t.clientY);
@@ -345,6 +349,10 @@ export class InputController {
     e.preventDefault();
     if (this.pointerDown || this.freeBodyId !== null) return;
     this.h.onUserInteract();
+    const first = e.touches[0];
+    this.freeTap = e.touches.length === 1 && first
+      ? { id: first.identifier, x: first.clientX, y: first.clientY }
+      : null;
     const r = this.el.getBoundingClientRect();
     const mid = r.left + r.width / 2;
     for (let i = 0; i < e.changedTouches.length; i++) {
@@ -354,6 +362,7 @@ export class InputController {
         this.freeLookId === null &&
         this.h.onBodyDragStart(...this.toNDC(t.clientX, t.clientY))
       ) {
+        this.freeTap = null;
         this.freeBodyId = t.identifier;
         this.freeBodyStartX = t.clientX;
         this.freeBodyStartY = t.clientY;
@@ -381,6 +390,10 @@ export class InputController {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i]!;
+      if (this.freeTap?.id === t.identifier &&
+          Math.hypot(t.clientX - this.freeTap.x, t.clientY - this.freeTap.y) > DRAG_THRESHOLD) {
+        this.freeTap = null;
+      }
       if (t.identifier === this.freeBodyId) {
         if (
           Math.hypot(t.clientX - this.freeBodyStartX, t.clientY - this.freeBodyStartY) >
@@ -413,7 +426,15 @@ export class InputController {
 
   private onFreeTouchEnd(e: TouchEvent): void {
     for (let i = 0; i < e.changedTouches.length; i++) {
-      const id = e.changedTouches[i]!.identifier;
+      const t = e.changedTouches[i]!;
+      const id = t.identifier;
+      if (this.freeTap?.id === id) {
+        if (e.type !== 'touchcancel' &&
+            Math.hypot(t.clientX - this.freeTap.x, t.clientY - this.freeTap.y) <= DRAG_THRESHOLD) {
+          this.h.onPick(...this.toNDC(t.clientX, t.clientY));
+        }
+        this.freeTap = null;
+      }
       if (id === this.freeBodyId) {
         this.clearFreeTouch();
       } else if (id === this.freeMoveId) {

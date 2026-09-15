@@ -2374,32 +2374,16 @@ export class WebGL2Renderer implements SceneRenderer {
           model,
           selectSphereLod(p.center, p.radius * vis, frame.cameraPos),
         );
-        for (const m of p.moons) {
-          const orbit = m.orbitRadius * vis;
-          const localOffset: [number, number, number] = [
-            Math.cos(m.angle) * orbit,
-            Math.sin(m.angle * 0.5) * orbit * 0.2,
-            Math.sin(m.angle) * orbit,
-          ];
-          const wo = quat.rotateVec3(p.orientation, localOffset);
-          const moonCenter: [number, number, number] = [
-            p.center[0] + wo[0],
-            p.center[1] + wo[1],
-            p.center[2] + wo[2],
-          ];
-          if (!frame.frustum.intersectsSphere(moonCenter, m.size * vis)) continue;
-          const moonRot = quat.multiply(
-            p.orientation,
-            quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
-          );
-          this.drawWire(
-            moonCenter,
-            m.size * vis,
-            moonRot,
-            model,
-            selectSphereLod(moonCenter, m.size * vis, frame.cameraPos),
-          );
-        }
+      }
+      for (const m of frame.moons) {
+        if (!frame.frustum.intersectsSphere(m.center, m.radius)) continue;
+        this.drawWire(
+          m.center,
+          m.radius,
+          m.orientation,
+          model,
+          selectSphereLod(m.center, m.radius, frame.cameraPos),
+        );
       }
     } else {
     // Sun body (opaque, emissive). Skipped entirely when the sun is outside the
@@ -2443,46 +2427,25 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform1f(this.planet.uniforms.uTime!, p.cloudTime);
       const planetLod = selectSphereLod(p.center, er, frame.cameraPos);
       this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, planetLod, p.cityLights, p.flowMap && tier === 0);
-      for (const m of p.moons) {
-        const orbit = m.orbitRadius * vis;
-        // Moon orbit offset lives in the planet's local frame; rotate it by
-        // the planet's orientation so moons swing with the planet as it spins
-        // or as the user drags it.
-        const localOffset: [number, number, number] = [
-          Math.cos(m.angle) * orbit,
-          Math.sin(m.angle * 0.5) * orbit * 0.2,
-          Math.sin(m.angle) * orbit,
-        ];
-        const wo = quat.rotateVec3(p.orientation, localOffset);
-        const moonCenter: [number, number, number] = [
-          p.center[0] + wo[0],
-          p.center[1] + wo[1],
-          p.center[2] + wo[2],
-        ];
-        // Per-moon frustum cull: skip moons whose own bounding sphere is fully
-        // off screen even when the parent planet is visible.
-        if (!frame.frustum.intersectsSphere(moonCenter, m.size * vis)) continue;
-        const moonRot = quat.multiply(
-          p.orientation,
-          quat.fromAxisAngle([0, 1, 0], frame.moonTime * 0.3),
-        );
-        this.drawSphere(
-          p,
-          moonCenter,
-          m.size * vis,
-          moonRot,
-          m.paletteLow as [number, number, number],
-          m.paletteMid as [number, number, number],
-          m.paletteHigh as [number, number, number],
-          false,
-          0, // moons don't get cloud shadows
-          model,
-          selectSphereLod(moonCenter, m.size * vis, frame.cameraPos),
-          false,
-          false, // moons don't flow
-          true, // meteorite impact craters
-        );
-      }
+    }
+    for (const m of frame.moons) {
+      if (!frame.frustum.intersectsSphere(m.center, m.radius)) continue;
+      this.drawSphere(
+        m,
+        m.center,
+        m.radius,
+        m.orientation,
+        m.paletteLow as [number, number, number],
+        m.paletteMid as [number, number, number],
+        m.paletteHigh as [number, number, number],
+        false,
+        0, // moons don't get cloud shadows
+        model,
+        selectSphereLod(m.center, m.radius, frame.cameraPos),
+        false,
+        false, // moons don't flow
+        true, // meteorite impact craters
+      );
     }
 
     // Satellite point sprites. Drawn after the opaque planet+moon pass so
@@ -2941,7 +2904,7 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   private drawSphere(
-    p: PlanetInstance,
+    p: Pick<PlanetInstance, 'seed' | 'focus'>,
     center: [number, number, number],
     radius: number,
     rotation: Quat,
