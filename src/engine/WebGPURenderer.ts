@@ -467,7 +467,14 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: ringMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
+        // ring.wgsl already premultiplies RGB by opacity and distance fade.
+        targets: [{
+          format: HDR_FORMAT,
+          blend: {
+            color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            alpha: alphaBlend.alpha,
+          },
+        }],
       },
       primitive: { topology: 'triangle-list', cullMode: 'none' },
       depthStencil: {

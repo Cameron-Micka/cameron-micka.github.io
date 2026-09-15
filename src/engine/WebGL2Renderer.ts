@@ -2586,8 +2586,9 @@ export class WebGL2Renderer implements SceneRenderer {
     const anyRings = frame.planets.some((p) => p.hasRing && p.visibility > 0.02);
     if (anyRings) {
       gl.enable(gl.BLEND);
+      // RING_FRAG already premultiplies RGB by opacity and distance fade.
       gl.blendFuncSeparate(
-        gl.SRC_ALPHA,
+        gl.ONE,
         gl.ONE_MINUS_SRC_ALPHA,
         gl.ONE,
         gl.ONE_MINUS_SRC_ALPHA,
