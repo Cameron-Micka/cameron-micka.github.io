@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { tenureLabel, type Company } from '@/content/schema';
 import { useEngine, useEngineSnapshot } from './EngineContext';
@@ -9,9 +10,18 @@ function formatDates(c: Company): string {
 export function BottomRibbon({ companies }: { companies: Company[] }) {
   const engine = useEngine();
   const { focusedIndex, openPoi, freeCamera } = useEngineSnapshot();
+  const readoutRef = useRef<HTMLButtonElement>(null);
+  const openedFromReadout = useRef(false);
+  useEffect(() => {
+    if (!openPoi && openedFromReadout.current) {
+      openedFromReadout.current = false;
+      readoutRef.current?.focus();
+    }
+  }, [openPoi]);
   if (openPoi || freeCamera) return null;
   const company = companies[focusedIndex];
   if (!company) return null;
+  const firstPoi = company.pois[0];
   const logoSrc = company.logo
     ? `${import.meta.env.BASE_URL}${company.logo.replace(/^\/+/, '')}`
     : null;
@@ -32,8 +42,20 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
           ))}
         </span>
       </div>
-      <div className="ribbon-readout">
-        <div className="ribbon-identity">
+      <button
+        type="button"
+        className="ribbon-readout"
+        ref={readoutRef}
+        aria-label={`Open ${company.name} POI info`}
+        aria-haspopup="dialog"
+        disabled={!firstPoi}
+        onClick={() => {
+          if (!firstPoi) return;
+          openedFromReadout.current = true;
+          engine.openPoiRef(company.slug, firstPoi.slug);
+        }}
+      >
+        <span className="ribbon-identity">
           {logoSrc && (
             <img
               className="company-logo"
@@ -43,18 +65,18 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
               height={28}
             />
           )}
-          <div>
-            <div className="company">{company.name}</div>
-            <div className="role">{company.role}</div>
-          </div>
-        </div>
-        <div className="dates">
+          <span>
+            <span className="company">{company.name}</span>
+            <span className="role">{company.role}</span>
+          </span>
+        </span>
+        <span className="dates">
           <span>{formatDates(company)}</span>
           {company.location && (
             <span className="location">{company.location}</span>
           )}
-        </div>
-      </div>
+        </span>
+      </button>
       <div className="ribbon-transport">
         <span className="transport-label">Timeline</span>
         <div className="transport-keys">
