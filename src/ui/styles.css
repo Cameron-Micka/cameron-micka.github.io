@@ -427,11 +427,11 @@ a:hover {
     0 1px 0 #fff7;
 }
 
-/* ---- Free-camera toggle (bottom-right) ---- */
+/* ---- Free-camera toggle ---- */
 .freecam {
   position: fixed;
   right: max(24px, env(safe-area-inset-right));
-  bottom: max(10px, env(safe-area-inset-bottom));
+  top: calc(var(--nav-height) + 16px);
   z-index: 20;
   display: flex;
   flex-direction: column;
@@ -913,6 +913,76 @@ a:hover {
   border-radius: var(--radius-screen);
   display: block;
 }
+.youtube-video {
+  min-width: 0;
+  margin: 0;
+}
+.youtube-player {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-screen);
+  background: var(--screen);
+}
+.modal .media .youtube-player iframe {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  border: 0;
+}
+.youtube-preview {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--screen);
+  cursor: pointer;
+}
+.youtube-preview:focus-visible {
+  outline-offset: -4px;
+}
+.modal .media .youtube-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 0;
+}
+.youtube-play {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--accent);
+}
+.youtube-preview:hover:not(:disabled) .youtube-play {
+  background: var(--key-hover);
+}
+.youtube-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.youtube-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-2);
+}
 .modal-actions {
   position: absolute;
   top: var(--modal-actions-top);
@@ -946,6 +1016,7 @@ a:hover {
   min-width: 0;
   color: var(--phosphor);
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
   text-shadow: var(--text-glow);
@@ -963,6 +1034,7 @@ a:hover {
 /* The header already reserves the space the absolutely-positioned buttons
    needed, so POI headings can use the full width. */
 .modal.poi-modal h2 {
+  font-weight: 400;
   padding-right: 0;
 }
 .modal.expanded {
@@ -1800,8 +1872,6 @@ a:hover {
   }
   .freecam {
     right: calc(max(16px, env(safe-area-inset-right)) + 3px);
-    top: calc(var(--nav-height) + 16px);
-    bottom: auto;
   }
   .flight-console {
     display: none;
@@ -1862,6 +1932,17 @@ a:hover {
 }
 
 @media (max-width: 380px) {
+  .topnav .brand {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .topnav .brand .brand-mark,
+  .topnav .brand-text {
+    grid-area: 1 / 1;
+  }
+  .topnav .brand-text {
+    justify-content: center;
+  }
   .topnav nav {
     gap: 4px;
   }
@@ -1872,9 +1953,6 @@ a:hover {
   }
   .topnav .navlink:first-child {
     flex-grow: 1.3;
-  }
-  .topnav .navlink:nth-child(3) {
-    flex-grow: 1.1;
   }
   .ribbon-identity {
     gap: 8px;

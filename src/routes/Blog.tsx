@@ -11,7 +11,8 @@ export default function Blog() {
         <p>
           I plan to write about engineering, real-time rendering, bridging
           design to code and other nonsense on this site. For now please stay in
-          touch via the social links on the <a href="/contact">contact page</a>.
+          touch via the social links on the{' '}
+          <a href="/about#contact">About page</a>.
         </p>
       </article>
     </>

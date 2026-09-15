@@ -38,8 +38,6 @@ out vec4 frag;
 uniform float uTime;
 uniform mat4 uInvViewProj;
 uniform float uTier;
-uniform float uHeight;
-float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise3(vec3 x){
   vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
@@ -57,6 +55,7 @@ void main(){
   // with the lens.
   vec3 coreDir=normalize(vec3(0.0,0.20,-1.0));
   float rad=length(dirW-coreDir);
+  float coreFade=exp(-rad*1.10);
   float tt=uTime;
   float time=tt*0.08;
   vec3 drift=vec3(tt*0.012,tt*-0.006,time);
@@ -67,8 +66,7 @@ void main(){
   vec3 glow=vec3(0.70,0.42,0.16);
   vec3 cool=vec3(0.04,0.06,0.14);
   vec3 deep=vec3(0.008,0.014,0.035);
-  float jitter=hash21(vec2(gl_FragCoord.x,uHeight-gl_FragCoord.y))*0.10;
-  float t=0.45+jitter;
+  float t=0.5;
   vec3 col=vec3(0.0);
   float alpha=0.0;
   bool medium=uTier>0.5;
@@ -82,7 +80,6 @@ void main(){
     vec3 p=ro+rd*t;
     float n=fbm3(p*1.05+drift,octaves);
     float dens=smoothstep(0.46,0.78,n);
-    float coreFade=exp(-rad*1.10);
     float density=dens*(0.35+0.95*coreFade);
     float warmth=coreFade*(0.35+0.65*smoothstep(0.5,0.85,n));
     vec3 samp=mix(cool,warm,clamp(warmth,0.0,1.0));
@@ -504,60 +501,69 @@ void main(){
   float ambientShadowMul=0.10+0.90*cloudShadowMul;
   vec3 ambient=albedo*0.004*ambientShadowMul;
   vec3 col=ambient+direct+glitter*shadow*cloudShadowMul;
-  // City lights on the night side of land masses (planet-feature gated).
-  // Population proxy: low-freq continent fbm + coastline boost. Lights are
-  // a sparse hash-grid: each cell rolls a hash; populated cells emit one
-  // sub-cell point with twinkle. Mirrors planet.wgsl.
+  // Night-side settlements: regional clusters, urban cores, and fine lights
+  // with varied brightness. Mirrors planet.wgsl.
   if(uCityLights>0.5){
     // Hoist cell coordinate + screen-space footprint outside the per-fragment
     // gates. fwidth requires uniform control flow; only uCityLights is
     // uniform per draw — night/land/presence checks vary per fragment.
-    float cityScale=40.0;
+    float cityScale=140.0;
     vec3 cityCoord=vLocal*cityScale+vec3(uSeed*0.013,uSeed*0.011,uSeed*0.017);
     vec3 fw=fwidth(cityCoord);
     float footprint=max(fw.x,max(fw.y,fw.z));
-    // LOD fade: smoothly fade out when one fragment spans a sizable fraction
-    // of a cell (prevents sparkling/aliasing at distance or for small planets).
-    float lodFade=1.0-smoothstep(0.35,0.9,footprint);
-    float nightFactor=smoothstep(0.18,-0.05,NdL);
+    // Unresolved points blend into their population-weighted mean radiance.
+    float detailFade=1.0-smoothstep(0.45,1.1,footprint);
+    float lodFade=1.0-smoothstep(3.0,6.0,footprint);
+    float nightFactor=1.0-smoothstep(-0.05,0.18,NdL);
     float landFactor=(1.0-waterMask)*(1.0-iceMask);
     if(nightFactor>0.001 && landFactor>0.05 && lodFade>0.001){
       float popNoise=continentFbm(vLocal*2.2+vec3(uSeed*0.0019));
       float popMask=smoothstep(0.42,0.72,popNoise);
-      float coastBoost=smoothstep(0.07,0.0,abs(oceanField-0.60));
+      float coastBoost=1.0-smoothstep(0.0,0.07,abs(oceanField-0.60));
       float pop=clamp(max(popMask,coastBoost*0.75),0.0,1.0);
-      // Two-layer placement: low-freq zone mask carves out a few clusters,
-      // medium-freq hash grid plants individual lights inside those zones.
-      // Squared falloff on the zone mask tightens cluster cores so lights
-      // pool together instead of fading across the surrounding land.
       float zoneNoise=vnoise(vLocal*4.5+vec3(uSeed*0.0021,uSeed*0.0017,uSeed*0.0033));
-      float zoneMask=smoothstep(0.66,0.80,zoneNoise);
-      float cityPresence=zoneMask*zoneMask*(0.40+0.60*pop);
+      float zoneMask=smoothstep(0.38,0.76,zoneNoise);
+      float cityPresence=zoneMask*(0.25+0.75*pop);
       if(cityPresence>0.01){
-        vec3 cellId=floor(cityCoord);
-        vec3 sub=fract(cityCoord);
-        float threshold=mix(0.92,0.62,cityPresence);
-        // Sample 3x3x3 neighborhood so lights near cell walls don't get
-        // sliced off at the boundary (fixes the visible rectangular clips).
-        float glowRadius=0.30;
-        float bestGlow=0.0;
-        for(int dx=-1;dx<=1;dx++){
-          for(int dy=-1;dy<=1;dy++){
-            for(int dz=-1;dz<=1;dz++){
-              vec3 off=vec3(float(dx),float(dy),float(dz));
-              float nh=hash3(cellId+off);
-              if(nh>=threshold){
-                vec3 dotPos=vec3(fract(nh*1.7),fract(nh*7.3),fract(nh*13.1));
-                float dd=length(sub-(off+dotPos));
-                bestGlow=max(bestGlow,smoothstep(glowRadius,0.0,dd));
+        vec3 warp=vec3(popNoise,zoneNoise,vnoise(vLocal*9.0+vec3(uSeed*0.0027)))-0.5;
+        float districtNoise=vnoise(vLocal*17.0+warp*2.4+vec3(uSeed*0.008,uSeed*0.009,uSeed*0.012));
+        float district=smoothstep(0.43,0.77,districtNoise);
+        float routeNoise=vnoise(vLocal*30.0+warp*4.0+vec3(uSeed*0.012,uSeed*0.017,uSeed*0.009));
+        float routes=1.0-smoothstep(0.010,0.045+min(footprint*0.04,0.06),abs(routeNoise-0.5));
+        float settlementDensity=cityPresence*clamp(0.02+0.98*district+routes*0.28,0.0,1.0);
+        float threshold=mix(0.985,0.40,settlementDensity);
+        vec3 position=cityCoord+warp*3.0;
+        vec3 cellBase=floor(position-0.5);
+        float filterWidth=clamp(footprint*0.45,0.015,0.20);
+        vec3 emission=vec3(0.0);
+        if(detailFade>0.001){
+          for(int offsetX=0;offsetX<2;offsetX++){
+            for(int offsetY=0;offsetY<2;offsetY++){
+              for(int offsetZ=0;offsetZ<2;offsetZ++){
+                vec3 cell=cellBase+vec3(float(offsetX),float(offsetY),float(offsetZ));
+                float chance=hash3(cell);
+                float inhabited=smoothstep(threshold-0.035,threshold+0.035,chance);
+                if(inhabited>0.001){
+                  vec3 random=vec3(hash3(cell+vec3(17.0,53.0,101.0)),hash3(cell+vec3(59.0,23.0,7.0)),hash3(cell+vec3(13.0,83.0,41.0)));
+                  vec3 center=cell+mix(vec3(0.2),vec3(0.8),random);
+                  float distance=length(position-center);
+                  float radius=mix(0.07,0.20,random.z*random.z);
+                  float point=1.0-smoothstep(max(0.0,radius-filterWidth),radius+filterWidth,distance);
+                  float halo=1.0-smoothstep(radius,min(0.55,radius*2.5+filterWidth),distance);
+                  float energy=0.25+2.75*pow(random.x,4.0);
+                  vec3 tint=mix(vec3(1.0,0.55,0.19),vec3(1.0,0.88,0.60),random.z);
+                  emission+=tint*inhabited*energy*(point*point+halo*0.10);
+                }
               }
             }
           }
         }
+        vec3 unresolved=vec3(1.0,0.70,0.32)*(1.0-threshold)*0.018;
+        emission=mix(unresolved,emission,detailFade);
+        float metropolitanGlow=0.003*pow(district,6.0)*cityPresence;
+        emission+=vec3(1.0,0.60,0.24)*metropolitanGlow;
         float cloudMask=mix(1.0,cloudShadowMul,0.7);
-        float intensity=bestGlow*nightFactor*landFactor*cloudMask*lodFade;
-        vec3 cityColor=vec3(1.0,0.72,0.32);
-        col+=cityColor*intensity*4.0;
+        col+=emission*nightFactor*landFactor*cloudMask*lodFade*3.2;
       }
     }
   }
@@ -1813,7 +1819,7 @@ export class WebGL2Renderer implements SceneRenderer {
     });
 
     await report(0.35, 'Compiling shaders…');
-    this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj', 'uTier', 'uHeight']);
+    this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj', 'uTier']);
     this.backdrop = this.makeProgram(PRESENT_VERT, BLIT_FRAG, ['uScene']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
@@ -2299,7 +2305,6 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.useProgram(this.nebula.prog);
     gl.uniform1f(this.nebula.uniforms.uTime!, frame.time);
     gl.uniform1f(this.nebula.uniforms.uTier!, tier);
-    gl.uniform1f(this.nebula.uniforms.uHeight!, this.backdropTarget!.height);
     gl.uniformMatrix4fv(this.nebula.uniforms.uInvViewProj!, false, frame.invViewProj);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.stats.drawCalls++;

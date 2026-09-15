@@ -45,20 +45,11 @@ export function TopNav({
           {NAV.about}
         </NavLink>
         <NavLink
-          to="/contact"
-          className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
-        >
-          <span className="nav-number" aria-hidden="true">
-            03
-          </span>
-          {NAV.contact}
-        </NavLink>
-        <NavLink
           to="/blog"
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
           <span className="nav-number" aria-hidden="true">
-            04
+            03
           </span>
           {NAV.blog}
         </NavLink>
@@ -67,7 +58,7 @@ export function TopNav({
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
           <span className="nav-number" aria-hidden="true">
-            05
+            04
           </span>
           {NAV.photography}
         </NavLink>

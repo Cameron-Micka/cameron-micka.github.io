@@ -35,10 +35,6 @@ fn vs(@builtin(vertex_index) vi : u32) -> VSOut {
   return out;
 }
 
-fn hash21(p : vec2<f32>) -> f32 {
-  return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
-}
-
 fn hash3(p : vec3<f32>) -> f32 {
   var q = fract(p * 0.3183099 + vec3<f32>(0.1, 0.2, 0.3));
   q = q * 17.0;
@@ -94,6 +90,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Chord length between two unit vectors: 0 when aligned, up to 2 at
   // antipode. Cheap proxy for angular distance, plenty for falloff weighting.
   let rad = length(dirW - coreDir);
+  let coreFade = exp(-rad * 1.10);
 
   let tt = frame.misc.x;
   // Two slightly different speeds let the field both drift sideways and
@@ -112,9 +109,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let cool = vec3<f32>(0.04, 0.06, 0.14);
   let deep = vec3<f32>(0.008, 0.014, 0.035);
 
-  // Per-pixel jitter to break up stepping bands.
-  let jitter = hash21(in.pos.xy) * 0.10;
-  var t = 0.45 + jitter;
+  // A fixed midpoint keeps upsampling from magnifying per-pixel jitter.
+  var t = 0.5;
   var col = vec3<f32>(0.0);
   var alpha = 0.0;
   // The nebula is by far the heaviest per-pixel shader in the scene, so it is
@@ -137,7 +133,6 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let n = fbm3(p * 1.05 + drift, oct);
     // Soft billow carving — leaves airy gaps without sharp edges.
     let dens = smoothstep(0.46, 0.78, n);
-    let coreFade = exp(-rad * 1.10);
     let density = dens * (0.35 + 0.95 * coreFade);
 
     // Warmth peaks near the core direction, with hotter highlights where

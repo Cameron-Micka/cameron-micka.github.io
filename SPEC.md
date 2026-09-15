@@ -2,7 +2,7 @@
 
 A personal portfolio for **Cameron Micka** (Principal Software Engineer @ Microsoft — Mesh / MRTK / HoloLens; previously Fun Bits Interactive, LucasArts Entertainment; DigiPen alumnus).
 
-The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of Cameron's career, with procedurally generated planets representing each company / school. Clickable points of interest (POIs) on each planet open 2D React modals with descriptions, images, and videos. Conventional `/about`, `/contact`, and `/blog` (stub) routes ship as prerendered static HTML.
+The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of Cameron's career, with procedurally generated planets representing each company / school. Clickable points of interest (POIs) on each planet open 2D React modals with descriptions, images, and videos. Conventional `/about` and `/blog` (stub) routes ship as prerendered static HTML.
 
 > Inspiration: Apple's Time Machine UI — cosmic backdrop with a receding Z-axis stack, a side time ruler, and a bottom ribbon. See `timemachine.png` in the repo root.
 
@@ -22,7 +22,7 @@ The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of
 | 3D — fallback        | Same mini-engine on **WebGL2 + GLSL ES 3.0** (mirrors experience at lower fidelity)                             |
 | Shader authoring     | Author shaders in **GLSL ES 3.0**; transpile to WGSL at build time (Naga via WASM, or `naga-cli` in CI)         |
 | Image pipeline       | `vite-imagetools` (AVIF/WebP/responsive `srcset`)                                                               |
-| Static generation    | `vite-ssg` (or equivalent) for `/about`, `/contact`, `/blog`; landing route stays client-rendered               |
+| Static generation    | `vite-ssg` (or equivalent) for `/about`, `/blog`; landing route stays client-rendered                           |
 | Hosting              | GitHub Pages (`cameron-micka.github.io`) with `CNAME` file support for a future custom domain                   |
 | CI/CD                | Single GitHub Actions workflow: install → typecheck → lint → build → deploy to `gh-pages` branch                |
 | Lint / format        | ESLint (typescript-eslint) + Prettier                                                                           |
@@ -46,8 +46,8 @@ The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of
 
 ```
 /               → 3D Time Machine landing (client-rendered)
-/about          → Bio, headshot, longer-form narrative (SSG)
-/contact        → Static links: GitHub, LinkedIn, Bluesky, X (SSG)
+/about          → Bio, headshot, longer-form narrative, and contact links (SSG)
+/about#contact  → GitHub, LinkedIn, Bluesky, and X links at the bottom of About
 /blog           → "Coming soon" placeholder. MDX pipeline scaffolded for future posts. (SSG)
 /blog/[slug]    → Reserved route; not yet populated
 ```
@@ -55,7 +55,7 @@ The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of
 **Top navigation** (persistent on all routes, including landing):
 
 - Logo / name (links to `/`)
-- About · Contact · Blog
+- About · Blog
 - Settings (gear icon, top-right) — see §10
 - On mobile: collapsed into a hamburger; settings stays as a discrete icon
 
@@ -338,7 +338,7 @@ below the frontmatter, allowing rich MDX (embedded React, code, etc.).
     Engine.ts             # owns RAF loop, owns state, publishes events
   /ui                     # React components (top nav, ruler, ribbon, modal, settings)
   /content                # MDX loader + zod validator
-  /routes                 # /about, /contact, /blog, landing
+  /routes                 # /about, /blog, landing
   strings.ts
   main.tsx
 /content                  # MDX content (see §6)
@@ -566,7 +566,7 @@ The site is the resume — recruiters print from the browser. The landing route 
 
 ## 12. SEO & Metadata
 
-- `vite-ssg` (or equivalent) prerenders `/about`, `/contact`, `/blog` to static HTML.
+- `vite-ssg` (or equivalent) prerenders `/about`, `/blog` to static HTML.
 - Each route ships:
   - `<title>` and `<meta name="description">` from front-matter or per-route config.
   - **Open Graph:** static `og.png` (1200×630), hand-rendered screenshot of the 3D scene, served from `/public/og.png`. Same image used for `og:image`, `twitter:image` on all routes.
@@ -604,7 +604,7 @@ PRs run steps 1–6 (no deploy). Branch protection: green CI required.
 
 - **Time to interactive (TTI, landing):** ≤ 3 seconds on fast 4G + mid-range mobile.
 - **JS bundle:** ≤ 200KB gzipped initial; total transfer ≤ 500KB initial (excluding videos, which are lazy).
-- **Per-route code split:** landing's engine is its own chunk; `/about`, `/contact`, `/blog` ship as separate chunks. MDX content for distant companies prefetched on idle (`requestIdleCallback`).
+- **Per-route code split:** landing's engine is its own chunk; `/about`, `/blog` ship as separate chunks. MDX content for distant companies prefetched on idle (`requestIdleCallback`).
 - **Per-planet asset budget:** ≤ 200KB total (palette LUT + ring texture if present) per planet.
 - **Video budget:** ≤ 5MB per POI video, ≤ 720p H.264. Loaded only on modal open.
 - **FPS targets:**

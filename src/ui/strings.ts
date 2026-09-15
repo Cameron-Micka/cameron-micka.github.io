@@ -8,7 +8,6 @@ export const SITE = {
 export const NAV = {
   home: 'Timeline',
   about: 'About',
-  contact: 'Contact',
   blog: 'Blog',
   photography: 'Photos',
 };

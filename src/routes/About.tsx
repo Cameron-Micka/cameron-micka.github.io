@@ -1,10 +1,27 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { ArrowUpRight } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { TopNav } from '@/ui/TopNav';
-import { SITE } from '@/ui/strings';
+import { SITE, SOCIAL } from '@/ui/strings';
 import { companies } from '@/content/companies';
 import { tenureLabel } from '@/content/schema';
 
+const CONTACT_LINKS = [
+  { label: 'GitHub', href: SOCIAL.github, sub: 'Cameron-Micka' },
+  { label: 'LinkedIn', href: SOCIAL.linkedin, sub: 'in/tcmicka' },
+  { label: 'Bluesky', href: SOCIAL.bluesky, sub: '@tcmicka.bsky.social' },
+  { label: 'X', href: SOCIAL.x, sub: '@tcmicka' },
+];
+
 export default function About() {
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (hash === '#contact') {
+      document.getElementById('contact')?.scrollIntoView();
+    }
+  }, [hash]);
+
   return (
     <>
       <TopNav solid />
@@ -72,6 +89,28 @@ export default function About() {
               <li key={c.slug}>
                 <strong>{c.name}</strong> — {c.role} (
                 {tenureLabel(c.start, c.end)})
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section id="contact">
+          <h2>Contact</h2>
+          <p className="lede">
+            I'm always happy to chat about real-time rendering, design to code,
+            game development, career paths, or whatever else you're exploring.
+          </p>
+          <ul className="social-list">
+            {CONTACT_LINKS.map((link) => (
+              <li key={link.label}>
+                <a
+                  href={link.href}
+                  target={link.href.startsWith('http') ? '_blank' : undefined}
+                  rel={link.href.startsWith('http') ? 'noreferrer' : undefined}
+                >
+                  <strong>{link.label}</strong>
+                  <span className="social-handle">{link.sub}</span>
+                  <ArrowUpRight size={17} aria-hidden="true" />
+                </a>
               </li>
             ))}
           </ul>

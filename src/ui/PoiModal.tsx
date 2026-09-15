@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Minimize2, X } from 'lucide-react';
+import {
+  ExternalLink,
+  LoaderCircle,
+  Maximize2,
+  Minimize2,
+  Play,
+  X,
+} from 'lucide-react';
 import type { Company, Media } from '@/content/schema';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import { Markdown } from './Markdown';
@@ -27,20 +34,86 @@ function youtubeId(src: string): string | null {
   }
 }
 
+function YouTubeVideo({ videoId, media }: { videoId: string; media: Media }) {
+  const [status, setStatus] = useState<
+    'preview' | 'loading' | 'loaded' | 'failed'
+  >('preview');
+  const title = media.alt ?? 'YouTube video';
+
+  useEffect(() => {
+    if (status !== 'loading') return;
+    const timeout = window.setTimeout(() => setStatus('failed'), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [status]);
+
+  return (
+    <figure className="youtube-video">
+      <div className="youtube-player" aria-busy={status === 'loading'}>
+        {(status === 'loading' || status === 'loaded') && (
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1`}
+            title={title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            onLoad={(event) => {
+              if (event.currentTarget.contentDocument === null)
+                setStatus('loaded');
+            }}
+            onError={() => setStatus('failed')}
+          />
+        )}
+        {status !== 'loaded' && (
+          <button
+            type="button"
+            className="youtube-preview"
+            aria-label={`Play ${title}`}
+            title={`Play ${title}`}
+            disabled={status === 'loading'}
+            onClick={() => setStatus('loading')}
+          >
+            <img
+              src={
+                media.poster ??
+                `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+              }
+              alt=""
+              loading="lazy"
+            />
+            <span className="youtube-play" aria-hidden="true">
+              {status === 'loading' ? (
+                <LoaderCircle size={28} />
+              ) : (
+                <Play size={28} fill="currentColor" />
+              )}
+            </span>
+          </button>
+        )}
+      </div>
+      <figcaption className="youtube-caption">
+        <a
+          className="youtube-link"
+          href={`https://www.youtube.com/watch?v=${videoId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Watch ${title} on YouTube`}
+        >
+          Watch on YouTube
+          <ExternalLink size={14} aria-hidden="true" />
+        </a>
+        {status === 'failed' && (
+          <span role="status">YouTube couldn't load here.</span>
+        )}
+      </figcaption>
+    </figure>
+  );
+}
+
 function MediaItem({ m }: { m: Media }) {
   if (m.type === 'video') {
     const yt = youtubeId(m.src);
     if (yt) {
-      return (
-        <iframe
-          src={`https://www.youtube-nocookie.com/embed/${yt}`}
-          title={m.alt ?? 'YouTube video'}
-          loading="lazy"
-          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
-      );
+      return <YouTubeVideo videoId={yt} media={m} />;
     }
     return (
       <video controls poster={m.poster} preload="metadata">
@@ -120,7 +193,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
         engine.closePoi();
       } else if (e.key === 'Tab' && card) {
         const focusable = card.querySelectorAll<HTMLElement>(
-          'a[href], button, video, [tabindex]:not([tabindex="-1"])',
+          'a[href], button, video, iframe, [tabindex]:not([tabindex="-1"])',
         );
         if (focusable.length === 0) return;
         const first = focusable[0]!;

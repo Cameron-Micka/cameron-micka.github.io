@@ -37,7 +37,7 @@ src/
     Engine.ts     Owns state + RAF loop; exposes a useSyncExternalStore store
   content/        Company + photo data (TS) validated by a zod schema
   ui/             React overlay: nav, ruler, ribbon, POI modal, settings, HUD
-  routes/         Landing (CSR canvas) + /about /contact /blog /photography (SSG)
+  routes/         Landing (CSR canvas) + /about /blog /photography (SSG)
 ```
 
 The engine owns all per-frame state and never re-renders React on every frame.
