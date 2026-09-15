@@ -6,19 +6,46 @@ export interface SunFlare {
   strength: number;
 }
 
-function smoothstep(e0: number, e1: number, x: number): number {
-  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-  return t * t * (3 - 2 * t);
+// Circle overlap in angular space: covering the centre of a large sun is only
+// a partial eclipse. Full occlusion requires covering its entire apparent disc.
+function discOcclusion(
+  sunRadius: number,
+  planetRadius: number,
+  distance: number,
+): number {
+  if (distance >= sunRadius + planetRadius) return 0;
+  if (distance <= Math.abs(planetRadius - sunRadius)) {
+    return planetRadius >= sunRadius ? 1 : (planetRadius / sunRadius) ** 2;
+  }
+  const s2 = sunRadius * sunRadius;
+  const p2 = planetRadius * planetRadius;
+  const d2 = distance * distance;
+  const sunArc = Math.acos(
+    Math.max(-1, Math.min(1, (d2 + s2 - p2) / (2 * distance * sunRadius))),
+  );
+  const planetArc = Math.acos(
+    Math.max(-1, Math.min(1, (d2 + p2 - s2) / (2 * distance * planetRadius))),
+  );
+  const triangle = Math.sqrt(
+    Math.max(
+      0,
+      (-distance + sunRadius + planetRadius) *
+        (distance + sunRadius - planetRadius) *
+        (distance - sunRadius + planetRadius) *
+        (distance + sunRadius + planetRadius),
+    ),
+  );
+  const area = s2 * sunArc + p2 * planetArc - triangle * 0.5;
+  return Math.max(0, Math.min(1, area / (Math.PI * s2)));
 }
 
 // Projects the sun's world position into screen-space UV and derives a flare
 // strength that ramps up as the sun nears the centre of view (i.e. as the
 // camera looks toward it) and fades to zero once it falls behind the camera or
 // drifts well past the frame edge. The strength is additionally gated by
-// raycasting the camera->sun ray against every planet sphere (same test the
-// selection picker uses) so the flare is occluded when a planet passes in front
-// of the sun. Consumed by both renderers' final post pass to drive the
-// deep-space lens flare. Column-major viewProj (gl-matrix).
+// comparing the apparent sun and planet discs so partial occlusion leaves
+// light available for the flare and god rays. Consumed by both renderers'
+// post pass to drive the deep-space lens flare. Column-major viewProj (gl-matrix).
 export function computeSunFlare(frame: FrameState): SunFlare {
   const m = frame.viewProj;
   const c = frame.sun.center;
@@ -44,20 +71,22 @@ export function computeSunFlare(frame: FrameState): SunFlare {
     return { u, v, strength: 0 };
   }
 
-  // Occlusion: raycast from the camera toward the sun and test each planet
-  // sphere. A planet whose silhouette covers the sun direction fades the flare.
+  // Use the rendered sphere radii and their angular sizes at the camera,
+  // not a point-source test along the camera-to-sun centre ray.
   const cam = frame.cameraPos;
   const dx = x - cam[0];
   const dy = y - cam[1];
   const dz = z - cam[2];
   const sunDist = Math.hypot(dx, dy, dz);
-  if (sunDist > 1e-6) {
+  if (sunDist > 1e-6 && frame.sun.radius > 0) {
+    const sunAngle = Math.asin(Math.min(1, frame.sun.radius / sunDist));
     const inv = 1 / sunDist;
     const rx = dx * inv;
     const ry = dy * inv;
     const rz = dz * inv;
     let visibility = 1;
     for (const p of frame.planets) {
+      if (p.visibility <= 0.02 || p.radius <= 0) continue;
       const pc = p.center;
       const ocx = cam[0] - pc[0];
       const ocy = cam[1] - pc[1];
@@ -65,12 +94,12 @@ export function computeSunFlare(frame: FrameState): SunFlare {
       const tca = -(ocx * rx + ocy * ry + ocz * rz);
       // Only planets genuinely between the camera and the sun can occlude it.
       if (tca <= 0 || tca >= sunDist) continue;
-      const oc2 = ocx * ocx + ocy * ocy + ocz * ocz;
-      const dPerp = Math.sqrt(Math.max(oc2 - tca * tca, 0));
-      const r = p.radius;
-      // Soft silhouette edge: fully blocked inside 0.9r, clear past 1.15r.
-      const inside = 1 - smoothstep(r * 0.9, r * 1.15, dPerp);
-      const blocked = inside * p.visibility;
+      const planetDist = Math.hypot(ocx, ocy, ocz);
+      const planetAngle = Math.asin(
+        Math.min(1, (p.radius * p.visibility) / planetDist),
+      );
+      const separation = Math.acos(Math.max(-1, Math.min(1, tca / planetDist)));
+      const blocked = discOcclusion(sunAngle, planetAngle, separation);
       visibility = Math.min(visibility, 1 - blocked);
       if (visibility <= 0) break;
     }
