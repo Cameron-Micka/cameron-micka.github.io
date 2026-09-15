@@ -1260,6 +1260,9 @@ a:hover {
 
 /* ---- WebGL notice ---- */
 .compat-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   position: fixed;
   top: calc(var(--nav-height) + 12px);
   left: 50%;
@@ -1276,10 +1279,6 @@ a:hover {
   border: 1px solid var(--orange-edge);
   border-radius: var(--radius-screen);
   padding: 8px 12px;
-}
-.compat-notice::before {
-  content: '\26A0 ';
-  color: var(--accent);
 }
 
 /* ---- Skip / loader ---- */
