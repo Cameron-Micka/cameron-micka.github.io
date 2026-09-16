@@ -193,6 +193,8 @@ a:hover {
   fill: none;
   stroke: var(--accent);
   stroke-width: 2px;
+  stroke-dasharray: 4px 6px;
+  stroke-linecap: round;
 }
 
 .overlay {
