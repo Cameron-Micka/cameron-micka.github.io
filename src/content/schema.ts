@@ -74,7 +74,7 @@ export const companySchema = z.object({
     // IQ domain warping and read green low / red-magenta high, brightest on
     // the night side and at the limb. Implemented in the aurora shader.
     aurora: z.boolean().default(false),
-    moons: z.number().int().min(0).max(6),
+    moons: z.number().int().min(0).max(32),
   }),
   pois: z.array(poiSchema),
 });
