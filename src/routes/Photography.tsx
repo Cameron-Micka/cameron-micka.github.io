@@ -80,7 +80,7 @@ export default function Photography() {
         ))}
         <img
           className="golden-record"
-          src="/golden-record.svg"
+          src="/golden-record-photography.svg"
           alt=""
           width={660}
           height={220}

@@ -117,7 +117,7 @@ export default function About() {
         </section>
         <img
           className="golden-record"
-          src="/golden-record.svg"
+          src="/golden-record-about.svg"
           alt=""
           width={660}
           height={220}

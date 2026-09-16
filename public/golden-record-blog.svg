@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="220" viewBox="0 0 660 220" fill="none" stroke="#cbb17c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Original line art inspired by the Golden Record's playback instructions and encoded messages. -->
+  <g>
+    <circle cx="104" cy="100" r="70"/>
+    <circle cx="104" cy="100" r="62"/>
+    <circle cx="104" cy="100" r="54"/>
+    <circle cx="104" cy="100" r="24"/>
+    <circle cx="104" cy="100" r="4"/>
+    <path d="M104 14a86 86 0 0 1 77 48m-9-3 9 3 2-9"/>
+    <path d="M190 32v55l-31 31m-5-5 10 10-10 5-5-5Z"/>
+    <path d="M44 190h120m-120-5v10m120-10v10"/>
+    <path d="M78 183v-7m6 7v-12m6 12v-7m12 7v-12m6 12v-12m12 12v-7m6 7v-12"/>
+  </g>
+  <g>
+    <path d="M244 38h184m-184-5v10m184-10v10"/>
+    <path d="M252 31v-9m8 9v-5m8 5v-9m16 9v-5m8 5v-9m8 9v-9"/>
+    <path d="M236 104h200" stroke-opacity=".35"/>
+    <path d="M236 104h15l7-12 8 24 8-43 8 62 8-48 8 17h12l8-37 8 74 8-98 8 122 8-92 8 47 8-16h12l8-24 8 47 8-34 8 11h16"/>
+    <path d="M244 183h16v-18h16v18h24v-18h8v18h16v-18h24v18h8v-18h16v18h24v-18h8v18h24"/>
+    <path d="M244 199h184" stroke-opacity=".35"/>
+  </g>
+  <g>
+    <path d="M482 70h150"/>
+    <ellipse cx="556" cy="70" rx="72" ry="9"/>
+    <path d="M500 79v9h112v-9m-95 9v12h78V88"/>
+    <path d="M554 25h58v12l-37 31m-5-5 10 10"/>
+    <path d="M556 113v22m-4-5 4 5 4-5"/>
+    <path d="M493 157h126m-126-7v42h126v-42"/>
+    <path d="M505 180v-12h8v12m8 0v-12m8 12v-12h8v12m16 0v-12m8 12v-12h8v12m8 0v-12m16 12v-12h8v12"/>
+  </g>
+</svg>
