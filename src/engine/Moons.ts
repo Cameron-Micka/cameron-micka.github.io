@@ -5,7 +5,7 @@ import type { MoonInstance, PlanetInstance } from './types';
 
 type Body = { center: Vec3; radius: number };
 type FlyingMoon = { moon: MoonInstance; velocity: Vec3 };
-const LAUNCH_SPEED = 12;
+const LAUNCH_SPEED = 6;
 const SEPARATION = 0.0001;
 
 export class Moons {
@@ -59,10 +59,10 @@ export class Moons {
     }
   }
 
-  pick(ray: Ray, maxDistance = Infinity): MoonInstance | null {
+  pick(ray: Ray, maxDistance = Infinity, radiusScale = 1): MoonInstance | null {
     let hit: MoonInstance | null = null;
     for (const moon of this.instances) {
-      const t = raySphere(ray, moon.center, moon.radius);
+      const t = raySphere(ray, moon.center, moon.radius * radiusScale);
       if (t >= 0 && t < maxDistance) {
         hit = moon;
         maxDistance = t;
