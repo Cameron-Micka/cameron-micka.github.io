@@ -61,6 +61,8 @@ run simultaneously.
 Moons mix dry, cratered rock with ocean worlds featuring turquoise coastlines
 and blue-white polar ice caps. Each moon has a stable, individual terrain seed;
 water and ice cover crater relief in both rendering backends.
+A seeded subset also has thin, palette-tinted scattering atmospheres in both
+backends. These shells fade with orbiting moons and stay attached during flight.
 
 Click or tap a moon to knock it out of orbit, away from the camera along the
 tap's direction. Flying moons bounce off planets and other moons, and are
