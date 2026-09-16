@@ -1330,7 +1330,7 @@ export class WebGPURenderer implements SceneRenderer {
         m.oceans ? 1 : 0,
         0, // no city lights
         0, // no flow map
-        1, // meteorite impact craters
+        m.atmosphere ? 0 : 1, // meteorite impact craters only on airless moons
       );
       objects.push({ kind: 3, index: objIndex, lod: moonLod });
       objIndex++;
