@@ -62,6 +62,7 @@ export interface PlanetInstance {
   moons: {
     seed: number;
     oceans: boolean;
+    atmosphere: boolean;
     orbitRadius: number;
     angle: number;
     size: number;
@@ -90,6 +91,7 @@ export interface MoonInstance {
   orientation: Quat;
   seed: number;
   oceans: boolean;
+  atmosphere: boolean;
   focus: number;
   paletteLow: Vec3;
   paletteMid: Vec3;

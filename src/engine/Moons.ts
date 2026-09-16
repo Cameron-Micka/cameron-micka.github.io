@@ -38,6 +38,7 @@ export class Moons {
           orientation: quat.multiply(p.orientation, spin),
           seed: m.seed,
           oceans: m.oceans,
+          atmosphere: m.atmosphere,
           focus: p.focus,
           paletteLow: m.paletteLow,
           paletteMid: m.paletteMid,
