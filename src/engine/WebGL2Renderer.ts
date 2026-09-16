@@ -426,6 +426,10 @@ void main(){
       Crater small=craterLayer(cp+vec3(3.1,7.9,1.3),localPos,13.0,0.66,0.009*smallFade);
       craterH+=small.height;craterG+=small.grad;
     }
+    // Water and ice cover crater relief; coastlines fade back to exposed rock.
+    float exposedRock=(1.0-waterMask)*(1.0-iceMask);
+    craterH*=exposedRock;
+    craterG*=exposedRock;
     // Soft, low-contrast masks so craters read as gentle regolith mottling.
     float floorMask=clamp(-craterH*22.0,0.0,1.0);
     float rimMask=clamp(craterH*38.0,0.0,1.0);
@@ -2382,7 +2386,7 @@ export class WebGL2Renderer implements SceneRenderer {
         m.paletteLow as [number, number, number],
         m.paletteMid as [number, number, number],
         m.paletteHigh as [number, number, number],
-        false,
+        m.oceans,
         0, // moons don't get cloud shadows
         model,
         selectSphereLod(m.center, m.radius, frame.cameraPos),

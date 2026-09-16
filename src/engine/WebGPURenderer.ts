@@ -1316,7 +1316,7 @@ export class WebGPURenderer implements SceneRenderer {
         objIndex,
         model,
         m.radius,
-        (m.seed + 7) % 100000,
+        m.seed % 100000,
         frame.time,
         0,
         m.paletteLow as [number, number, number],
@@ -1325,7 +1325,7 @@ export class WebGPURenderer implements SceneRenderer {
         m.focus,
         0,
         0,
-        0, // no oceans
+        m.oceans ? 1 : 0,
         0, // no city lights
         0, // no flow map
         1, // meteorite impact craters
