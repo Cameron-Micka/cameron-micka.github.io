@@ -21,6 +21,7 @@ export interface PlanetModel {
   moonSpecs: {
     seed: number;
     oceans: boolean;
+    atmosphere: boolean;
     orbitRadius: number;
     size: number;
     phase: number;
@@ -113,6 +114,7 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       return {
         seed: moonSeed,
         oceans: surfaceRand() < 0.5,
+        atmosphere: surfaceRand() < 0.35,
         orbitRadius: radius * (1.7 + i * company.features.moonOrbitSpacing),
         size: radius * (0.04 + t * 0.55),
         phase: rand() * Math.PI * 2,
@@ -413,6 +415,7 @@ export function instanceFromModel(
     moons: model.moonSpecs.map((m) => ({
       seed: m.seed,
       oceans: m.oceans,
+      atmosphere: m.atmosphere,
       orbitRadius: m.orbitRadius,
       angle: m.phase + moonTime * m.speed,
       size: m.size,
