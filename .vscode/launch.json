@@ -5,11 +5,11 @@
       "name": "Run Site in VS Code Browser",
       "type": "node-terminal",
       "request": "launch",
-      "command": "npm run dev -- --host 127.0.0.1",
+      "command": "npm run dev -- --host localhost",
       "cwd": "${workspaceFolder}",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "vscode://command/workbench.action.browser.open?%5B%22%s%22%5D",
+        "uriFormat": "%s",
         "action": "openExternally"
       }
     }

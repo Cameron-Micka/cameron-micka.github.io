@@ -1411,10 +1411,10 @@ a:hover {
   /* Segmented LED bar rather than a smooth gradient. */
   background: repeating-linear-gradient(
     90deg,
-    var(--accent) 0 7px,
+    #b6ff00 0 7px,
     transparent 7px 10px
   );
-  box-shadow: var(--glow);
+  box-shadow: 0 0 10px rgba(182, 255, 0, 0.7);
   transition: width 0.3s steps(12);
 }
 .loading-label {
