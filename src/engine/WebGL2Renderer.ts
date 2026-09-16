@@ -2394,7 +2394,7 @@ export class WebGL2Renderer implements SceneRenderer {
         selectSphereLod(m.center, m.radius, frame.cameraPos),
         false,
         false, // moons don't flow
-        true, // meteorite impact craters
+        !m.atmosphere, // meteorite impact craters only on airless moons
       );
     }
 
