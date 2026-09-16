@@ -1309,7 +1309,9 @@ export class WebGPURenderer implements SceneRenderer {
       if (objIndex >= MAX_OBJECTS - 1) break;
       const moonCenter = m.center;
       const moonR = m.radius;
-      if (!frame.frustum.intersectsSphere(moonCenter, moonR)) continue;
+      const hasAtmosphere = m.atmosphere && !frame.wireframe;
+      const outerR = moonR * ATMOSPHERE_SHELL_SCALE;
+      if (!frame.frustum.intersectsSphere(moonCenter, hasAtmosphere ? outerR : moonR)) continue;
       const moonLod = selectSphereLod(moonCenter, moonR, frame.cameraPos);
       mat4.fromRotationTranslationScale(model, m.orientation, moonCenter, moonR);
       this.writeObject(
@@ -1332,6 +1334,25 @@ export class WebGPURenderer implements SceneRenderer {
       );
       objects.push({ kind: 3, index: objIndex, lod: moonLod });
       objIndex++;
+      if (hasAtmosphere && objIndex < MAX_OBJECTS) {
+        mat4.fromRotationTranslationScale(model, m.orientation, moonCenter, outerR);
+        this.writeObject(
+          objIndex,
+          model,
+          moonR,
+          outerR,
+          0,
+          4,
+          m.paletteHigh,
+          m.paletteHigh,
+          m.paletteHigh,
+          m.focus,
+          1.4,
+          0,
+        );
+        objects.push({ kind: 4, index: objIndex, lod: moonLod });
+        objIndex++;
+      }
     }
 
     d.queue.writeBuffer(

@@ -7,6 +7,7 @@ import { mulberry32 } from './math/rng';
 import { poiMarkerDistance, poiFocusFade } from './Scene';
 import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
+import { ATMOSPHERE_SHELL_SCALE } from './atmosphere';
 
 type PostTarget = {
   framebuffer: WebGLFramebuffer;
@@ -2377,7 +2378,8 @@ export class WebGL2Renderer implements SceneRenderer {
       this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, planetLod, p.cityLights, p.flowMap && tier === 0);
     }
     for (const m of frame.moons) {
-      if (!frame.frustum.intersectsSphere(m.center, m.radius)) continue;
+      const cullRadius = m.radius * (m.atmosphere ? ATMOSPHERE_SHELL_SCALE : 1);
+      if (!frame.frustum.intersectsSphere(m.center, cullRadius)) continue;
       this.drawSphere(
         m,
         m.center,
@@ -2493,7 +2495,7 @@ export class WebGL2Renderer implements SceneRenderer {
       const vis = p.visibility;
       if (vis <= 0.02) continue;
       const er = p.radius * vis;
-      const outerR = er * 1.02;
+      const outerR = er * ATMOSPHERE_SHELL_SCALE;
       mat4.fromRotationTranslationScale(model, p.orientation, p.center, outerR);
       gl.uniformMatrix4fv(this.atmosphere.uniforms.uModel!, false, model);
       gl.uniform3fv(this.atmosphere.uniforms.uColor!, p.paletteHigh);
@@ -2511,6 +2513,29 @@ export class WebGL2Renderer implements SceneRenderer {
         0,
       );
       this.stats.drawCalls++;
+    }
+    for (const m of frame.moons) {
+      if (!m.atmosphere) continue;
+      const outerR = m.radius * ATMOSPHERE_SHELL_SCALE;
+      if (!frame.frustum.intersectsSphere(m.center, outerR)) continue;
+      mat4.fromRotationTranslationScale(model, m.orientation, m.center, outerR);
+      gl.uniformMatrix4fv(this.atmosphere.uniforms.uModel!, false, model);
+      gl.uniform3fv(this.atmosphere.uniforms.uColor!, m.paletteHigh);
+      gl.uniform3fv(this.atmosphere.uniforms.uCenter!, m.center);
+      gl.uniform1f(this.atmosphere.uniforms.uInner!, m.radius);
+      gl.uniform1f(this.atmosphere.uniforms.uOuter!, outerR);
+      gl.uniform1f(this.atmosphere.uniforms.uFocus!, m.focus);
+      gl.uniform1f(this.atmosphere.uniforms.uIntensity!, 1.4);
+      const mesh = this.sphereLods[selectSphereLod(m.center, m.radius, frame.cameraPos)]!;
+      gl.bindVertexArray(mesh.vao);
+      gl.drawElements(
+        gl.TRIANGLES,
+        mesh.count,
+        mesh.u32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+        0,
+      );
+      this.stats.drawCalls++;
+      this.stats.triangles += mesh.count / 3;
     }
     gl.disable(gl.CULL_FACE);
     gl.frontFace(gl.CCW);
