@@ -1,15 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="660" height="220" viewBox="0 0 660 220" fill="none" stroke="#cbb17c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-  <!-- Original line art inspired by the Golden Record's playback and cosmic address diagrams. -->
+  <!-- Original line art inspired by the Golden Record's cosmic address and hydrogen diagrams. -->
   <g>
-    <circle cx="104" cy="100" r="70"/>
-    <circle cx="104" cy="100" r="62"/>
-    <circle cx="104" cy="100" r="54"/>
-    <circle cx="104" cy="100" r="24"/>
-    <circle cx="104" cy="100" r="4"/>
-    <path d="M104 14a86 86 0 0 1 77 48m-9-3 9 3 2-9"/>
-    <path d="M190 32v55l-31 31m-5-5 10 10-10 5-5-5Z"/>
-    <path d="M44 190h120m-120-5v10m120-10v10"/>
-    <path d="M78 183v-7m6 7v-12m6 12v-7m12 7v-12m6 12v-12m12 12v-7m6 7v-12"/>
+    <circle cx="104" cy="92" r="28"/>
+    <ellipse cx="104" cy="92" rx="12" ry="28"/>
+    <path d="M76 92h56m-51-15h46m-46 30h46"/>
+    <path d="M104 46V32m0 120v-14m-46-46H44m120 0h-14"/>
+    <path d="m63 51 10 10m62 62 10 10m0-82-10 10m-62 62-10 10"/>
+    <path d="M28 182h166"/>
+    <circle cx="40" cy="182" r="10"/>
+    <circle cx="66" cy="182" r="2"/>
+    <circle cx="82" cy="182" r="3"/>
+    <circle cx="101" cy="182" r="4"/>
+    <circle cx="121" cy="182" r="3"/>
+    <circle cx="148" cy="182" r="8"/>
+    <circle cx="179" cy="182" r="6"/>
+    <ellipse cx="179" cy="182" rx="13" ry="3" transform="rotate(-25 179 182)"/>
+    <path d="M101 168v-16m-4 5 4-5 4 5"/>
   </g>
   <g>
     <path d="m338 108-89-62m89 62-47-87m47 87 6-92m-6 92 54-81m-54 81 97-48m-97 48 115-9m-115 9 108 35m-108-35 70 78m-70-78 20 91m-20-91-30 85m30-85-82 64m82-64-108 14m108-14-109-29"/>
@@ -32,16 +38,12 @@
     <path d="M338 108v99h114"/>
   </g>
   <g>
-    <circle cx="528" cy="53" r="18"/>
-    <circle cx="602" cy="53" r="18"/>
-    <path d="M528 25v18m-4-13 4-5 4 5m96 23h-17m12-4 5 4-5 4"/>
-    <path d="M528 63V45m-4 5 4-5 4 5m74 3h-9m5-4-5 4 5 4"/>
-    <path d="M553 53h24m-5-4 5 4-5 4m-12 13h10m-5-4v8"/>
-    <path d="M509 95h112m-112-4v8m112-8v8"/>
-    <rect x="515" y="113" width="100" height="64" rx="1"/>
-    <circle cx="565" cy="145" r="23"/>
-    <path d="M521 120h88m-88 8h88m-88 8h88m-88 9h88m-88 9h88m-88 8h88m-88 8h88" stroke-opacity=".35"/>
-    <path d="M500 113v64m-4-59 4-5 4 5m-4 59 4-5m-4 5-4-5"/>
-    <path d="M530 197h8v-10h8v10h16v-10h8v10h8v-10h16v10h8"/>
+    <circle cx="520" cy="86" r="26"/>
+    <circle cx="610" cy="86" r="26"/>
+    <path d="M520 48v24m-4-19 4-5 4 5m90-5v24m-4-5 4 5 4-5"/>
+    <path d="M520 99V79m-4 5 4-5 4 5m90-5v20m-4-5 4 5 4-5"/>
+    <path d="M554 86h22m-5-4 5 4-5 4"/>
+    <path d="M500 141h130m-130-5v10m130-10v10m-65-14v18"/>
+    <path d="M527 181h16m-8-8v16m26-16v16m14-16h16m-16 16h16m-16-16v16m30-16v16"/>
   </g>
 </svg>

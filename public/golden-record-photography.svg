@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="220" viewBox="0 0 660 220" fill="none" stroke="#cbb17c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Original line art inspired by the Golden Record's image calibration and raster decoding diagrams. -->
+  <g>
+    <rect x="30" y="42" width="164" height="128" rx="1"/>
+    <circle cx="112" cy="106" r="48"/>
+    <path d="M38 50h148m-148 14h148m-148 14h148m-148 14h148m-148 14h148m-148 14h148m-148 14h148m-148 14h148m-148 14h148" stroke-opacity=".35"/>
+    <path d="M16 42v128m-4-123 4-5 4 5m-8 118 4 5 4-5"/>
+    <path d="M30 188h164m-159-4-5 4 5 4m154-8 5 4-5 4"/>
+    <path d="M92 27v-9m8 9v-5m8 5v-9m8 9v-9m8 9v-5m8 5v-9"/>
+  </g>
+  <g>
+    <path d="M241 49h166l-7-4m7 4-7 4"/>
+    <path d="m407 49-166 28h166l-7-4m7 4-7 4"/>
+    <path d="m407 77-166 28h166l-7-4m7 4-7 4"/>
+    <path d="m407 105-166 28h166l-7-4m7 4-7 4"/>
+    <path d="m407 133-166 28h166l-7-4m7 4-7 4"/>
+    <path d="M424 49v112m-4-5 4 5 4-5"/>
+    <path d="M241 192h16v-12h8v12h24v-12h8v12h24v-12h8v12h24v-12h8v12h24v-12h8v12h14"/>
+  </g>
+  <g>
+    <path d="M472 96s32-44 80-44 80 44 80 44-32 44-80 44-80-44-80-44Z"/>
+    <circle cx="552" cy="96" r="33"/>
+    <circle cx="552" cy="96" r="13"/>
+    <path d="M552 28V16m-38 20-6-10m-27 31-10-6m119-15 6-10m27 31 10-6"/>
+    <path d="M481 180h142m-142-5v10m142-10v10"/>
+    <path d="M499 175v-9m8 9v-5m8 5v-9m16 9v-5m8 5v-9m16 9v-9m8 9v-5m16 5v-9m8 9v-5m16 5v-9"/>
+  </g>
+</svg>

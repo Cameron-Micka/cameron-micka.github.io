@@ -16,7 +16,7 @@ export default function Blog() {
         </p>
         <img
           className="golden-record"
-          src="/golden-record.svg"
+          src="/golden-record-blog.svg"
           alt=""
           width={660}
           height={220}
