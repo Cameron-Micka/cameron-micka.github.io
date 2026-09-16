@@ -715,8 +715,13 @@ export class Engine {
     }
 
     const sunT = raySphere(ray, this.sun.center, this.sun.radius);
-    const moon = this.moons.pick(ray, Math.min(hitT, sunT >= 0 ? sunT : Infinity));
+    let moon = this.moons.pick(ray, Math.min(hitT, sunT >= 0 ? sunT : Infinity));
     const moonT = moon ? raySphere(ray, moon.center, moon.radius) : Infinity;
+    // Forgive near misses over empty space without stealing body or POI taps.
+    // Keep moonT at Infinity for padded hits so actual POI hits still win.
+    if (!moon && hitIndex < 0 && sunT < 0) {
+      moon = this.moons.pick(ray, Infinity, this.coarsePointer ? 2 : 1.5);
+    }
     // Free camera allows moon taps, but never opens POIs or changes focus.
     if (this.settings.freeCamera) {
       if (moon) this.moons.launch(moon, ray.dir);
