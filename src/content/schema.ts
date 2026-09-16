@@ -75,6 +75,8 @@ export const companySchema = z.object({
     // the night side and at the limb. Implemented in the aurora shader.
     aurora: z.boolean().default(false),
     moons: z.number().int().min(0).max(32),
+    // Radial spacing between moon orbits, in planet radii.
+    moonOrbitSpacing: z.number().finite().positive().default(0.5),
   }),
   pois: z.array(poiSchema),
 });
