@@ -14,6 +14,15 @@ export default function Blog() {
           touch via the social links on the{' '}
           <a href="/about#contact">About page</a>.
         </p>
+        <img
+          className="golden-record"
+          src="/golden-record.svg"
+          alt=""
+          width={660}
+          height={220}
+          loading="lazy"
+          decoding="async"
+        />
       </article>
     </>
   );

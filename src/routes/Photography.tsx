@@ -78,6 +78,15 @@ export default function Photography() {
             />
           </section>
         ))}
+        <img
+          className="golden-record"
+          src="/golden-record.svg"
+          alt=""
+          width={660}
+          height={220}
+          loading="lazy"
+          decoding="async"
+        />
       </article>
       {selection && (
         <PhotoLightbox
