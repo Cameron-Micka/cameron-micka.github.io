@@ -1495,6 +1495,14 @@ a:hover {
   letter-spacing: 0;
   color: var(--accent-2);
 }
+.golden-record {
+  display: block;
+  width: min(100%, 660px);
+  height: auto;
+  margin: clamp(56px, 10vw, 96px) auto 0;
+  opacity: 0.7;
+  user-select: none;
+}
 .profile-photo {
   margin: 0 0 28px;
 }
