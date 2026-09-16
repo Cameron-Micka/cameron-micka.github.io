@@ -287,7 +287,7 @@ const raw: CompanyInput[] = [
       'Box2D — wearing every hat from engine to store submission.',
     seed: 'micka-studios-founder',
     palette: { low: '#2a0a3a', mid: '#7c3ed2', high: '#d9b3ff' },
-    features: { rings: false, ringTilt: 0.4, oceans: true, aurora: true, moons: 32 },
+    features: { rings: false, ringTilt: 0.4, oceans: true, aurora: true, moons: 16, moonOrbitSpacing: 0.1 },
     pois: [
       {
         slug: 'hairball',

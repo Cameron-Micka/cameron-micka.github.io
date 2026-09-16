@@ -106,7 +106,7 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       const t = rand() * rand() * rand();
       const pal = moonPalette(rand);
       return {
-        orbitRadius: radius * (1.7 + i * 0.5),
+        orbitRadius: radius * (1.7 + i * company.features.moonOrbitSpacing),
         size: radius * (0.04 + t * 0.55),
         phase: rand() * Math.PI * 2,
         speed: 0.25 + rand() * 0.4,
