@@ -579,6 +579,10 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
       craterH = craterH + small.height;
       craterG = craterG + small.grad;
     }
+    // Water and ice cover crater relief; coastlines fade back to exposed rock.
+    let exposedRock = (1.0 - waterMask) * (1.0 - iceMask);
+    craterH = craterH * exposedRock;
+    craterG = craterG * exposedRock;
     // Soft, low-contrast masks: craters should read as gentle regolith
     // mottling under grazing light rather than painted-on rings.
     let floorMask = clamp(-craterH * 22.0, 0.0, 1.0);

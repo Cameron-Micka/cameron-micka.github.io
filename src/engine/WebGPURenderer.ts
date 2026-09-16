@@ -1325,7 +1325,7 @@ export class WebGPURenderer implements SceneRenderer {
         m.focus,
         0,
         0,
-        0, // no oceans
+        m.oceans ? 1 : 0,
         0, // no city lights
         0, // no flow map
         1, // meteorite impact craters

@@ -19,6 +19,8 @@ export interface PlanetModel {
   paletteHigh: Vec3;
   poiDirs: { slug: string; dir: Vec3; accent: Vec3 }[];
   moonSpecs: {
+    seed: number;
+    oceans: boolean;
     orbitRadius: number;
     size: number;
     phase: number;
@@ -105,7 +107,12 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       // ~36% of the planet's radius, giving the family obvious size variance.
       const t = rand() * rand() * rand();
       const pal = moonPalette(rand);
+      // Keep surface variation independent of the orbital/palette RNG stream.
+      const moonSeed = hashString(`${company.seed}:moon:${i}`);
+      const surfaceRand = mulberry32(moonSeed);
       return {
+        seed: moonSeed,
+        oceans: surfaceRand() < 0.5,
         orbitRadius: radius * (1.7 + i * company.features.moonOrbitSpacing),
         size: radius * (0.04 + t * 0.55),
         phase: rand() * Math.PI * 2,
@@ -404,6 +411,8 @@ export function instanceFromModel(
     aurora: f.aurora,
     cloudTime,
     moons: model.moonSpecs.map((m) => ({
+      seed: m.seed,
+      oceans: m.oceans,
       orbitRadius: m.orbitRadius,
       angle: m.phase + moonTime * m.speed,
       size: m.size,

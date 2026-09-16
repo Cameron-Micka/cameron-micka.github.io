@@ -60,6 +60,8 @@ export interface PlanetInstance {
   // continuing to drift independently.
   cloudTime: number;
   moons: {
+    seed: number;
+    oceans: boolean;
     orbitRadius: number;
     angle: number;
     size: number;
@@ -87,6 +89,7 @@ export interface MoonInstance {
   radius: number;
   orientation: Quat;
   seed: number;
+  oceans: boolean;
   focus: number;
   paletteLow: Vec3;
   paletteMid: Vec3;
