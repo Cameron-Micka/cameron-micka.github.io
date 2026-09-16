@@ -1316,7 +1316,7 @@ export class WebGPURenderer implements SceneRenderer {
         objIndex,
         model,
         m.radius,
-        (m.seed + 7) % 100000,
+        m.seed % 100000,
         frame.time,
         0,
         m.paletteLow as [number, number, number],
