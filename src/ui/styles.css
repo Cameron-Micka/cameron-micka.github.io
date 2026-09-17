@@ -1060,6 +1060,9 @@ a:hover {
     var(--shadow);
   outline: none;
 }
+.modal.poi-modal:not(.expanded) {
+  width: min(1120px, 100%);
+}
 .modal.poi-modal .modal-header {
   flex: none;
   display: flex;
@@ -1110,7 +1113,7 @@ a:hover {
   font: inherit;
 }
 .modal.poi-modal .poi-section {
-  max-width: 820px;
+  max-width: 1040px;
   margin-inline: auto;
 }
 .modal.poi-modal .body {
