@@ -362,23 +362,33 @@ export class Engine {
 
   // ---- main loop ----
 
+  private requestFrame(): void {
+    if (this.running && !this.rafId) {
+      this.rafId = requestAnimationFrame(this.loop);
+    }
+  }
+
   private loop = (ts: number): void => {
+    this.rafId = 0;
     if (!this.running) return;
-    this.rafId = requestAnimationFrame(this.loop);
     if (typeof document !== 'undefined' && document.hidden) {
       this.lastTs = ts;
+      this.requestFrame();
       return;
     }
 
-    const dt = clamp((ts - this.lastTs) / 1000, 0, 0.05);
+    const modalOpen = this.openPoi !== null;
+    const dt = modalOpen ? 0 : clamp((ts - this.lastTs) / 1000, 0, 0.05);
     this.lastTs = ts;
     const frameMs = dt * 1000;
 
-    this.quality.sample(ts, frameMs);
-    this.trackFps(ts, frameMs);
+    if (!modalOpen) {
+      this.quality.sample(ts, frameMs);
+      this.trackFps(ts, frameMs);
+    }
 
-    const modalOpen = this.openPoi !== null;
-    this.blurCurrent = damp(this.blurCurrent, modalOpen ? 1 : 0, 9, dt);
+    // Present the blurred scene once, then leave the canvas untouched while reading.
+    this.blurCurrent = modalOpen ? 1 : damp(this.blurCurrent, 0, 9, dt);
 
     if (this.settings.freeCamera) {
       this.updateFreeCamera(dt, ts, modalOpen);
@@ -413,6 +423,7 @@ export class Engine {
       this.events.emit('ready', null);
       this.commit();
     }
+    if (!this.openPoi) this.requestFrame();
   };
 
   // Free-fly camera: integrate input axes into velocity (damped → momentum),
@@ -863,6 +874,11 @@ export class Engine {
   closePoi(): void {
     if (!this.openPoi) return;
     this.openPoi = null;
+    this.lastTs = performance.now();
+    this.lastStatsTs = this.lastTs;
+    this.fpsFrames = 0;
+    this.fpsAccum = 0;
+    this.requestFrame();
     this.events.emit('poiClosed', null);
     this.commit();
   }
@@ -1008,6 +1024,8 @@ export class Engine {
     this.canvas.height = h;
     this.camera.setAspect(w / h);
     r.resize(w, h, dpr);
+    // Resizing clears the canvas, including when the modal has stopped the loop.
+    this.requestFrame();
   }
 
   private buildSnapshot(): EngineSnapshot {
