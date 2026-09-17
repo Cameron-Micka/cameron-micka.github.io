@@ -2075,6 +2075,10 @@ a:hover {
 }
 
 @media (max-width: 720px) and (orientation: portrait) {
+  .lightbox-carousel {
+    /* Balance the space below the close button with the 12px nav gap. */
+    padding-top: 36px;
+  }
   .topnav .brand {
     align-self: stretch;
   }
