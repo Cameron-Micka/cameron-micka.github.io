@@ -143,6 +143,7 @@ export class Engine {
     offset: Vec3;
   } | null = null;
   private quality = new QualityManager();
+  private qualityTime = 0;
   private input: InputController;
   private settings: PersistedSettings;
 
@@ -172,6 +173,7 @@ export class Engine {
   private moons = new Moons();
   private focusedIndex = 0;
   private openPoi: OpenPoiRef | null = null;
+  private poiFrameRendered = false;
   private lastOrbitIndex = -1;
   private lastInteract = -10;
 
@@ -374,16 +376,23 @@ export class Engine {
     this.lastTs = ts;
     const frameMs = dt * 1000;
 
-    this.quality.sample(ts, frameMs);
-    this.trackFps(ts, frameMs);
-
     const modalOpen = this.openPoi !== null;
-    this.blurCurrent = damp(this.blurCurrent, modalOpen ? 1 : 0, 9, dt);
+    // Keep the final blurred frame on the canvas until closing or resizing.
+    // Still render once for deep links opened before the first frame.
+    if (modalOpen && this.poiFrameRendered && this.ready) return;
+
+    if (!modalOpen) {
+      // Frozen time must not count toward Auto quality's stability windows.
+      this.qualityTime += frameMs;
+      this.quality.sample(this.qualityTime, frameMs);
+      this.trackFps(ts, frameMs);
+    }
+    this.blurCurrent = modalOpen ? 1 : damp(this.blurCurrent, 0, 9, dt);
 
     if (this.settings.freeCamera) {
-      this.updateFreeCamera(dt, ts, modalOpen);
+      this.updateFreeCamera(modalOpen ? 0 : dt, ts, modalOpen);
     } else {
-      if (this.cinematicActive) {
+      if (this.cinematicActive && !modalOpen) {
         this.cinematicT += dt / FLY_IN_SECONDS;
         const e = easing.cubicOut(Math.min(1, this.cinematicT));
         this.camera.setExtraDistance(lerp(FLY_IN_DISTANCE, 0, e));
@@ -405,6 +414,7 @@ export class Engine {
       this.camera.update(this.scrubCurrent);
     }
     this.renderFrame(!modalOpen && !this.motionPaused() ? dt : 0);
+    this.poiFrameRendered = modalOpen;
 
     if (!this.ready) {
       this.ready = true;
@@ -863,6 +873,10 @@ export class Engine {
   closePoi(): void {
     if (!this.openPoi) return;
     this.openPoi = null;
+    this.poiFrameRendered = false;
+    this.lastStatsTs = performance.now();
+    this.fpsFrames = 0;
+    this.fpsAccum = 0;
     this.events.emit('poiClosed', null);
     this.commit();
   }
@@ -1008,6 +1022,7 @@ export class Engine {
     this.canvas.height = h;
     this.camera.setAspect(w / h);
     r.resize(w, h, dpr);
+    this.poiFrameRendered = false;
   }
 
   private buildSnapshot(): EngineSnapshot {
