@@ -864,6 +864,8 @@ export class Engine {
   }
 
   openPoiRef(company: string, poi: string): void {
+    // A startup deep link should not begin the fly-in when its modal closes.
+    if (!this.ready) this.onUserInteract();
     const idx = this.models.findIndex((m) => m.company.slug === company);
     if (idx >= 0) this.scrubTarget = idx;
     this.openPoi = { company, poi };
