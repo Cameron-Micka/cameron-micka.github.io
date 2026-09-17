@@ -37,7 +37,7 @@ export class Moons {
           radius: m.size * p.visibility,
           orientation: quat.multiply(p.orientation, spin),
           seed: m.seed,
-          oceans: m.oceans,
+          iceCaps: m.iceCaps,
           atmosphere: m.atmosphere,
           visibility: p.visibility,
           focus: p.focus,

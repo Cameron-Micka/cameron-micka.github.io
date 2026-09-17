@@ -18,7 +18,7 @@ struct Obj {
   palMid : vec4<f32>,
   palHigh : vec4<f32>,
   p1 : vec4<f32>, // x=focus, y=hasAtmosphere, z=cloudShadow, w=oceans flag
-  p2 : vec4<f32>, // x=cityLights flag, y=flowMap flag, z=craters flag, w=unused
+  p2 : vec4<f32>, // x=cityLights flag, y=flowMap flag, z=craters flag, w=iceCaps flag
 };
 
 @group(0) @binding(0) var<uniform> frame : Frame;
@@ -515,7 +515,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   var iceMask = 0.0;
   var base2 = base;
   let minimumIceLatitude = 0.87 - 0.5 * (0.26 + 0.08) - 0.04;
-  if (oceans > 0.5 && abs(localPos.y) > minimumIceLatitude) {
+  if (obj.p2.w > 0.5 && abs(localPos.y) > minimumIceLatitude) {
     let lat = abs(localPos.y);
     let iceWarpPos = localPos * 3.8 + vec3<f32>(seed * 0.0019, seed * 0.0023, seed * 0.0017);
     let iceWarpA = fbm(iceWarpPos) - 0.5;
@@ -534,7 +534,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     // broad domain-warped boundary so the cap edge reads more ragged.
     let iceEdgeFine = fbm(iceWarpedPos * 6.4 + vec3<f32>(seed * 0.0024, seed * 0.0033, seed * 0.0029)) - 0.5;
     let iceEdge = 0.87 + (iceNoise - 0.5) * 0.26 + iceEdgeFine * 0.08;
-    iceMask = oceans * smoothstep(iceEdge - 0.04, iceEdge + 0.03, lat);
+    iceMask = obj.p2.w * smoothstep(iceEdge - 0.04, iceEdge + 0.03, lat);
     let iceDetailPos = localPos * 8.0 + vec3<f32>(seed * 0.0031, seed * 0.0027, seed * 0.0037);
     let iceDetail = fbm(iceDetailPos);
     let iceRidgePhase = vec3<f32>(4.2, 1.7, 8.4);

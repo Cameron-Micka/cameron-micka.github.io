@@ -1019,6 +1019,7 @@ export class WebGPURenderer implements SceneRenderer {
     extra2: number = 0,
     extra3: number = 0,
     extra4: number = 0,
+    iceCaps: number = extra,
   ): void {
     const base = index * OBJ_FLOATS;
     const s = this.objScratch;
@@ -1044,11 +1045,11 @@ export class WebGPURenderer implements SceneRenderer {
     s[base + 34] = rotationY;
     s[base + 35] = extra;
     // p2.x — planet shader's cityLights flag, p2.y — flowMap flag,
-    // p2.z — impact-crater flag. Other shaders ignore p2.
+    // p2.z — impact-crater flag, p2.w — ice-cap flag. Other shaders ignore p2.
     s[base + 36] = extra2;
     s[base + 37] = extra3;
     s[base + 38] = extra4;
-    s[base + 39] = 0;
+    s[base + 39] = iceCaps;
   }
 
   render(frame: FrameState): void {
@@ -1327,10 +1328,11 @@ export class WebGPURenderer implements SceneRenderer {
         m.focus,
         hasAtmosphere ? 1 : 0,
         0,
-        m.oceans ? 1 : 0,
+        0, // no oceans
         0, // no city lights
         0, // no flow map
         m.atmosphere ? 0 : 1, // meteorite impact craters only on airless moons
+        m.iceCaps ? 1 : 0,
       );
       objects.push({ kind: 3, index: objIndex, lod: moonLod });
       objIndex++;

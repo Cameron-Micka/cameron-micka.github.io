@@ -121,7 +121,7 @@ uniform vec3 uCamera;uniform vec3 uLight;
 uniform float uHdr;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
-uniform float uCityLights;uniform float uFlow;uniform float uCraters;
+uniform float uCityLights;uniform float uFlow;uniform float uCraters;uniform float uIceCaps;
 uniform float uTime;
 uniform float uCloudShadow; // 0 = clouds off, >0 = shadow strength multiplier
 uniform mat4 uModel;
@@ -380,7 +380,7 @@ void main(){
   vec3 localLightDir=normalize(vec3(dot(r0,lightDir),dot(r1,lightDir),dot(r2,lightDir)));
   float iceMask=0.0;
   float minimumIceLatitude=0.87-0.5*(0.26+0.08)-0.04;
-  if(uOceans>0.5&&abs(localPos.y)>minimumIceLatitude){
+  if(uIceCaps>0.5&&abs(localPos.y)>minimumIceLatitude){
   float lat=abs(localPos.y);
   vec3 iceWarpPos=localPos*3.8+vec3(uSeed*0.0019,uSeed*0.0023,uSeed*0.0017);
   float iceWarpA=fbm(iceWarpPos)-0.5;
@@ -392,7 +392,7 @@ void main(){
   float iceNoise=fbm(iceWarpedPos*2.6+vec3(uSeed*0.0015,uSeed*0.0021,uSeed*0.0018));
   float iceEdgeFine=fbm(iceWarpedPos*6.4+vec3(uSeed*0.0024,uSeed*0.0033,uSeed*0.0029))-0.5;
   float iceEdge=0.87+(iceNoise-0.5)*0.26+iceEdgeFine*0.08;
-  iceMask=uOceans*smoothstep(iceEdge-0.04,iceEdge+0.03,lat);
+  iceMask=uIceCaps*smoothstep(iceEdge-0.04,iceEdge+0.03,lat);
   vec3 iceDetailPos=localPos*8.0+vec3(uSeed*0.0031,uSeed*0.0027,uSeed*0.0037);
   float iceDetail=fbm(iceDetailPos);
   vec3 iceRidgePhase=vec3(4.2,1.7,8.4);
@@ -1772,7 +1772,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.backdrop = this.makeProgram(PRESENT_VERT, BLIT_FRAG, ['uScene']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
-      'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow', 'uCraters',
+      'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow', 'uCraters', 'uIceCaps',
       'uTime', 'uCloudShadow', 'uHdr',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
@@ -2388,13 +2388,14 @@ export class WebGL2Renderer implements SceneRenderer {
         m.paletteLow as [number, number, number],
         m.paletteMid as [number, number, number],
         m.paletteHigh as [number, number, number],
-        m.oceans,
+        false, // no oceans
         0, // moons don't get cloud shadows
         model,
         selectSphereLod(m.center, m.radius, frame.cameraPos),
         false,
         false, // moons don't flow
         !m.atmosphere, // meteorite impact craters only on airless moons
+        m.iceCaps,
       );
     }
 
@@ -2891,6 +2892,7 @@ export class WebGL2Renderer implements SceneRenderer {
     cityLights: boolean = false,
     flow: boolean = false,
     craters: boolean = false,
+    iceCaps: boolean = oceans,
   ): void {
     const gl = this.gl;
     mat4.fromRotationTranslationScale(model, rotation, center, radius);
@@ -2904,6 +2906,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniform1f(this.planet.uniforms.uCityLights!, cityLights ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uFlow!, flow ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCraters!, craters ? 1 : 0);
+    gl.uniform1f(this.planet.uniforms.uIceCaps!, iceCaps ? 1 : 0);
     gl.uniform1f(this.planet.uniforms.uCloudShadow!, cloudShadow);
     const mesh = this.sphereLods[lod]!;
     gl.bindVertexArray(mesh.vao);

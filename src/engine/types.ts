@@ -61,7 +61,7 @@ export interface PlanetInstance {
   cloudTime: number;
   moons: {
     seed: number;
-    oceans: boolean;
+    iceCaps: boolean;
     atmosphere: boolean;
     orbitRadius: number;
     angle: number;
@@ -90,7 +90,7 @@ export interface MoonInstance {
   radius: number;
   orientation: Quat;
   seed: number;
-  oceans: boolean;
+  iceCaps: boolean;
   atmosphere: boolean;
   visibility: number;
   focus: number;
