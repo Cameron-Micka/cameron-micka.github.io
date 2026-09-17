@@ -372,7 +372,8 @@ export class Engine {
       return;
     }
 
-    const dt = clamp((ts - this.lastTs) / 1000, 0, 0.05);
+    const elapsedMs = Math.max(0, ts - this.lastTs);
+    const dt = clamp(elapsedMs / 1000, 0, 0.05);
     this.lastTs = ts;
     const frameMs = dt * 1000;
 
@@ -383,7 +384,7 @@ export class Engine {
 
     if (!modalOpen) {
       // Frozen time must not count toward Auto quality's stability windows.
-      this.qualityTime += frameMs;
+      this.qualityTime += elapsedMs;
       this.quality.sample(this.qualityTime, frameMs);
       this.trackFps(ts, frameMs);
     }
