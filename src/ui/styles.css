@@ -1624,26 +1624,54 @@ a:hover {
   background: rgba(0, 0, 0, 0.9);
 }
 .lightbox {
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
   outline: none;
   color: #fff;
 }
+.lightbox-carousel {
+  display: flex;
+  height: calc(100vh - 128px);
+  height: calc(100dvh - 128px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.lightbox-carousel::-webkit-scrollbar {
+  display: none;
+}
 .lightbox-figure {
+  display: flex;
+  flex: 0 0 100%;
+  flex-direction: column;
+  min-width: 0;
   margin: 0;
-  touch-action: pan-y pinch-zoom;
+  padding: 0 8px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
   user-select: none;
+}
+.lightbox-image {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
 }
 .lightbox-figure img {
   display: block;
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: calc(100vh - 180px);
-  max-height: calc(100dvh - 180px);
+  max-height: 100%;
   margin: 0 auto;
   box-shadow: 0 16px 64px #000b;
 }
 .lightbox-figure figcaption {
+  flex: 0 0 40px;
   max-height: 40px;
   overflow-y: auto;
   margin-top: 12px;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { ArrowLeft, ArrowRight, X } from 'lucide-react';
 import { assetUrl, type Photo } from '@/content/schema';
 import { PHOTOGRAPHY, UI } from './strings';
@@ -23,18 +23,57 @@ export function PhotoLightbox({
   onNavigate: (index: number) => void;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<Element | null>(null);
-  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const scrollIndex = useRef<number | null>(null);
   const photo = photos[index];
 
+  const scrollToPhoto = useCallback((nextIndex: number) => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+    carousel.scrollTo({
+      left: nextIndex * carousel.clientWidth,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'instant'
+        : 'smooth',
+    });
+  }, []);
   const canGoPrev = index > 0;
   const canGoNext = index < photos.length - 1;
   const goPrev = useCallback(() => {
-    if (index > 0) onNavigate(index - 1);
-  }, [index, onNavigate]);
+    if (index > 0) scrollToPhoto(index - 1);
+  }, [index, scrollToPhoto]);
   const goNext = useCallback(() => {
-    if (index < photos.length - 1) onNavigate(index + 1);
-  }, [index, photos.length, onNavigate]);
+    if (index < photos.length - 1) scrollToPhoto(index + 1);
+  }, [index, photos.length, scrollToPhoto]);
+
+  // Position the opening photo before paint, without interrupting native swipes
+  // when a scroll event reports a new index back to the parent.
+  useLayoutEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel || scrollIndex.current === index) return;
+    scrollIndex.current = index;
+    carousel.scrollTo({
+      left: index * carousel.clientWidth,
+      behavior: 'instant',
+    });
+  }, [index]);
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+    let width = carousel.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (carousel.clientWidth === width) return;
+      width = carousel.clientWidth;
+      carousel.scrollTo({
+        left: (scrollIndex.current ?? 0) * width,
+        behavior: 'instant',
+      });
+    });
+    observer.observe(carousel);
+    return () => observer.disconnect();
+  }, []);
 
   // Grab focus on open and hand it back to the tile that opened the viewer.
   // Runs once per mount so paging never yanks focus off the nav buttons.
@@ -100,15 +139,6 @@ export function PhotoLightbox({
     };
   }, []);
 
-  // Warm the neighbours so paging feels instant.
-  useEffect(() => {
-    for (const neighbour of [photos[index - 1], photos[index + 1]]) {
-      if (!neighbour) continue;
-      const img = new Image();
-      img.src = assetUrl(neighbour.src);
-    }
-  }, [photos, index]);
-
   if (!photo) return null;
 
   return (
@@ -135,47 +165,55 @@ export function PhotoLightbox({
         >
           <X size={18} aria-hidden="true" />
         </button>
-        <figure
-          className="lightbox-figure"
-          onTouchStart={(e) => {
-            const touch = e.touches[0];
-            swipeStart.current =
-              e.touches.length === 1 && touch
-                ? { x: touch.clientX, y: touch.clientY }
-                : null;
-          }}
-          onTouchMove={(e) => {
-            if (e.touches.length !== 1) swipeStart.current = null;
-          }}
-          onTouchCancel={() => {
-            swipeStart.current = null;
-          }}
-          onTouchEnd={(e) => {
-            const start = swipeStart.current;
-            swipeStart.current = null;
-            const touch = e.changedTouches[0];
-            if (!start || !touch || e.touches.length > 0) return;
-            const dx = touch.clientX - start.x;
-            const dy = touch.clientY - start.y;
-            if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
-            if (dx < 0) goNext();
-            else goPrev();
+        <div
+          className="lightbox-carousel"
+          ref={carouselRef}
+          tabIndex={-1}
+          onScroll={(e) => {
+            const carousel = e.currentTarget;
+            if (!carousel.clientWidth) return;
+            const nextIndex = Math.max(
+              0,
+              Math.min(
+                photos.length - 1,
+                Math.round(carousel.scrollLeft / carousel.clientWidth),
+              ),
+            );
+            if (nextIndex === scrollIndex.current) return;
+            scrollIndex.current = nextIndex;
+            onNavigate(nextIndex);
           }}
         >
-          <img
-            src={assetUrl(photo.src)}
-            alt={photo.alt}
-            width={photo.width}
-            height={photo.height}
-            decoding="async"
-            draggable={false}
-          />
-          {(photo.caption || photo.location) && (
-            <figcaption>
-              {[photo.caption, photo.location].filter(Boolean).join(' · ')}
-            </figcaption>
-          )}
-        </figure>
+          {photos.map((slide, slideIndex) => (
+            <figure
+              className="lightbox-figure"
+              key={slide.id}
+              aria-hidden={slideIndex !== index}
+            >
+              {Math.abs(slideIndex - index) <= 1 && (
+                <>
+                  <div className="lightbox-image">
+                    <img
+                      src={assetUrl(slide.src)}
+                      alt={slide.alt}
+                      width={slide.width}
+                      height={slide.height}
+                      decoding="async"
+                      draggable={false}
+                    />
+                  </div>
+                  {(slide.caption || slide.location) && (
+                    <figcaption>
+                      {[slide.caption, slide.location]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </figcaption>
+                  )}
+                </>
+              )}
+            </figure>
+          ))}
+        </div>
 
         <nav className="lightbox-nav" aria-label={PHOTOGRAPHY.lightboxLabel}>
           {photos.length > 1 && (
