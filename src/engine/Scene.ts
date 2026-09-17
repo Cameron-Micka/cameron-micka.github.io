@@ -20,7 +20,7 @@ export interface PlanetModel {
   poiDirs: { slug: string; dir: Vec3; accent: Vec3 }[];
   moonSpecs: {
     seed: number;
-    oceans: boolean;
+    iceCaps: boolean;
     atmosphere: boolean;
     orbitRadius: number;
     size: number;
@@ -113,7 +113,7 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       const surfaceRand = mulberry32(moonSeed);
       return {
         seed: moonSeed,
-        oceans: surfaceRand() < 0.5,
+        iceCaps: surfaceRand() < 0.5,
         atmosphere: surfaceRand() < 0.35,
         orbitRadius: radius * (1.7 + i * company.features.moonOrbitSpacing),
         size: radius * (0.04 + t * 0.55),
@@ -414,7 +414,7 @@ export function instanceFromModel(
     cloudTime,
     moons: model.moonSpecs.map((m) => ({
       seed: m.seed,
-      oceans: m.oceans,
+      iceCaps: m.iceCaps,
       atmosphere: m.atmosphere,
       orbitRadius: m.orbitRadius,
       angle: m.phase + moonTime * m.speed,

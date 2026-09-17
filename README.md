@@ -58,9 +58,9 @@ run simultaneously.
 
 ### Moon launching
 
-Moons mix dry, cratered rock with ocean worlds featuring turquoise coastlines
-and blue-white polar ice caps. Each moon has a stable, individual terrain seed;
-water and ice cover crater relief in both rendering backends.
+Moons have rocky surfaces with optional blue-white polar ice caps and no liquid
+water. Each moon has a stable, individual terrain seed; ice covers crater relief
+in both rendering backends.
 A seeded subset also has thin, palette-tinted scattering atmospheres and no
 meteor craters in either backend. These shells fade with orbiting moons and stay
 attached during flight.
