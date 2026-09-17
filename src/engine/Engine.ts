@@ -164,6 +164,7 @@ export class Engine {
   private zoomTarget = 1;
   private zoomCurrent = 1;
   private blurCurrent = 0;
+  private modalFrameRendered = false;
   private time = 0;
   // Separate clock used to drive moon orbits so we can halt them under
   // reduced motion without affecting the global time used by shaders
@@ -200,6 +201,7 @@ export class Engine {
   private fpsFrames = 0;
   private fpsAccum = 0;
   private lastStatsTs = 0;
+  private qualitySampleTime = 0;
 
   private resizeObserver: ResizeObserver | null = null;
   private listeners = new Set<() => void>();
@@ -374,16 +376,27 @@ export class Engine {
     this.lastTs = ts;
     const frameMs = dt * 1000;
 
-    this.quality.sample(ts, frameMs);
-    this.trackFps(ts, frameMs);
-
     const modalOpen = this.openPoi !== null;
-    this.blurCurrent = damp(this.blurCurrent, modalOpen ? 1 : 0, 9, dt);
+    if (modalOpen) {
+      this.fps = 0;
+      this.fpsFrames = 0;
+      this.fpsAccum = 0;
+      this.lastStatsTs = ts;
+      // Keep the presented canvas instead of redrawing an unchanged scene.
+      // Resize invalidates this frame; POI scrolling does not.
+      if (this.modalFrameRendered) return;
+      this.blurCurrent = 1;
+    } else {
+      this.qualitySampleTime += frameMs;
+      this.quality.sample(this.qualitySampleTime, frameMs);
+      this.trackFps(ts, frameMs);
+      this.blurCurrent = damp(this.blurCurrent, 0, 9, dt);
+    }
 
     if (this.settings.freeCamera) {
-      this.updateFreeCamera(dt, ts, modalOpen);
+      this.updateFreeCamera(modalOpen ? 0 : dt, ts, modalOpen);
     } else {
-      if (this.cinematicActive) {
+      if (this.cinematicActive && !modalOpen) {
         this.cinematicT += dt / FLY_IN_SECONDS;
         const e = easing.cubicOut(Math.min(1, this.cinematicT));
         this.camera.setExtraDistance(lerp(FLY_IN_DISTANCE, 0, e));
@@ -405,6 +418,7 @@ export class Engine {
       this.camera.update(this.scrubCurrent);
     }
     this.renderFrame(!modalOpen && !this.motionPaused() ? dt : 0);
+    this.modalFrameRendered = modalOpen;
 
     if (!this.ready) {
       this.ready = true;
@@ -863,6 +877,7 @@ export class Engine {
   closePoi(): void {
     if (!this.openPoi) return;
     this.openPoi = null;
+    this.modalFrameRendered = false;
     this.events.emit('poiClosed', null);
     this.commit();
   }
@@ -1008,6 +1023,7 @@ export class Engine {
     this.canvas.height = h;
     this.camera.setAspect(w / h);
     r.resize(w, h, dpr);
+    this.modalFrameRendered = false;
   }
 
   private buildSnapshot(): EngineSnapshot {

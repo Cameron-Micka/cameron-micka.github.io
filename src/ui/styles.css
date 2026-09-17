@@ -1048,6 +1048,7 @@ a:hover {
    content bezel. The scrollbar stays outside the text column. */
 .modal.poi-modal {
   --poi-bezel: 6px;
+  width: min(1120px, 100%);
   padding: var(--poi-bezel);
   background:
     var(--panel-wear) 116px 48px / 384px 384px,
@@ -1110,7 +1111,7 @@ a:hover {
   font: inherit;
 }
 .modal.poi-modal .poi-section {
-  max-width: 820px;
+  max-width: 1040px;
   margin-inline: auto;
 }
 .modal.poi-modal .body {
