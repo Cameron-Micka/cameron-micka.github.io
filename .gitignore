@@ -21,3 +21,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.log
+
+# local photo sources; commit generated WebP derivatives only
+/public/photos/*/*.[jJ][pP][gG]
+/public/photos/*/*.[jJ][pP][eE][gG]
+/public/photos/*/*.[pP][nN][gG]
+/public/photos/*/*.[tT][iI][fF]
+/public/photos/*/*.[tT][iI][fF][fF]
+/public/photos/*/*.[hH][eE][iI][cC]
+/public/photos/*/*.[hH][eE][iI][fF]

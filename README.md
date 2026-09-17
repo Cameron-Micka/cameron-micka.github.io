@@ -144,15 +144,22 @@ JPEGs; git keeps every version of a binary forever.
 2. Encode as WebP at quality ~80 (full) and ~75 (thumb). Add a JPEG next to it
    only if you need a fallback for a specific target.
 3. Strip metadata, including EXIF GPS.
+4. Add a faint `Cameron Micka` watermark at the bottom left.
 
-With ImageMagick:
+Place source images directly in `public/photos/nature/` or
+`public/photos/automotive/`, then preview and run the batch converter:
 
 ```bash
-magick input.jpg -auto-orient -resize 2000x2000\> -strip -quality 80 \
-  public/photos/nature/<id>.webp
-magick input.jpg -auto-orient -resize 600x600\> -strip -quality 75 \
-  public/photos/nature/thumbs/<id>.webp
+npm run photos:build -- --dry-run
+npm run photos:build
 ```
+
+The converter preserves the source files, auto-orients and converts them to
+sRGB, strips metadata, creates both derivatives, and turns camera filenames
+into URL-safe ids (`IMG_298_No_Wires.jpeg` becomes
+`img-298-no-wires.webp`). Source JPEG, PNG, TIFF, and HEIF files in those
+folders are ignored by git. To use different watermark text, pass
+`--name "Your Name"`.
 
 Then add an entry to `src/content/photos.ts` with the id, category, both
 paths (relative to `public/`, no leading slash), the **full-size** intrinsic
