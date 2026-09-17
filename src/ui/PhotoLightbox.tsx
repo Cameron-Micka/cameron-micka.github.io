@@ -4,8 +4,8 @@ import { assetUrl, type Photo } from '@/content/schema';
 import { PHOTOGRAPHY, UI } from './strings';
 
 /**
- * Full-screen photo viewer. Mirrors the POI modal's conventions: scrim +
- * `.modal` chrome, Escape / scrim / ✕ to close, focus trapped while open and
+ * Full-screen photo viewer: swipe or use arrows to navigate,
+ * Escape / scrim / ✕ to close, focus trapped while open and
  * restored to the opening tile on close.
  *
  * Rendered only when a photo is selected, so nothing here runs during SSG.
@@ -24,6 +24,7 @@ export function PhotoLightbox({
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<Element | null>(null);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const photo = photos[index];
 
   const canGoPrev = index > 0;
@@ -54,8 +55,10 @@ export function PhotoLightbox({
       if (e.key === 'Escape') {
         onClose();
       } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
         goPrev();
       } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
         goNext();
       } else if (e.key === 'Tab' && card) {
         const focusable = [
@@ -66,10 +69,19 @@ export function PhotoLightbox({
         if (focusable.length === 0) return;
         const first = focusable[0]!;
         const last = focusable[focusable.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
+        const focusOutsideControls = !focusable.includes(
+          document.activeElement as HTMLElement,
+        );
+        if (
+          e.shiftKey &&
+          (document.activeElement === first || focusOutsideControls)
+        ) {
           e.preventDefault();
           last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
+        } else if (
+          !e.shiftKey &&
+          (document.activeElement === last || focusOutsideControls)
+        ) {
           e.preventDefault();
           first.focus();
         }
@@ -101,53 +113,75 @@ export function PhotoLightbox({
 
   return (
     <div
-      className="modal-scrim"
+      className="modal-scrim lightbox-scrim"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="modal lightbox"
+        className="lightbox"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="lightbox-title"
+        aria-label={PHOTOGRAPHY.lightboxLabel}
         tabIndex={-1}
         ref={cardRef}
       >
-        <div className="modal-actions">
-          <button
-            type="button"
-            className="icon-btn close"
-            aria-label={UI.close}
-            title={UI.close}
-            onClick={onClose}
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
+        <button
+          type="button"
+          className="lightbox-control lightbox-close"
+          aria-label={UI.close}
+          title={UI.close}
+          onClick={onClose}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+        <figure
+          className="lightbox-figure"
+          onTouchStart={(e) => {
+            const touch = e.touches[0];
+            swipeStart.current =
+              e.touches.length === 1 && touch
+                ? { x: touch.clientX, y: touch.clientY }
+                : null;
+          }}
+          onTouchMove={(e) => {
+            if (e.touches.length !== 1) swipeStart.current = null;
+          }}
+          onTouchCancel={() => {
+            swipeStart.current = null;
+          }}
+          onTouchEnd={(e) => {
+            const start = swipeStart.current;
+            swipeStart.current = null;
+            const touch = e.changedTouches[0];
+            if (!start || !touch || e.touches.length > 0) return;
+            const dx = touch.clientX - start.x;
+            const dy = touch.clientY - start.y;
+            if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
+            if (dx < 0) goNext();
+            else goPrev();
+          }}
+        >
+          <img
+            src={assetUrl(photo.src)}
+            alt={photo.alt}
+            width={photo.width}
+            height={photo.height}
+            decoding="async"
+            draggable={false}
+          />
+          {(photo.caption || photo.location) && (
+            <figcaption>
+              {[photo.caption, photo.location].filter(Boolean).join(' · ')}
+            </figcaption>
+          )}
+        </figure>
 
-        <div className="modal-content">
-          <div className="eyebrow">
-            {PHOTOGRAPHY.counter(index + 1, photos.length)}
-          </div>
-          <h2 id="lightbox-title">{photo.caption ?? photo.alt}</h2>
-          <figure className="lightbox-figure">
-            <img
-              src={assetUrl(photo.src)}
-              alt={photo.alt}
-              width={photo.width}
-              height={photo.height}
-              decoding="async"
-            />
-            {photo.location && <figcaption>{photo.location}</figcaption>}
-          </figure>
-        </div>
-
-        {photos.length > 1 && (
-          <nav className="poi-nav" aria-label={PHOTOGRAPHY.lightboxLabel}>
+        <nav className="lightbox-nav" aria-label={PHOTOGRAPHY.lightboxLabel}>
+          {photos.length > 1 && (
             <button
               type="button"
-              className="icon-btn"
+              className="lightbox-control"
               disabled={!canGoPrev}
               aria-label={PHOTOGRAPHY.previous}
               title={PHOTOGRAPHY.previous}
@@ -155,9 +189,18 @@ export function PhotoLightbox({
             >
               <ArrowLeft size={19} aria-hidden="true" />
             </button>
+          )}
+          <span
+            className="lightbox-counter"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {PHOTOGRAPHY.counter(index + 1, photos.length)}
+          </span>
+          {photos.length > 1 && (
             <button
               type="button"
-              className="icon-btn"
+              className="lightbox-control"
               disabled={!canGoNext}
               aria-label={PHOTOGRAPHY.next}
               title={PHOTOGRAPHY.next}
@@ -165,8 +208,8 @@ export function PhotoLightbox({
             >
               <ArrowRight size={19} aria-hidden="true" />
             </button>
-          </nav>
-        )}
+          )}
+        </nav>
       </div>
     </div>
   );
