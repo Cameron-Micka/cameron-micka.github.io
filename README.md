@@ -157,14 +157,17 @@ npm run photos:build
 The converter preserves the source files, auto-orients and converts them to
 sRGB, strips metadata, creates both derivatives, and turns camera filenames
 into URL-safe ids (`IMG_298_No_Wires.jpeg` becomes
-`img-298-no-wires.webp`). Source JPEG, PNG, TIFF, and HEIF files in those
-folders are ignored by git. To use different watermark text, pass
-`--name "Your Name"`.
+`img-298-no-wires.webp`). It also refreshes
+`src/content/photos.generated.ts` with the paths and full-size intrinsic
+dimensions used by the gallery. Source JPEG, PNG, TIFF, and HEIF files in
+those folders are ignored by git. To use different watermark text, pass
+`--name "Your Name"`; to rebuild only the manifest from existing derivatives,
+pass `--manifest-only`.
 
-Then add an entry to `src/content/photos.ts` with the id, category, both
-paths (relative to `public/`, no leading slash), the **full-size** intrinsic
-`width`/`height` in pixels, and descriptive `alt` text. The dimensions let the
-grid reserve space so nothing shifts as images load, so they must be accurate.
+Generated entries receive a category-based fallback description. Add an entry
+to `photoDetails` in `src/content/photos.ts` when a photo needs more descriptive
+`alt` text, a caption, or a location; those authored details survive future
+batch conversions.
 
 Keep the site comfortably under GitHub Pages' ~1 GB soft limit. If the gallery
 ever outgrows that, move the files to an external object store/CDN and change

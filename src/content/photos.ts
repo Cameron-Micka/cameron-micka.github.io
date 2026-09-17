@@ -4,6 +4,7 @@ import {
   type PhotoCategory,
   type PhotoInput,
 } from './schema';
+import { generatedPhotos } from './photos.generated';
 
 // Photography gallery manifest.
 //
@@ -15,7 +16,21 @@ import {
 // `width`/`height` are the intrinsic pixel dimensions of `src`; they let the
 // grid reserve space (no layout shift) and size the lightbox before load.
 // See the "Photography assets" section of README.md for the export recipe.
-const raw: PhotoInput[] = [];
+const fallbackAlt: Record<PhotoCategory, string> = {
+  nature: 'Nature photograph by Cameron Micka',
+  automotive: 'Automotive photograph by Cameron Micka',
+};
+
+type PhotoDetails = Pick<PhotoInput, 'alt'> &
+  Partial<Pick<PhotoInput, 'caption' | 'location'>>;
+
+const photoDetails: Partial<Record<string, PhotoDetails>> = {};
+
+const raw: PhotoInput[] = generatedPhotos.map((photo) => ({
+  ...photo,
+  alt: fallbackAlt[photo.category],
+  ...photoDetails[photo.id],
+}));
 
 // Validate at module load so malformed content fails fast in dev and build.
 export const photos: Photo[] = photosSchema.parse(raw);
