@@ -66,7 +66,7 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
             />
           )}
           <span>
-            <span className="company">{company.name}</span>
+            <span className="company glitch company-glitch">{company.name}</span>
             <span className="role">{company.role}</span>
           </span>
         </span>

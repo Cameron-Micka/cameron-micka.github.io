@@ -1084,6 +1084,11 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.modal-title .company-glitch {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .modal.poi-modal .modal-header .modal-actions {
   --focus: var(--accent-ink);
   position: static;
@@ -1823,17 +1828,21 @@ a:hover {
 /* ---- Reusable glitch effect ----
    Add `.glitch` to any element (or apply `animation: glitch-jitter ...` to a
    pseudo-element) for an occasional chromatic-aberration stutter. Tune with
-   --glitch-duration, --glitch-a and --glitch-b. */
+   --glitch-duration, --glitch-a, --glitch-b and --glitch-rest-shadow. */
 .glitch {
   display: inline-block;
   animation: glitch-jitter var(--glitch-duration, 3.6s) steps(1, end) infinite;
+}
+.company-glitch {
+  --glitch-duration: 6s;
+  --glitch-rest-shadow: var(--text-glow);
 }
 @keyframes glitch-jitter {
   0%,
   86%,
   100% {
     transform: translate3d(0, 0, 0);
-    text-shadow: none;
+    text-shadow: var(--glitch-rest-shadow, none);
     clip-path: none;
   }
   87% {
@@ -1865,7 +1874,7 @@ a:hover {
   }
   95% {
     transform: translate3d(0, 0, 0);
-    text-shadow: none;
+    text-shadow: var(--glitch-rest-shadow, none);
     clip-path: none;
   }
 }

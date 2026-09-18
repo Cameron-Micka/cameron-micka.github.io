@@ -275,7 +275,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
               style={{ background: activeCompany?.palette.high }}
               aria-hidden="true"
             />
-            {activeCompany?.name}
+            <span className="glitch company-glitch">{activeCompany?.name}</span>
           </div>
           <div className="modal-actions">
             <button
