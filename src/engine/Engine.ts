@@ -340,7 +340,16 @@ export class Engine {
 
   private async createRenderer(onProgress?: LoadProgressFn): Promise<SceneRenderer> {
     const force = this.settings.forceBackend;
-    if (force !== 'webgl2' && typeof navigator !== 'undefined' && navigator.gpu) {
+    const preferWebGL =
+      force === 'auto' &&
+      typeof navigator !== 'undefined' &&
+      /Macintosh|Mac OS X|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (
+      force !== 'webgl2' &&
+      !preferWebGL &&
+      typeof navigator !== 'undefined' &&
+      navigator.gpu
+    ) {
       try {
         const r = new WebGPURenderer();
         await r.init(this.canvas, onProgress);

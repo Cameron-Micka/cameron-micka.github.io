@@ -1320,29 +1320,6 @@ a:hover {
   pointer-events: none;
 }
 
-/* ---- WebGL notice ---- */
-.compat-notice {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  position: fixed;
-  top: calc(var(--nav-height) + 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 22;
-  max-width: min(380px, 92vw);
-  text-align: center;
-  font-size: 10px;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  line-height: 1.6;
-  color: var(--accent-2);
-  background: var(--glass);
-  border: 1px solid var(--orange-edge);
-  border-radius: var(--radius-screen);
-  padding: 8px 12px;
-}
-
 /* ---- Skip / loader ---- */
 .skip-btn {
   position: fixed;
@@ -2218,8 +2195,7 @@ a:hover {
   .settings,
   .hud,
   .skip-btn,
-  .loading-screen,
-  .compat-notice {
+  .loading-screen {
     display: none !important;
   }
   body::before,

@@ -74,8 +74,11 @@ Paused motion and open POI dialogs also pause moon flight.
 
 ### Backends & quality
 
-WebGPU is used when available (two-step adapter+device probe); otherwise the app
-falls back to WebGL2. On WebGPU, Auto quality starts at the `low` tier and ramps
+Auto renderer uses WebGL2 on iOS/iPadOS and macOS. On other platforms, WebGPU is
+used when available (two-step adapter+device probe); otherwise the app falls
+back to WebGL2. Users can explicitly select WebGPU or WebGL in settings on any
+platform. WebGL runs without a compatibility notice.
+On WebGPU, Auto quality starts at the `low` tier and ramps
 up one tier at a time (`low` → `med` → `high`) whenever frame time stays good and
 stable for 3+ seconds. Users can override quality, motion,
 sound, and a debug HUD from the settings panel; preferences persist in
