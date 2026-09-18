@@ -28,8 +28,6 @@ export const HINTS = {
 
 export const UI = {
   loading: 'Entering the timeline…',
-  webglNotice:
-    'Running in compatibility mode (WebGL). For the full experience, use a WebGPU-capable browser.',
   errorTitle: 'Something went wrong',
   errorBody: 'The 3D experience failed to start. The details below may help.',
   reload: 'Reload',

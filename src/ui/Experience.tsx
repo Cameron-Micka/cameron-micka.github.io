@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Video, X } from 'lucide-react';
+import { Video } from 'lucide-react';
 import type { Company } from '@/content/schema';
 import { Engine } from '@/engine/Engine';
 import { resolveReducedMotion } from '@/settings';
@@ -157,7 +157,6 @@ export function Experience({ companies }: { companies: Company[] }) {
             )}
             <DebugHud />
           </div>
-          <Backend />
           <SoundBridge />
           <HashBridge companies={companies} />
         </EngineContext.Provider>
@@ -181,25 +180,6 @@ function BodySelectionOutline() {
     <svg className="body-selection-outline" aria-hidden="true">
       <path ref={pathRef} />
     </svg>
-  );
-}
-
-function Backend() {
-  const { backend } = useEngineSnapshot();
-  const [dismissed, setDismissed] = useState(false);
-  if (backend !== 'webgl2' || dismissed) return null;
-  return (
-    <div className="compat-notice">
-      <span>{UI.webglNotice}</span>
-      <button
-        type="button"
-        className="icon-btn close"
-        aria-label={UI.close}
-        onClick={() => setDismissed(true)}
-      >
-        <X size={16} aria-hidden="true" />
-      </button>
-    </div>
   );
 }
 
