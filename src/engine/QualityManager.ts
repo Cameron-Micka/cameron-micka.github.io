@@ -62,17 +62,18 @@ const RAMP_ORDER: QualityTier[] = ['low', 'med', 'high'];
 
 // A frame at or below this time (~55 FPS) counts as "good".
 const GOOD_FRAME_MS = 18;
-// A frame at or above this time (~36 FPS) counts as "bad". Frames between
-// GOOD and BAD are neither: they neither earn a step up nor force a step down.
-const BAD_FRAME_MS = 28;
+// A 1.5-second average at or above this time (50 FPS or worse) steps down.
+// Averaging catches missed-refresh patterns such as alternating 10/30 ms
+// frames, while preventing an isolated hitch from lowering quality.
+const BAD_AVERAGE_FRAME_MS = 20;
 // A single frame slower than this is treated as a stall (tab switch, GC, page
 // load hitch) and ignored rather than counted against stability.
 const STALL_FRAME_MS = 500;
 // Performance must stay good for this long before stepping up a tier.
 const STABLE_MS = 3000;
-// Performance must stay bad for this long before stepping back down. Shorter
-// than STABLE_MS so a tier the device can't sustain is abandoned quickly.
-const UNSTABLE_MS = 1500;
+// Window used to decide whether performance is persistently slow. Shorter than
+// STABLE_MS so a tier the device can't sustain is abandoned quickly.
+const DOWNGRADE_WINDOW_MS = 1500;
 // Samples taken within this long after a tier change are ignored: applying a
 // tier resizes targets and rebuilds pipelines, which costs a few slow frames
 // that say nothing about the new tier's steady-state cost.
@@ -83,12 +84,12 @@ const SETTLE_MS = 1000;
 // STABLE_MS continuously. A janky frame resets the stability window, so the
 // ramp only climbs when the device comfortably sustains the current tier.
 //
-// The ramp also steps back down if frame time stays at or above BAD_FRAME_MS
-// for UNSTABLE_MS. The step-up decision can only measure whatever happens to
-// be on screen at the time, and the scene's cost varies a lot with the camera
-// (a large planet filling the viewport is many times more expensive than a
-// distant one), so a tier that looked affordable can turn out not to be. A
-// tier that fails this way is ratcheted off permanently for the session, so
+// The ramp also steps back down when average frame time is too high across a
+// full DOWNGRADE_WINDOW_MS. The step-up decision can only measure whatever
+// happens to be on screen at the time, and the scene's cost varies a lot with
+// the camera (a large planet filling the viewport is many times more expensive
+// than a distant one), so a tier that looked affordable can turn out not to be.
+// A tier that fails this way is ratcheted off permanently for the session, so
 // the ramp settles instead of oscillating between two tiers.
 export class QualityManager {
   private active = false;
@@ -97,7 +98,8 @@ export class QualityManager {
   // proves unsustainable, so a failed tier is never retried this session.
   private ceilingIndex = RAMP_ORDER.length - 1;
   private stableSince = 0;
-  private unstableSince = 0;
+  private downgradeTime = 0;
+  private downgradeFrames = 0;
   private settleUntil = 0;
   private onTierChange: ((tier: QualityTier) => void) | null = null;
 
@@ -111,7 +113,7 @@ export class QualityManager {
     this.currentTier = startTier;
     this.onTierChange = onTierChange;
     this.stableSince = 0;
-    this.unstableSince = 0;
+    this.resetDowngradeWindow();
     this.settleUntil = 0;
     this.ceilingIndex = RAMP_ORDER.length - 1;
     this.active = true;
@@ -122,7 +124,7 @@ export class QualityManager {
     this.active = false;
     this.onTierChange = null;
     this.stableSince = 0;
-    this.unstableSince = 0;
+    this.resetDowngradeWindow();
   }
 
   get isActive(): boolean {
@@ -136,18 +138,20 @@ export class QualityManager {
     // Ignore the resize/pipeline-rebuild hitch right after a tier change.
     if (now < this.settleUntil) return;
 
+    this.downgradeTime += frameMs;
+    this.downgradeFrames++;
+
     if (frameMs <= GOOD_FRAME_MS) {
-      this.unstableSince = 0;
       if (this.stableSince === 0) this.stableSince = now;
       if (now - this.stableSince >= STABLE_MS) this.stepUp(now);
-    } else if (frameMs >= BAD_FRAME_MS) {
-      this.stableSince = 0;
-      if (this.unstableSince === 0) this.unstableSince = now;
-      if (now - this.unstableSince >= UNSTABLE_MS) this.stepDown(now);
     } else {
-      // Middling frame: neither earns a step up nor forces a step down.
       this.stableSince = 0;
-      this.unstableSince = 0;
+    }
+
+    if (this.downgradeTime >= DOWNGRADE_WINDOW_MS) {
+      const averageFrameMs = this.downgradeTime / this.downgradeFrames;
+      this.resetDowngradeWindow();
+      if (averageFrameMs >= BAD_AVERAGE_FRAME_MS) this.stepDown(now);
     }
   }
 
@@ -165,7 +169,7 @@ export class QualityManager {
     const prev = this.prevTier(this.currentTier);
     if (prev === null) {
       // Already at the bottom — nothing left to shed, so stop counting.
-      this.unstableSince = 0;
+      this.resetDowngradeWindow();
       this.refreshActive();
       return;
     }
@@ -182,10 +186,15 @@ export class QualityManager {
   private changeTier(tier: QualityTier, now: number): void {
     this.currentTier = tier;
     this.stableSince = 0;
-    this.unstableSince = 0;
+    this.resetDowngradeWindow();
     this.settleUntil = now + SETTLE_MS;
     this.onTierChange?.(tier);
     this.refreshActive();
+  }
+
+  private resetDowngradeWindow(): void {
+    this.downgradeTime = 0;
+    this.downgradeFrames = 0;
   }
 
   // The ramp only needs to keep running while some move is still possible:
