@@ -11,7 +11,7 @@ import { BottomRibbon } from './BottomRibbon';
 import { PoiModal } from './PoiModal';
 import { SettingsPanel } from './SettingsPanel';
 import { DebugHud } from './DebugHud';
-import { UI } from './strings';
+import { HINTS, UI } from './strings';
 
 function SoundBridge() {
   const engine = useEngine();
@@ -150,6 +150,7 @@ export function Experience({ companies }: { companies: Company[] }) {
               <SideRuler companies={companies} />
               <FreeCameraButton />
             </div>
+            <FreeCameraHint />
             <BottomRibbon companies={companies} />
             <PoiModal companies={companies} />
             {settingsOpen && (
@@ -183,8 +184,31 @@ function BodySelectionOutline() {
   );
 }
 
-// Round toggle (bottom-right, mirrors the settings button) for the free-fly
-// camera. The controls hint lives in the bottom ribbon while active.
+function FreeCameraHint() {
+  const { freeCamera } = useEngineSnapshot();
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    setVisible(freeCamera);
+    if (!freeCamera) return;
+    const timer = window.setTimeout(() => setVisible(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [freeCamera]);
+
+  return (
+    <div className="freecam-hint" role="status" aria-live="polite">
+      {freeCamera && visible && (
+        <div className="freecam-hint-card">
+          <strong>{UI.freeCamera}</strong>
+          <span className="freecam-hint-desktop">{HINTS.freeCameraDesktop}</span>
+          <span className="freecam-hint-touch">{HINTS.freeCameraTouch}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Round toggle for the free-fly camera.
 function FreeCameraButton() {
   const engine = useEngine();
   const { freeCamera, freeCameraState, reducedMotion } = useEngineSnapshot();
