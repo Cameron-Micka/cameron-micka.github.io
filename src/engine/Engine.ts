@@ -74,7 +74,7 @@ export interface EngineSnapshot {
     yawDeg: number;
     pitchDeg: number;
   } | null;
-  stats: RenderStats & { fps: number };
+  stats: RenderStats & { fps: number; frameMs: number };
 }
 
 export type EngineEvents = {
@@ -1070,7 +1070,11 @@ export class Engine {
       freeCameraState,
       flightPath: this.settings.flightPath,
       crt: this.settings.crt,
-      stats: { ...stats, fps: Math.round(this.fps) },
+      stats: {
+        ...stats,
+        fps: Math.round(this.fps),
+        frameMs: this.fps > 0 ? 1000 / this.fps : 0,
+      },
     };
   }
 

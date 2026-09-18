@@ -10,6 +10,7 @@ export function DebugHud() {
         {backend} · {activeTier}
       </div>
       <div>{stats.fps} fps</div>
+      <div>frame {stats.frameMs.toFixed(1)} ms</div>
       <div>draws {stats.drawCalls}</div>
       <div>tris {stats.triangles.toLocaleString()}</div>
       <div>mem ~{stats.gpuMemoryMB.toFixed(1)} MB</div>
