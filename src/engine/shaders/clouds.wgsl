@@ -84,12 +84,14 @@ fn cFbm(p : vec3<f32>) -> f32 {
   var v = 0.0;
   var a = 0.5;
   var q = p;
+  let octaves = select(4, 3, frame.shadowMisc.y > 1.5);
   for (var i = 0; i < 4; i = i + 1) {
+    if (i >= octaves) { break; }
     v = v + a * cVnoise(q);
     q = q * 2.03;
     a = a * 0.5;
   }
-  return v;
+  return v * select(1.0, 15.0 / 14.0, frame.shadowMisc.y > 1.5);
 }
 
 // Per-planet cloud rotation about local Y, varied by seed so different planets
@@ -138,7 +140,13 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
 // few short steps toward the sun in cloud-local space and darken where upstream
 // density is high. A tiny high-frequency modulation keeps the shadow break-up
 // organic instead of uniformly soft.
-fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf : f32) -> f32 {
+fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf : f32, density : f32) -> f32 {
+  // Low reuses the visible density instead of evaluating another complete
+  // domain-warped field. At this tier the broad depth cue matters more than
+  // the small directional offset, and this nearly halves cloud-noise work.
+  if (frame.shadowMisc.y > 1.5) {
+    return 1.0 - clamp(density * 0.85, 0.0, 1.0) * 0.70;
+  }
   let r0 = normalize(obj.model[0].xyz);
   let r1 = normalize(obj.model[1].xyz);
   let r2 = normalize(obj.model[2].xyz);
@@ -148,7 +156,7 @@ fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf
     dot(r2, worldSun),
   ));
   let d1 = cloudDensity(normalize(localDir + localSun * 0.045), time, seedf);
-  // Below the high tier, collapse the three-tap sun march (and the grain
+  // Medium collapses the three-tap sun march (and the grain
   // modulation) to the single nearest tap. Each tap is a full domain-warped
   // cloudDensity — three fBm evaluations — so this drops ~7 of the 10 fBm
   // calls the cloud shell costs per pixel. The 0.85 factor approximates the
@@ -242,7 +250,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let seedf = obj.p1.y;
   let time = obj.p0.z;
   let density = cloudDensity(localDir, time, seedf);
-  let selfShadow = cloudSelfShadow(localDir, sun, time, seedf);
+  let selfShadow = cloudSelfShadow(localDir, sun, time, seedf, density);
 
   // Direct sunlight stays neutral overhead but warms as it grazes the
   // atmosphere near the terminator. A separate cool atmospheric fill remains
@@ -295,7 +303,12 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // from within. Brightest on the night side, faint on the day side. stormA
   // rises with the flash so the emissive color survives the alpha blend even
   // where the night-side cloud alpha is otherwise near zero.
-  let storm = cloudStorm(localDir, time, seedf, density);
+  // The 27-cell lightning search is a large fixed cost even between flashes.
+  // Keep the rare effect on Medium/High; Low retains the full cloud field.
+  var storm = 0.0;
+  if (frame.shadowMisc.y <= 1.5) {
+    storm = cloudStorm(localDir, time, seedf, density);
+  }
   let nightBoost = mix(0.55, 1.0, 1.0 - dayMask);
   col = col + stormColor(storm) * nightBoost;
   let stormA = clamp(storm, 0.0, 1.0) * edgeFade * vis;

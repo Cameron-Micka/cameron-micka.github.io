@@ -16,6 +16,9 @@ export interface QualitySettings {
   bloomMips: number;
   msaa: number; // MSAA sample count: 1 = off, 2, or 4
   shadows: boolean; // planet-cast shadows on other planets/rings/moons
+  // Resolution of the HDR scene/depth targets relative to the output canvas.
+  // The final composite remains native-resolution and upscales this target.
+  sceneScale: number;
   // Resolution of the nebula backdrop target, as a fraction of CSS pixels
   // (i.e. independent of devicePixelRatio). The nebula raymarch is by far the
   // most expensive per-pixel shader and it's entirely low-frequency, so it is

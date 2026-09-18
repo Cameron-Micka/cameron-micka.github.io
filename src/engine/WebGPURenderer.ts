@@ -48,7 +48,7 @@ import auroraWGSL from './shaders/aurora.wgsl?raw';
 const OBJ_STRIDE = 256; // bytes; >= minUniformBufferOffsetAlignment
 const OBJ_FLOATS = OBJ_STRIDE / 4;
 const MAX_OBJECTS = 64;
-const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
+const HDR_FALLBACK_FORMAT: GPUTextureFormat = 'rgba16float';
 // Must match CLOUD_SHELL_SCALE in clouds.wgsl and planet.wgsl: surface-point
 // projection in the planet shader assumes the cloud shell sits at this radius
 // (in unit-sphere local space) so the shadow lands exactly under the puff.
@@ -68,11 +68,15 @@ export class WebGPURenderer implements SceneRenderer {
   private device!: GPUDevice;
   private context!: GPUCanvasContext;
   private format!: GPUTextureFormat;
+  private hdrFormat: GPUTextureFormat = HDR_FALLBACK_FORMAT;
   private canvas!: HTMLCanvasElement;
 
   private width = 1;
   private height = 1;
   private dpr = 1;
+  private sceneWidth = 1;
+  private sceneHeight = 1;
+  private sceneScale = QUALITY_PRESETS.high.sceneScale;
 
   private hdrTex!: GPUTexture;
   private hdrView!: GPUTextureView;
@@ -90,6 +94,9 @@ export class WebGPURenderer implements SceneRenderer {
   private backdropView!: GPUTextureView;
   private backdropW = 0;
   private backdropH = 0;
+  private backdropDirty = true;
+  private backdropTime = -Infinity;
+  private backdropInvViewProj = new Float32Array(16);
   // Reduced-resolution post chain: fxSrc holds a box-downsample of the scene,
   // fx holds bloom + god rays + lens flare (+ the blurred scene while a modal
   // is open). Both are sized from CSS pixels like the backdrop.
@@ -193,8 +200,14 @@ export class WebGPURenderer implements SceneRenderer {
     });
     if (!adapter) throw new Error('No WebGPU adapter');
     await report(0.2, 'Requesting GPU device…');
-    const device = await adapter.requestDevice();
+    const hdrFeature: GPUFeatureName = 'rg11b10ufloat-renderable';
+    const device = await adapter.requestDevice({
+      requiredFeatures: adapter.features.has(hdrFeature) ? [hdrFeature] : [],
+    });
     this.device = device;
+    this.hdrFormat = device.features.has(hdrFeature)
+      ? 'rg11b10ufloat'
+      : HDR_FALLBACK_FORMAT;
     this.canvas = canvas;
 
     device.lost.then((info) => {
@@ -450,7 +463,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: planetMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT }],
+        targets: [{ format: this.hdrFormat }],
       },
       primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
       depthStencil: {
@@ -469,7 +482,7 @@ export class WebGPURenderer implements SceneRenderer {
         entryPoint: 'fs',
         // ring.wgsl already premultiplies RGB by opacity and distance fade.
         targets: [{
-          format: HDR_FORMAT,
+          format: this.hdrFormat,
           blend: {
             color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
             alpha: alphaBlend.alpha,
@@ -494,7 +507,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: nebulaMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT }],
+        targets: [{ format: this.hdrFormat }],
       },
       primitive: { topology: 'triangle-list' },
     });
@@ -510,7 +523,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: backdropMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT }],
+        targets: [{ format: this.hdrFormat }],
       },
       primitive: { topology: 'triangle-list' },
       depthStencil: {
@@ -530,7 +543,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: postfxMod,
         entryPoint: 'fs_down',
-        targets: [{ format: HDR_FORMAT }],
+        targets: [{ format: this.hdrFormat }],
       },
       primitive: { topology: 'triangle-list' },
     });
@@ -540,7 +553,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: postfxMod,
         entryPoint: 'fs_fx',
-        targets: [{ format: HDR_FORMAT }],
+        targets: [{ format: this.hdrFormat }],
       },
       primitive: { topology: 'triangle-list' },
     });
@@ -568,7 +581,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: starMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+        targets: [{ format: this.hdrFormat, blend: addBlend }],
       },
       primitive: { topology: 'triangle-list' },
       depthStencil: {
@@ -586,7 +599,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: sunMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
+        targets: [{ format: this.hdrFormat, blend: alphaBlend }],
       },
       primitive: { topology: 'triangle-list' },
       depthStencil: {
@@ -604,7 +617,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: sunMod,
         entryPoint: 'fs_corona',
-        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+        targets: [{ format: this.hdrFormat, blend: addBlend }],
       },
       primitive: { topology: 'triangle-list' },
       depthStencil: {
@@ -627,7 +640,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: starMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+        targets: [{ format: this.hdrFormat, blend: addBlend }],
       },
       primitive: { topology: 'triangle-list' },
       depthStencil: {
@@ -660,7 +673,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: poiMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+        targets: [{ format: this.hdrFormat, blend: addBlend }],
       },
       primitive: { topology: 'triangle-list' },
       depthStencil: {
@@ -692,7 +705,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: poiLineMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+        targets: [{ format: this.hdrFormat, blend: addBlend }],
       },
       primitive: { topology: 'triangle-list' },
       depthStencil: {
@@ -728,7 +741,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: flightPathMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
+        targets: [{ format: this.hdrFormat, blend: alphaBlend }],
       },
       primitive: { topology: 'triangle-list' },
       depthStencil: {
@@ -759,7 +772,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: wireframeMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT }],
+        targets: [{ format: this.hdrFormat }],
       },
       primitive: { topology: 'line-list' },
       depthStencil: {
@@ -789,7 +802,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: atmosphereMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+        targets: [{ format: this.hdrFormat, blend: addBlend }],
       },
       primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
       depthStencil: {
@@ -806,7 +819,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: cloudsMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
+        targets: [{ format: this.hdrFormat, blend: alphaBlend }],
       },
       primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
       depthStencil: {
@@ -826,7 +839,7 @@ export class WebGPURenderer implements SceneRenderer {
       fragment: {
         module: auroraMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT, blend: addBlend }],
+        targets: [{ format: this.hdrFormat, blend: addBlend }],
       },
       primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
       depthStencil: {
@@ -882,6 +895,16 @@ export class WebGPURenderer implements SceneRenderer {
     this.canvas.width = width;
     this.canvas.height = height;
 
+    this.resizeSceneTargets();
+    this.ensureAuxTargets(true);
+  }
+
+  private resizeSceneTargets(): void {
+    const width = Math.max(1, Math.round(this.width * this.sceneScale));
+    const height = Math.max(1, Math.round(this.height * this.sceneScale));
+    this.sceneWidth = width;
+    this.sceneHeight = height;
+
     this.hdrTex?.destroy();
     this.depthTex?.destroy();
     this.msaaTex?.destroy();
@@ -891,7 +914,7 @@ export class WebGPURenderer implements SceneRenderer {
     // resolve target when MSAA is enabled.
     this.hdrTex = this.device.createTexture({
       size: [width, height],
-      format: HDR_FORMAT,
+      format: this.hdrFormat,
       usage:
         GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
@@ -899,7 +922,7 @@ export class WebGPURenderer implements SceneRenderer {
     if (this.sampleCount > 1) {
       this.msaaTex = this.device.createTexture({
         size: [width, height],
-        format: HDR_FORMAT,
+        format: this.hdrFormat,
         sampleCount: this.sampleCount,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
       });
@@ -912,8 +935,6 @@ export class WebGPURenderer implements SceneRenderer {
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.depthView = this.depthTex.createView();
-
-    this.ensureAuxTargets(true);
   }
 
   // Size of a reduced-resolution helper target. `scale` is expressed in CSS
@@ -923,8 +944,8 @@ export class WebGPURenderer implements SceneRenderer {
   private auxSize(scale: number): [number, number] {
     const s = Math.max(0.1, Math.min(1, scale)) / this.dpr;
     return [
-      Math.max(1, Math.min(this.width, Math.round(this.width * s))),
-      Math.max(1, Math.min(this.height, Math.round(this.height * s))),
+      Math.max(1, Math.min(this.sceneWidth, Math.round(this.width * s))),
+      Math.max(1, Math.min(this.sceneHeight, Math.round(this.height * s))),
     ];
   }
 
@@ -942,16 +963,29 @@ export class WebGPURenderer implements SceneRenderer {
       GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
 
     this.backdropTex?.destroy();
-    this.backdropTex = d.createTexture({ size: [bw, bh], format: HDR_FORMAT, usage });
+    this.backdropTex = d.createTexture({
+      size: [bw, bh],
+      format: this.hdrFormat,
+      usage,
+    });
     this.backdropView = this.backdropTex.createView();
     this.backdropW = bw;
     this.backdropH = bh;
+    this.backdropDirty = true;
 
     this.fxSrcTex?.destroy();
     this.fxTex?.destroy();
-    this.fxSrcTex = d.createTexture({ size: [fw, fh], format: HDR_FORMAT, usage });
+    this.fxSrcTex = d.createTexture({
+      size: [fw, fh],
+      format: this.hdrFormat,
+      usage,
+    });
     this.fxSrcView = this.fxSrcTex.createView();
-    this.fxTex = d.createTexture({ size: [fw, fh], format: HDR_FORMAT, usage });
+    this.fxTex = d.createTexture({
+      size: [fw, fh],
+      format: this.hdrFormat,
+      usage,
+    });
     this.fxView = this.fxTex.createView();
     this.fxW = fw;
     this.fxH = fh;
@@ -990,15 +1024,44 @@ export class WebGPURenderer implements SceneRenderer {
     });
   }
 
+  private shouldRenderBackdrop(frame: FrameState): boolean {
+    if (frame.quality.tier !== 'low') return true;
+
+    let cameraMoved = this.backdropDirty;
+    for (let i = 0; i < 16 && !cameraMoved; i++) {
+      cameraMoved = Math.abs(frame.invViewProj[i]! - this.backdropInvViewProj[i]!) > 1e-5;
+    }
+
+    const interval = 1 / 30;
+    const elapsed = frame.time - this.backdropTime;
+    if (!cameraMoved && elapsed >= 0 && elapsed < interval) return false;
+
+    this.backdropInvViewProj.set(frame.invViewProj);
+    this.backdropTime =
+      cameraMoved || elapsed < 0 || !Number.isFinite(this.backdropTime)
+        ? frame.time
+        : this.backdropTime + Math.max(1, Math.floor(elapsed / interval)) * interval;
+    this.backdropDirty = false;
+    return true;
+  }
+
   // MSAA sample count is baked into pipelines and render targets, so a tier
   // change rebuilds both. WebGPU only guarantees counts of 1 and 4, so anything
   // other than 4 is treated as off.
-  private ensureSampleCount(count: number): void {
+  private ensureRenderTargets(count: number, sceneScale: number): boolean {
     const n = count === 4 ? 4 : 1;
-    if (n === this.sampleCount) return;
-    this.sampleCount = n;
-    this.createPipelines(n);
-    this.resize(this.width, this.height, this.dpr);
+    const scale = Math.max(0.5, Math.min(1, sceneScale));
+    const sampleCountChanged = n !== this.sampleCount;
+    const sceneScaleChanged = scale !== this.sceneScale;
+    if (!sampleCountChanged && !sceneScaleChanged) return false;
+
+    if (sampleCountChanged) {
+      this.sampleCount = n;
+      this.createPipelines(n);
+    }
+    this.sceneScale = scale;
+    this.resizeSceneTargets();
+    return true;
   }
 
   private writeObject(
@@ -1057,8 +1120,11 @@ export class WebGPURenderer implements SceneRenderer {
 
     this.backdropScale = frame.quality.backdropScale;
     this.postScale = frame.quality.postScale;
-    this.ensureSampleCount(frame.quality.msaa);
-    this.ensureAuxTargets();
+    const sceneTargetsChanged = this.ensureRenderTargets(
+      frame.quality.msaa,
+      frame.quality.sceneScale,
+    );
+    this.ensureAuxTargets(sceneTargetsChanged);
 
     // Frame uniform.
     const f = this.frameScratch;
@@ -1152,8 +1218,8 @@ export class WebGPURenderer implements SceneRenderer {
       [1, 1, 1],
       [1, 1, 1],
       [1, 1, 1],
-      this.width, // p1.xy: sun billboard padding in render-target pixels
-      this.height,
+      this.sceneWidth, // p1.xy: sun billboard padding in render-target pixels
+      this.sceneHeight,
       0,
     );
     objIndex++;
@@ -1373,8 +1439,8 @@ export class WebGPURenderer implements SceneRenderer {
     post[1] = lowNoPost ? 0 : 0.55;
     post[2] = lowNoPost ? 0 : (frame.quality.chromaticAberration ? 0.0035 : 0);
     post[3] = lowNoPost ? 0 : (frame.quality.bloomMips > 0 ? 0.8 : 0);
-    post[4] = 1 / this.width;
-    post[5] = 1 / this.height;
+    post[4] = 1 / this.sceneWidth;
+    post[5] = 1 / this.sceneHeight;
     post[6] = 1 / this.fxW;
     post[7] = 1 / this.fxH;
     const flare = computeSunFlare(frame);
@@ -1395,22 +1461,24 @@ export class WebGPURenderer implements SceneRenderer {
     // the heaviest per-pixel shader in the scene and carries no high-frequency
     // detail, so rendering it small and upsampling is the single largest
     // fill-rate saving available.
-    const backdropPass = encoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: this.backdropView,
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          loadOp: 'clear',
-          storeOp: 'store',
-        },
-      ],
-    });
-    backdropPass.setPipeline(this.pipelines.nebula);
-    backdropPass.setBindGroup(0, this.frameBG);
-    backdropPass.draw(3);
-    backdropPass.end();
-    this.stats.drawCalls++;
-    this.stats.triangles += 1;
+    if (this.shouldRenderBackdrop(frame)) {
+      const backdropPass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.backdropView,
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      });
+      backdropPass.setPipeline(this.pipelines.nebula);
+      backdropPass.setBindGroup(0, this.frameBG);
+      backdropPass.draw(3);
+      backdropPass.end();
+      this.stats.drawCalls++;
+      this.stats.triangles += 1;
+    }
 
     // Scene pass into HDR. With MSAA, render into the multisampled target and
     // resolve into the single-sampled hdrTex that the composite pass samples.
@@ -1874,11 +1942,12 @@ export class WebGPURenderer implements SceneRenderer {
   }
 
   private estimateMemoryMB(): number {
-    const hdr = this.width * this.height * 8;
-    const depth = this.width * this.height * 4 * this.sampleCount;
+    const hdrBytesPerPixel = this.hdrFormat === 'rg11b10ufloat' ? 4 : 8;
+    const hdr = this.sceneWidth * this.sceneHeight * hdrBytesPerPixel;
+    const depth = this.sceneWidth * this.sceneHeight * 4 * this.sampleCount;
     const msaa = this.sampleCount > 1 ? hdr * this.sampleCount : 0;
-    const backdrop = this.backdropW * this.backdropH * 8;
-    const fx = this.fxW * this.fxH * 8 * 2;
+    const backdrop = this.backdropW * this.backdropH * hdrBytesPerPixel;
+    const fx = this.fxW * this.fxH * hdrBytesPerPixel * 2;
     const stars = this.starCount * 7 * 4;
     const atmosphere = ATMOSPHERE_LUT_WIDTH * ATMOSPHERE_LUT_HEIGHT * 8;
     return (hdr * 2 + msaa + depth + backdrop + fx + stars + atmosphere) / (1024 * 1024);

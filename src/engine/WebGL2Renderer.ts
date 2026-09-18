@@ -1284,7 +1284,7 @@ float cVnoise(vec3 x){
   float n001=cHash3(i+vec3(0,0,1)),n101=cHash3(i+vec3(1,0,1)),n011=cHash3(i+vec3(0,1,1)),n111=cHash3(i+vec3(1,1,1));
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
-float cFbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*cVnoise(p);p*=2.03;a*=.5;}return v;}
+float cFbm(vec3 p){float v=0.,a=.5;int octaves=uTier>1.5?3:4;for(int i=0;i<4;i++){if(i>=octaves)break;v+=a*cVnoise(p);p*=2.03;a*=.5;}return v*(uTier>1.5?15.0/14.0:1.0);}
 float cloudRotation(float time,float seedf){
   float baseSpeed=0.015;
   float jitter=fract(seedf*0.000371)*0.025;
@@ -1305,7 +1305,8 @@ float cloudDensity(vec3 localDir,float time,float seedf){
   float lo=0.62-cov*0.30;float hi=lo+0.14;
   return smoothstep(lo,hi,n);
 }
-float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf){
+float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf,float density){
+  if(uTier>1.5)return 1.0-clamp(density*0.85,0.0,1.0)*0.70;
   vec3 r0=normalize(uModel[0].xyz);
   vec3 r1=normalize(uModel[1].xyz);
   vec3 r2=normalize(uModel[2].xyz);
@@ -1368,7 +1369,7 @@ void main(){
   // normalize so the noise lookup lines up with the shadow projection.
   vec3 localDir=normalize(vLocal);
   float density=cloudDensity(localDir,uTime,uSeed);
-  float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed);
+  float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed,density);
   // Neutral overhead light, warm grazing sunlight, and cool atmospheric fill
   // in self-shadowed folds. Mirrors clouds.wgsl.
   float sunElevation=dot(n,sun);
@@ -1404,7 +1405,8 @@ void main(){
   // from within. Brightest on the night side, faint on the day side; stormA
   // rises with the flash so the emissive survives the alpha blend where the
   // night-side cloud alpha is otherwise near zero.
-  float storm=cloudStorm(localDir,uTime,uSeed,density);
+  float storm=0.0;
+  if(uTier<=1.5)storm=cloudStorm(localDir,uTime,uSeed,density);
   float nightBoost=mix(0.55,1.0,1.0-dayMask);
   col+=stormColor(storm)*nightBoost;
   float stormA=clamp(storm,0.0,1.0)*edgeFade*uVisibility;

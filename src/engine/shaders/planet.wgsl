@@ -219,12 +219,14 @@ fn cFbm(p : vec3<f32>) -> f32 {
   var v = 0.0;
   var a = 0.5;
   var q = p;
+  let octaves = select(4, 3, frame.shadowMisc.y > 1.5);
   for (var i = 0; i < 4; i = i + 1) {
+    if (i >= octaves) { break; }
     v = v + a * cVnoise(q);
     q = q * 2.03;
     a = a * 0.5;
   }
-  return v;
+  return v * select(1.0, 15.0 / 14.0, frame.shadowMisc.y > 1.5);
 }
 
 fn cloudRotation(time : f32, seedf : f32) -> f32 {
