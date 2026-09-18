@@ -1,5 +1,5 @@
-// The scene's star. A bright, emissive sphere with granulation and dark
-// sunspots (body vs/fs) plus a camera-facing additive corona (corona vs/fs).
+// The scene's star. An analytic emissive sphere with granulation and dark
+// sunspots (body vs/fs) over a camera-facing additive corona (corona vs/fs).
 // Deliberately separate from the planet shader: no lighting, no fog — the sun
 // is a light source, so it reads as self-illuminated regardless of distance.
 
@@ -16,7 +16,7 @@ struct Obj {
   palLow : vec4<f32>,
   palMid : vec4<f32>,
   palHigh : vec4<f32>,
-  p1 : vec4<f32>,
+  p1 : vec4<f32>, // xy=render-target size in pixels
   p2 : vec4<f32>,
 };
 
@@ -72,23 +72,31 @@ fn fbm2(p : vec2<f32>, t : f32) -> f32 {
 
 struct VSOut {
   @builtin(position) pos : vec4<f32>,
-  @location(0) nrm : vec3<f32>,
-  @location(1) localPos : vec3<f32>,
-  @location(2) worldPos : vec3<f32>,
+  @location(0) offset : vec3<f32>,
 };
 
 @vertex
-fn vs(
-  @location(0) position : vec3<f32>,
-  @location(1) normal : vec3<f32>,
-  @location(2) uv : vec2<f32>,
-) -> VSOut {
+fn vs(@location(0) corner : vec2<f32>) -> VSOut {
   var out : VSOut;
-  let world = obj.model * vec4<f32>(position, 1.0);
-  out.pos = frame.viewProj * world;
-  out.nrm = normalize((obj.model * vec4<f32>(normal, 0.0)).xyz);
-  out.localPos = position;
-  out.worldPos = world.xyz;
+  let center = obj.model[3].xyz;
+  let delta = center - frame.cameraPos.xyz;
+  let distance = max(length(delta), 1e-5);
+  let viewDir = delta / distance;
+  var up0 = vec3<f32>(0.0, 1.0, 0.0);
+  if (abs(viewDir.y) > 0.98) { up0 = vec3<f32>(0.0, 0.0, 1.0); }
+  let right = normalize(cross(up0, viewDir));
+  let up = cross(viewDir, right);
+  // The tangent cone meets the center plane outside the sphere's world radius.
+  // Perspective interpolation also preserves the correct rays off axis.
+  let ratio = obj.p0.x / distance;
+  let discRadius = obj.p0.x / sqrt(max(1.0 - ratio * ratio, 1e-4));
+  let rowX = vec3<f32>(frame.viewProj[0].x, frame.viewProj[1].x, frame.viewProj[2].x);
+  let rowY = vec3<f32>(frame.viewProj[0].y, frame.viewProj[1].y, frame.viewProj[2].y);
+  let focalPixels = min(length(rowX) * obj.p1.x, length(rowY) * obj.p1.y);
+  // At least two pixels of padding, even for a tiny disc or a low-res target.
+  let padding = 4.0 * (distance + discRadius) / max(focalPixels, 1.0);
+  out.offset = (right * corner.x + up * corner.y) * (discRadius + padding);
+  out.pos = frame.viewProj * vec4<f32>(center + out.offset, 1.0);
   return out;
 }
 
@@ -124,10 +132,37 @@ fn sunShade(p : vec3<f32>) -> vec3<f32> {
   return col;
 }
 
+struct BodyOut {
+  @location(0) color : vec4<f32>,
+  @builtin(frag_depth) depth : f32,
+};
+
 @fragment
-fn fs(in : VSOut) -> @location(0) vec4<f32> {
+fn fs(in : VSOut) -> BodyOut {
+  let center = obj.model[3].xyz;
+  let radius = max(obj.p0.x, 1e-5);
+  let oc = (frame.cameraPos.xyz - center) / radius;
+  let ray = normalize(in.offset / radius - oc);
+  // Squared impact distance avoids sqrt derivatives at the disc center and
+  // cancellation in b*b-c for distant spheres. Evaluate before any discard.
+  let impact = cross(oc, ray);
+  let h = 1.0 - dot(impact, impact);
+  let edgeWidth = max(fwidth(h), 1e-5);
+  let coverage = smoothstep(-0.5 * edgeWidth, 0.5 * edgeWidth, h);
+  if (coverage <= 0.0) { discard; }
+  // Clamp only the reconstruction, not coverage; the outside half-pixel uses
+  // the tangent normal/depth and cannot take sqrt of a negative discriminant.
+  let worldNormal = normalize(cross(ray, impact) - ray * sqrt(max(h, 0.0)));
+  let worldPos = center + worldNormal * radius;
+  let clip = frame.viewProj * vec4<f32>(worldPos, 1.0);
+  let depth = clip.z / clip.w;
+  if (clip.w <= 0.0 || depth < 0.0 || depth > 1.0) { discard; }
   let seed = obj.p0.y;
-  let n = normalize(in.localPos);
+  let n = vec3<f32>(
+    dot(worldNormal, normalize(obj.model[0].xyz)),
+    dot(worldNormal, normalize(obj.model[1].xyz)),
+    dot(worldNormal, normalize(obj.model[2].xyz)),
+  );
   let nb = n + vec3<f32>(seed * 0.013, 0.0, seed * 0.021);
 
   // Flow-field advection (same technique as the planet flowMap): the convective
@@ -146,13 +181,14 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   var col = mix(c0, c1, w);
 
   // Limb darkening: the disc edge is dimmer than the center.
-  let V = normalize(frame.cameraPos.xyz - in.worldPos);
-  let ndv = max(dot(normalize(in.nrm), V), 0.0);
+  let ndv = max(dot(worldNormal, -ray), 0.0);
   let limb = 0.55 + 0.45 * pow(ndv, 0.55);
   col = col * limb;
 
-  // Push above 1.0 for HDR bloom (WebGPU); clamps to white on WebGL2.
-  return vec4<f32>(col * 2.2, 1.0);
+  var out : BodyOut;
+  out.color = vec4<f32>(col * 2.2, coverage);
+  out.depth = depth;
+  return out;
 }
 
 // ---- Corona -------------------------------------------------------------
@@ -195,7 +231,7 @@ fn fs_corona(in : CoronaOut) -> @location(0) vec4<f32> {
     discard;
   }
   let t = frame.misc.x;
-  let ang = atan2(in.uv.y, in.uv.x);
+  let ang = atan2(in.uv.y, in.uv.x + 1e-8);
 
   // Polar-anchored sample coordinate so the warp field rotates with the disc
   // and reads as energy streaming radially outward. Higher frequency = tighter
@@ -234,7 +270,7 @@ fn fs_corona(in : CoronaOut) -> @location(0) vec4<f32> {
   // circle. The warp term feeds in so the boundary churns and breaks up over time.
   let edgeN = fbm2(vec2<f32>(cos(ang), sin(ang)) * 3.5 + warp * 2.0, drift * 0.4);
   let edge = 0.58 + 0.37 * edgeN;
-  let radial = smoothstep(edge, edge - 0.5, r);
+  let radial = 1.0 - smoothstep(edge - 0.5, edge, r);
 
   let glow = radial * (0.16 + 1.4 * arm * armVary) * streak * pulse * 1.3;
   // Hotter, whiter at the base of the arms; cooler, redder toward the tips.
