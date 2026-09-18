@@ -471,6 +471,41 @@ a:hover {
   pointer-events: none;
 }
 
+.freecam-hint {
+  position: fixed;
+  top: calc(var(--nav-height) + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100% - 144px));
+  text-align: center;
+  pointer-events: none;
+}
+.freecam-hint-card {
+  padding: 12px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-screen);
+  background: var(--glass);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.freecam-hint-card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent-2);
+}
+.freecam-hint-touch {
+  display: none;
+}
+@media (pointer: coarse) {
+  .freecam-hint-desktop {
+    display: none;
+  }
+  .freecam-hint-touch {
+    display: inline;
+  }
+}
+
 /* ---- Side ruler ---- */
 .ruler {
   position: fixed;
