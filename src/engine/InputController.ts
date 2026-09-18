@@ -1,7 +1,9 @@
 export interface InputHandlers {
   onScrub(deltaPlanets: number): void;
   onScrubEnd(): void;
+  onOrbitStart(): void;
   onOrbit(dx: number, dy: number): void;
+  onOrbitEnd(cancelled: boolean): void;
   onZoom(factor: number): void;
   onPick(ndcX: number, ndcY: number): void;
   onKeyStep(dir: number): void;
@@ -41,6 +43,7 @@ export class InputController {
   private bodyDrag = false;
   private previousCursor = '';
   private dragging = false;
+  private orbitActive = false;
   private downX = 0;
   private downY = 0;
   private lastX = 0;
@@ -209,6 +212,10 @@ export class InputController {
     this.downX = this.lastX = e.clientX;
     this.downY = this.lastY = e.clientY;
     this.h.onUserInteract();
+    if (!this.freeMode) {
+      this.orbitActive = true;
+      this.h.onOrbitStart();
+    }
     if (this.freeMode && e.button === 0) {
       this.bodyDrag = this.h.onBodyDragStart(...this.toNDC(e.clientX, e.clientY));
       if (this.bodyDrag && this.el) {
@@ -232,7 +239,7 @@ export class InputController {
     if (this.dragging) {
       if (this.bodyDrag) this.h.onBodyDrag(...this.toNDC(e.clientX, e.clientY));
       else if (this.freeMode) this.h.onLook(dx, dy);
-      else this.h.onOrbit(dx, dy);
+      else if (this.orbitActive) this.h.onOrbit(dx, dy);
     }
     this.lastX = e.clientX;
     this.lastY = e.clientY;
@@ -245,14 +252,21 @@ export class InputController {
       const [x, y] = this.toNDC(e.clientX, e.clientY);
       this.h.onPick(x, y);
     }
-    this.clearPointer();
+    this.clearPointer(false);
   };
 
   private onPointerCancel = (e: PointerEvent): void => {
     if (e.pointerId === this.pointerId) this.clearPointer();
   };
 
-  private clearPointer(): void {
+  private clearOrbit(cancelled = true): void {
+    this.orbitActive = false;
+    this.h.onOrbitEnd(cancelled);
+  }
+
+  private clearPointer(cancelled = true): void {
+    this.clearOrbit(cancelled);
+    this.touchMode = 'none';
     const id = this.pointerId;
     this.pointerId = null;
     this.pointerDown = false;
@@ -276,6 +290,8 @@ export class InputController {
     this.h.onUserInteract();
     if (e.touches.length === 1) {
       this.touchMode = 'orbit';
+      this.orbitActive = true;
+      this.h.onOrbitStart();
       const t = e.touches[0]!;
       this.lastX = t.clientX;
       this.lastY = t.clientY;
@@ -283,10 +299,14 @@ export class InputController {
       this.downY = t.clientY;
       this.dragging = false;
     } else if (e.touches.length === 2) {
+      this.clearOrbit();
       this.touchMode = 'scrub';
       const [a, b] = [e.touches[0]!, e.touches[1]!];
       this.lastTouchMidY = (a.clientY + b.clientY) / 2;
       this.lastPinchDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    } else {
+      this.clearOrbit();
+      this.touchMode = 'none';
     }
   };
 
@@ -306,7 +326,7 @@ export class InputController {
       ) {
         this.dragging = true;
       }
-      if (this.dragging) this.h.onOrbit(dx, dy);
+      if (this.dragging && this.orbitActive) this.h.onOrbit(dx, dy);
       this.lastX = t.clientX;
       this.lastY = t.clientY;
     } else if (this.touchMode === 'scrub' && e.touches.length === 2) {
@@ -335,6 +355,7 @@ export class InputController {
       }
     }
     if (this.touchMode === 'scrub') this.scheduleScrubEnd();
+    if (this.touchMode === 'orbit') this.clearOrbit(e.type === 'touchcancel');
     if (e.touches.length === 0) {
       this.touchMode = 'none';
       this.dragging = false;

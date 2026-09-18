@@ -114,6 +114,10 @@ const FLY_VELOCITY_DAMP = 5; // half-life ~0.14s → noticeable but snappy momen
 const LOOK_SENSITIVITY = 0.0025; // rad / px
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
 
+const ORBIT_DAMPING = 5; // short, gentle coast after release
+const ORBIT_MAX_SPEED = 4; // radians/sec
+const ORBIT_RELEASE_WINDOW = 0.1; // holding still before release cancels the fling
+
 // Barrel distortion of the presented frame. Renormalized against the corner
 // radius in the shader, so this is roughly the fraction of the image lost at
 // the middle of each edge.
@@ -174,6 +178,9 @@ export class Engine {
   private focusedIndex = 0;
   private openPoi: OpenPoiRef | null = null;
   private lastOrbitIndex = -1;
+  private orbitDragging = false;
+  private orbitVelocity: Vec3 = [0, 0, 0];
+  private lastOrbitSample = 0;
   private lastInteract = -10;
 
   private cinematicActive = true;
@@ -248,7 +255,9 @@ export class Engine {
     this.input = new InputController({
       onScrub: (d) => this.onScrub(d),
       onScrubEnd: () => this.onScrubEnd(),
+      onOrbitStart: () => this.onOrbitStart(),
       onOrbit: (dx, dy) => this.onOrbit(dx, dy),
+      onOrbitEnd: (cancelled) => this.onOrbitEnd(cancelled),
       onZoom: (f) => this.onZoom(f),
       onPick: (x, y) => this.handlePick(x, y),
       onKeyStep: (dir) => this.jumpToPlanet(this.focusedIndex + dir),
@@ -532,14 +541,30 @@ export class Engine {
   // left untouched, so the shaders keep receiving the exact time they were
   // given on the last unpaused frame and the scene freezes where it stands.
   private advanceClocks(dt: number, ts: number): void {
-    if (this.motionPaused()) return;
+    if (this.motionPaused()) {
+      this.orbitVelocity = [0, 0, 0];
+      return;
+    }
     this.time += dt;
     this.moonTime += dt;
     this.updateRotations(dt, ts);
   }
 
   private updateRotations(dt: number, ts: number): void {
-    const recentlyOrbited = ts / 1000 - this.lastInteract < 2.5;
+    const recentlyOrbited = this.orbitDragging || ts / 1000 - this.lastInteract < 2.5;
+    const orbitSpeed = vec3.length(this.orbitVelocity);
+    if (!this.orbitDragging && orbitSpeed > 0) {
+      const decay = Math.exp(-ORBIT_DAMPING * dt);
+      // Integrate exponential damping exactly so the coast is frame-rate independent.
+      const angle = orbitSpeed * (1 - decay) / ORBIT_DAMPING;
+      const delta = quat.fromAxisAngle(vec3.scale(this.orbitVelocity, 1 / orbitSpeed), angle);
+      this.orientations[this.lastOrbitIndex] = quat.normalize(
+        quat.multiply(delta, this.orientations[this.lastOrbitIndex]!),
+      );
+      this.orbitVelocity = orbitSpeed * decay < 0.01
+        ? [0, 0, 0]
+        : vec3.scale(this.orbitVelocity, decay);
+    }
 
     // Per-planet cloud pacing: ease the drift toward a slow crawl when the
     // planet's spin is paused so clouds visibly decelerate with the surface
@@ -687,11 +712,32 @@ export class Engine {
     );
   }
 
+  private onOrbitStart(): void {
+    this.orbitVelocity = [0, 0, 0];
+    this.orbitDragging = !this.openPoi && !this.settings.freeCamera && this.models.length > 0;
+    this.lastOrbitSample = performance.now() / 1000;
+    if (this.orbitDragging) {
+      this.lastOrbitIndex = clamp(Math.round(this.scrubCurrent), 0, this.models.length - 1);
+      this.lastInteract = this.lastOrbitSample;
+    }
+  }
+
+  private onOrbitEnd(cancelled: boolean): void {
+    this.orbitDragging = false;
+    if (cancelled || this.motionPaused() ||
+        performance.now() / 1000 - this.lastOrbitSample > ORBIT_RELEASE_WINDOW) {
+      this.orbitVelocity = [0, 0, 0];
+    }
+  }
+
   private onOrbit(dx: number, dy: number): void {
-    if (this.openPoi) return;
+    if (this.openPoi || !this.orbitDragging) return;
     const idx = clamp(Math.round(this.scrubCurrent), 0, this.models.length - 1);
     this.lastOrbitIndex = idx;
-    this.lastInteract = performance.now() / 1000;
+    const now = performance.now() / 1000;
+    const elapsed = Math.max(now - this.lastOrbitSample, 1 / 120);
+    this.lastOrbitSample = now;
+    this.lastInteract = now;
     // Trackball: premultiply by screen-relative axes so dragging rotates the
     // planet about the camera's right (horizontal) and up (vertical) axes,
     // letting the user spin it in any direction.
@@ -701,6 +747,13 @@ export class Engine {
     this.orientations[idx] = quat.normalize(
       quat.multiply(delta, this.orientations[idx] ?? quat.identity()),
     );
+    const axis: Vec3 = [delta[0], delta[1], delta[2]];
+    const axisLength = vec3.length(axis);
+    const angle = 2 * Math.atan2(axisLength, Math.abs(delta[3]));
+    const speed = Math.min(angle / elapsed, ORBIT_MAX_SPEED);
+    this.orbitVelocity = axisLength > 0 && !this.motionPaused()
+      ? vec3.scale(axis, (delta[3] < 0 ? -1 : 1) * speed / axisLength)
+      : [0, 0, 0];
   }
 
   private onZoom(factor: number): void {
@@ -878,6 +931,7 @@ export class Engine {
     const idx = this.models.findIndex((m) => m.company.slug === company);
     if (idx >= 0) this.scrubTarget = idx;
     this.openPoi = { company, poi };
+    this.onOrbitEnd(true);
     // First POI opened this session: the markers no longer need to advertise
     // themselves, so stop the shimmer until the next page load.
     poiShimmerMuted = true;
@@ -920,6 +974,7 @@ export class Engine {
     this.settings.reducedMotion = pref;
     saveSettings(this.settings);
     if (this.motionPaused()) {
+      this.orbitVelocity = [0, 0, 0];
       this.cinematicActive = false;
       this.camera.setExtraDistance(0);
     }
