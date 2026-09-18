@@ -36,6 +36,7 @@
   --orange-edge: #c14216;
   --focus: var(--accent-2);
   --radius: 20px;
+  --radius-window: 26px;
   --radius-control: 10px;
   --radius-screen: 12px;
   --shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 20px 56px rgba(0, 0, 0, 0.32);
@@ -850,7 +851,7 @@ a:hover {
   width: min(880px, 100%);
   max-height: 100%;
   overflow: hidden;
-  border-radius: calc(var(--radius) + 4px);
+  border-radius: var(--radius-window);
   background:
     var(--panel-grain),
     repeating-linear-gradient(0deg, transparent 0 3px, #f4e8cf03 3px 4px),
@@ -1100,7 +1101,7 @@ a:hover {
   border: 1px solid var(--screen-edge);
   border-block-width: 12px;
   border-block-color: var(--bg);
-  border-radius: calc(var(--radius) - var(--poi-bezel));
+  border-radius: calc(var(--radius-window) - var(--poi-bezel));
   box-shadow:
     inset 0 2px 5px #0008,
     0 1px 0 #fff9;
@@ -1173,7 +1174,7 @@ a:hover {
   max-height: calc(100dvh - var(--nav-height) - 40px);
   overflow: hidden;
   z-index: 30;
-  border-radius: var(--radius);
+  border-radius: var(--radius-window);
   background:
     var(--panel-wear) 32px 96px / 384px 384px,
     var(--panel-grain),
@@ -1385,7 +1386,7 @@ a:hover {
   width: min(400px, 86vw);
   padding: 28px;
   border: 3px solid var(--panel);
-  border-radius: calc(var(--radius) + 4px);
+  border-radius: var(--radius-window);
   text-align: left;
 }
 .loading-title {
@@ -1750,7 +1751,7 @@ a:hover {
   max-width: 640px;
   background: var(--glass);
   border: 1px solid rgba(255, 90, 60, 0.45);
-  border-radius: var(--radius);
+  border-radius: var(--radius-window);
   box-shadow: var(--shadow);
   padding: 28px;
 }
