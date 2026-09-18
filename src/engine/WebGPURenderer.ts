@@ -579,16 +579,16 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    // Sun body — opaque emissive sphere; same winding/cull as the planet.
+    // Analytic sphere on a padded quad; coverage blends over the corona.
     const sun = d.createRenderPipeline({
       layout: sceneObjPL,
-      vertex: { module: sunMod, entryPoint: 'vs', buffers: [meshLayout] },
+      vertex: { module: sunMod, entryPoint: 'vs', buffers: [quadLayout] },
       fragment: {
         module: sunMod,
         entryPoint: 'fs',
-        targets: [{ format: HDR_FORMAT }],
+        targets: [{ format: HDR_FORMAT, blend: alphaBlend }],
       },
-      primitive: { topology: 'triangle-list', cullMode: 'back', frontFace: 'cw' },
+      primitive: { topology: 'triangle-list' },
       depthStencil: {
         format: 'depth24plus',
         depthWriteEnabled: true,
@@ -597,8 +597,7 @@ export class WebGPURenderer implements SceneRenderer {
       multisample,
     });
 
-    // Sun corona — camera-facing additive billboard. Depth-tested (so planets
-    // in front occlude it, and the sun body masks the disc) but no depth write.
+    // Sun corona — depth-tested against planets, then masked by body coverage.
     const sunCorona = d.createRenderPipeline({
       layout: sceneObjPL,
       vertex: { module: sunMod, entryPoint: 'vs_corona', buffers: [quadLayout] },
@@ -1153,8 +1152,8 @@ export class WebGPURenderer implements SceneRenderer {
       [1, 1, 1],
       [1, 1, 1],
       [1, 1, 1],
-      0,
-      0,
+      this.width, // p1.xy: sun billboard padding in render-target pixels
+      this.height,
       0,
     );
     objIndex++;
@@ -1520,17 +1519,6 @@ export class WebGPURenderer implements SceneRenderer {
         this.stats.drawCalls++;
       }
     } else {
-      // Sun body (opaque, emissive). Skipped when the sun lies outside the
-      // view frustum.
-      if (sunVisible) {
-        bindSphere(sunLod);
-        scenePass.setPipeline(this.pipelines.sun);
-        scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
-        scenePass.drawIndexed(this.sphereLods[sunLod]!.count);
-        this.stats.drawCalls++;
-        this.stats.triangles += this.sphereLods[sunLod]!.count / 3;
-      }
-
       // Opaque planets, then moons — same pipeline, each at its own LOD.
       for (const o of objects) {
         if (o.kind !== 0 && o.kind !== 3) continue;
@@ -1540,6 +1528,21 @@ export class WebGPURenderer implements SceneRenderer {
         scenePass.drawIndexed(this.sphereLods[o.lod]!.count);
         this.stats.drawCalls++;
         this.stats.triangles += this.sphereLods[o.lod]!.count / 3;
+      }
+
+      // Draw corona before the body: body alpha masks its glow continuously.
+      // A later depth-tested corona would be cut off even by partial coverage
+      // because the body writes sphere depth. Planet depths already occlude both.
+      if (sunVisible) {
+        boundLod = -1;
+        scenePass.setVertexBuffer(0, this.quadBuf);
+        scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
+        scenePass.setPipeline(this.pipelines.sunCorona);
+        scenePass.draw(6);
+        scenePass.setPipeline(this.pipelines.sun);
+        scenePass.draw(6);
+        this.stats.drawCalls += 2;
+        this.stats.triangles += 4;
       }
 
       // Satellite point-sprites — pin-pricks orbiting each planet. Drawn after
@@ -1595,20 +1598,6 @@ export class WebGPURenderer implements SceneRenderer {
         scenePass.drawIndexed(this.sphereLods[o.lod]!.count);
         this.stats.drawCalls++;
         this.stats.triangles += this.sphereLods[o.lod]!.count / 3;
-      }
-
-      // Sun corona (additive billboard). Drawn after atmosphere shells but
-      // before alpha-blended rings so rings composite over the glow. Uses the
-      // unit-quad billboard buffer; the sun obj entry supplies center + radius.
-      // Skipped when the sun (corona included) is off screen.
-      if (sunVisible) {
-        scenePass.setPipeline(this.pipelines.sunCorona);
-        scenePass.setBindGroup(1, this.objBG, [sunObjIndex * OBJ_STRIDE]);
-        boundLod = -1;
-        scenePass.setVertexBuffer(0, this.quadBuf);
-        scenePass.draw(6);
-        this.stats.drawCalls++;
-        this.stats.triangles += 2;
       }
 
       // Rings (alpha).

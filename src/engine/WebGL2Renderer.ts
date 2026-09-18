@@ -1528,15 +1528,38 @@ void main(){
   frag=vec4(col,1.0);
 }`;
 
-// The scene's star — mirror of sun.wgsl. Reuses PLANET_VERT (gives vNrm/vLocal/
-// vWorld). Emissive surface with granulation + dark sunspots + limb darkening;
+// The scene's star — analytic sphere on a padded quad, mirroring sun.wgsl.
+// Emissive surface with granulation + dark sunspots + limb darkening;
 // no lighting and no distance fog (it is a light source). Preserve HDR energy
 // for bloom, with a dimmer body only on the RGBA8 fallback.
+const SUN_VERT = `#version 300 es
+layout(location=0) in vec2 aCorner;
+uniform mat4 uViewProj;uniform vec3 uCamera;uniform vec3 uCenter;
+uniform float uRadius;uniform vec2 uViewport;
+out vec3 vOffset;
+void main(){
+  vec3 delta=uCenter-uCamera;
+  float dist=max(length(delta),1e-5);
+  vec3 viewDir=delta/dist;
+  vec3 up0=vec3(0.0,1.0,0.0);
+  if(abs(viewDir.y)>0.98){up0=vec3(0.0,0.0,1.0);}
+  vec3 right=normalize(cross(up0,viewDir));
+  vec3 up=cross(viewDir,right);
+  float ratio=uRadius/dist;
+  float discRadius=uRadius/sqrt(max(1.0-ratio*ratio,1e-4));
+  vec3 rowX=vec3(uViewProj[0].x,uViewProj[1].x,uViewProj[2].x);
+  vec3 rowY=vec3(uViewProj[0].y,uViewProj[1].y,uViewProj[2].y);
+  float focalPixels=min(length(rowX)*uViewport.x,length(rowY)*uViewport.y);
+  float padding=4.0*(dist+discRadius)/max(focalPixels,1.0);
+  vOffset=(right*aCorner.x+up*aCorner.y)*(discRadius+padding);
+  gl_Position=uViewProj*vec4(uCenter+vOffset,1.0);
+}`;
 const SUN_FRAG = `#version 300 es
 precision highp float;
-in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
+in vec3 vOffset;
 out vec4 frag;
 uniform vec3 uCamera;uniform float uTime;uniform float uSeed;
+uniform mat4 uViewProj;uniform vec3 uCenter;uniform float uRadius;
 uniform float uHdr;
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
@@ -1570,7 +1593,23 @@ vec3 sunShade(vec3 p){
   return col;
 }
 void main(){
-  vec3 n=normalize(vLocal);
+  float radius=max(uRadius,1e-5);
+  vec3 oc=(uCamera-uCenter)/radius;
+  vec3 ray=normalize(vOffset/radius-oc);
+  vec3 impact=cross(oc,ray);
+  float h=1.0-dot(impact,impact);
+  // Finite derivatives across the entire quad, before any divergent discard.
+  float edgeWidth=max(fwidth(h),1e-5);
+  float coverage=smoothstep(-0.5*edgeWidth,0.5*edgeWidth,h);
+  if(coverage<=0.0){discard;}
+  vec3 n=normalize(cross(ray,impact)-ray*sqrt(max(h,0.0)));
+  vec3 world=uCenter+n*radius;
+  vec4 clip=uViewProj*vec4(world,1.0);
+  // The engine's projection is passed unchanged to GL, whose depth viewport
+  // maps NDC [-1,1] to [0,1], unlike WebGPU's [0,1] NDC.
+  float depth=0.5*(clip.z/clip.w)+0.5;
+  if(clip.w<=0.0||depth<0.0||depth>1.0){discard;}
+  gl_FragDepth=depth;
   vec3 nb=n+vec3(uSeed*0.013,0.0,uSeed*0.021);
   // Flow-field advection: plasma detail streams along a tangent flow field,
   // cross-fading two half-cycle-offset samples.
@@ -1584,11 +1623,10 @@ void main(){
   vec3 c1=sunShade(nb-flow*ph1*mag);
   float w=abs(0.5-ph0)*2.0;
   vec3 col=mix(c0,c1,w);
-  vec3 V=normalize(uCamera-vWorld);
-  float ndv=max(dot(normalize(vNrm),V),0.0);
+  float ndv=max(dot(n,-ray),0.0);
   float limb=0.55+0.45*pow(ndv,0.55);
   col*=limb;
-  frag=vec4(col*(uHdr>0.5?2.2:1.3),1.0);
+  frag=vec4(col*(uHdr>0.5?2.2:1.3),coverage);
 }`;
 
 // Camera-facing additive corona billboard — mirror of sun.wgsl corona.
@@ -1627,7 +1665,7 @@ void main(){
   float r=length(vUv);
   if(r>1.0){discard;}
   float t=uTime;
-  float ang=atan(vUv.y,vUv.x);
+  float ang=atan(vUv.y,vUv.x+1e-8);
   // Polar-anchored sample coord; higher freq = tighter wisps.
   vec2 sp=vec2(cos(ang),sin(ang))*(r*5.5);
   // Domain warping (iquilezles.org/articles/warp): fbm(p+4r), r=fbm(p+4q), q=fbm(p).
@@ -1645,7 +1683,7 @@ void main(){
   // the corona dissolves into wisps of varying length instead of a clean circle.
   float edgeN=fbm2(vec2(cos(ang),sin(ang))*3.5+warp*2.0,drift*0.4);
   float edge=0.58+0.37*edgeN;
-  float radial=smoothstep(edge,edge-0.5,r);
+  float radial=1.0-smoothstep(edge-0.5,edge,r);
   float glow=radial*(0.16+1.4*arm*armVary)*streak*pulse*1.3;
   vec3 col=mix(vec3(1.0,0.92,0.6),vec3(1.0,0.42,0.14),r)*glow;
   frag=vec4(col,glow);
@@ -1805,8 +1843,8 @@ export class WebGL2Renderer implements SceneRenderer {
     this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
       'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe', 'uTime',
     ]);
-    this.sun = this.makeProgram(PLANET_VERT, SUN_FRAG, [
-      'uViewProj', 'uModel', 'uCamera', 'uTime', 'uSeed', 'uHdr',
+    this.sun = this.makeProgram(SUN_VERT, SUN_FRAG, [
+      'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uViewport', 'uTime', 'uSeed', 'uHdr',
     ]);
     this.corona = this.makeProgram(CORONA_VERT, CORONA_FRAG, [
       'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime',
@@ -2335,30 +2373,6 @@ export class WebGL2Renderer implements SceneRenderer {
         );
       }
     } else {
-    // Sun body (opaque, emissive). Skipped entirely when the sun is outside the
-    // view frustum; otherwise the near surface wins on depth, matching how
-    // planets are drawn in this backend.
-    if (sunVisible) {
-    gl.depthMask(true);
-    gl.useProgram(this.sun.prog);
-    gl.uniformMatrix4fv(this.sun.uniforms.uViewProj!, false, frame.viewProj);
-    gl.uniform3fv(this.sun.uniforms.uCamera!, frame.cameraPos);
-    gl.uniform1f(this.sun.uniforms.uTime!, frame.time);
-    gl.uniform1f(this.sun.uniforms.uSeed!, 1234);
-    mat4.fromRotationTranslationScale(model, [0, 0, 0, 1], frame.sun.center, frame.sun.radius);
-    gl.uniformMatrix4fv(this.sun.uniforms.uModel!, false, model);
-    const sunMesh = this.sphereLods[sunLod]!;
-    gl.bindVertexArray(sunMesh.vao);
-    gl.drawElements(
-      gl.TRIANGLES,
-      sunMesh.count,
-      sunMesh.u32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
-      0,
-    );
-    this.stats.drawCalls++;
-    this.stats.triangles += sunMesh.count / 3;
-    }
-
     gl.useProgram(this.planet.prog);
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
@@ -2397,6 +2411,37 @@ export class WebGL2Renderer implements SceneRenderer {
         !m.atmosphere, // meteorite impact craters only on airless moons
         m.iceCaps,
       );
+    }
+
+    // Corona first, then the analytic body: alpha continuously masks the glow.
+    // Drawing corona later would let even partial body depth hard-cut its edge.
+    // Opaque planets/moons have already populated depth to occlude both draws.
+    if (sunVisible) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      gl.depthMask(false);
+      gl.useProgram(this.corona.prog);
+      gl.uniformMatrix4fv(this.corona.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform3fv(this.corona.uniforms.uCamera!, frame.cameraPos);
+      gl.uniform3fv(this.corona.uniforms.uCenter!, frame.sun.center);
+      gl.uniform1f(this.corona.uniforms.uRadius!, frame.sun.radius);
+      gl.uniform1f(this.corona.uniforms.uTime!, frame.time);
+      gl.bindVertexArray(this.coronaVao);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(true);
+      gl.useProgram(this.sun.prog);
+      gl.uniformMatrix4fv(this.sun.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform3fv(this.sun.uniforms.uCamera!, frame.cameraPos);
+      gl.uniform3fv(this.sun.uniforms.uCenter!, frame.sun.center);
+      gl.uniform1f(this.sun.uniforms.uRadius!, frame.sun.radius);
+      gl.uniform2f(this.sun.uniforms.uViewport!, this.width, this.height);
+      gl.uniform1f(this.sun.uniforms.uTime!, frame.time);
+      gl.uniform1f(this.sun.uniforms.uSeed!, 1234);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      this.stats.drawCalls += 2;
+      this.stats.triangles += 4;
+      gl.disable(gl.BLEND);
     }
 
     // Satellite point sprites. Drawn after the opaque planet+moon pass so
@@ -2586,27 +2631,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.frontFace(gl.CCW);
       gl.depthMask(true);
       gl.disable(gl.BLEND);
-    }
-
-    // Sun corona (additive billboard). Depth-tested so planets in front occlude
-    // it and the sun body masks the disc; drawn before alpha rings so rings
-    // composite over the glow. No depth write. Skipped when the sun is off
-    // screen.
-    if (sunVisible) {
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE);
-    gl.depthMask(false);
-    gl.useProgram(this.corona.prog);
-    gl.uniformMatrix4fv(this.corona.uniforms.uViewProj!, false, frame.viewProj);
-    gl.uniform3fv(this.corona.uniforms.uCamera!, frame.cameraPos);
-    gl.uniform3fv(this.corona.uniforms.uCenter!, frame.sun.center);
-    gl.uniform1f(this.corona.uniforms.uRadius!, frame.sun.radius);
-    gl.uniform1f(this.corona.uniforms.uTime!, frame.time);
-    gl.bindVertexArray(this.coronaVao);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-    this.stats.drawCalls++;
-    gl.depthMask(true);
-    gl.disable(gl.BLEND);
     }
 
     // Planetary rings (alpha-blended, double-sided, depth-test but no write).
