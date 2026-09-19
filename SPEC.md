@@ -220,7 +220,7 @@ On the **first** mount of the landing route:
 
 - **Canvas:** Fullscreen, `position: fixed`, `inset: 0`, `z-index: 0`. All other UI sits on top (`z-index ≥ 1`).
 - **Top nav:** Warm hardware-style bar, visible on all routes.
-- **Introduction:** Role, brief value proposition, an explicit work action, and an About link. Compact layouts prioritize the canvas and use the lower readout as the work action.
+- **Introduction:** Role, brief value proposition, and an explicit work action. Compact layouts prioritize the canvas and use the lower readout as the work action.
 - **Side ruler:** Right edge, newest-to-oldest chapter buttons. Hidden on narrow screens, where the ribbon supplies navigation.
 - **Bottom ribbon:** Shows the current chapter, role, dates, and an explicit story-count action. Chevrons step to neighbors.
 - **Motion:** A pause/resume control remains available beside the free-camera button.

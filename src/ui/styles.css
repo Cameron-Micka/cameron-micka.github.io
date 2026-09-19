@@ -296,7 +296,7 @@ main:focus {
 .scene-intro::before {
   content: '';
   position: absolute;
-  inset: -24px -32px;
+  inset: -64px -32px -24px;
   z-index: -1;
   pointer-events: none;
   background: radial-gradient(ellipse at 20% 30%, #15120fd9, #15120f00 75%);
@@ -324,14 +324,6 @@ main:focus {
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
-}
-.intro-about {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  color: var(--fg);
-  font-size: 11px;
 }
 .intro-note {
   max-width: 38ch;
@@ -609,7 +601,7 @@ main:focus {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 20px;
   pointer-events: none;
 }
 .freecam-btn {
@@ -2402,8 +2394,7 @@ main:focus {
     margin-top: 16px;
   }
   .intro-body,
-  .intro-note,
-  .intro-about {
+  .intro-note {
     display: none;
   }
   .scene-hint {
@@ -2635,8 +2626,7 @@ main:focus {
   }
   .intro-body,
   .intro-note,
-  .scene-hint,
-  .intro-about {
+  .scene-hint {
     display: none;
   }
   .intro-actions {

@@ -10,7 +10,6 @@ export const INTRO = {
   title: 'Design meets real-time engineering.',
   body: 'Games, mixed reality, and tools that give creative people superpowers.',
   explore: 'Explore the work',
-  about: 'About & contact',
   note: 'Every world is a chapter. Every glowing point, a story.',
 };
 

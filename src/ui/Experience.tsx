@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, ArrowUpRight, Pause, Play, Video } from 'lucide-react';
+import { ArrowRight, Pause, Play, Video } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Company } from '@/content/schema';
 import { Engine } from '@/engine/Engine';
@@ -230,9 +230,6 @@ function SceneIntro({ companies }: { companies: Company[] }) {
         >
           {INTRO.explore} <ArrowRight size={16} aria-hidden="true" />
         </button>
-        <Link className="intro-about" to="/about">
-          {INTRO.about} <ArrowUpRight size={15} aria-hidden="true" />
-        </Link>
       </div>
       <p className="intro-note">{INTRO.note}</p>
       <p className="scene-hint">
