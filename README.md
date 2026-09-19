@@ -78,25 +78,40 @@ Auto renderer uses WebGL2 on iOS/iPadOS and macOS. On other platforms, WebGPU is
 used when available (two-step adapter+device probe); otherwise the app falls
 back to WebGL2. Users can explicitly select WebGPU or WebGL in settings on any
 platform. WebGL runs without a compatibility notice.
-On WebGPU, Auto quality starts at the `low` tier and ramps
-up one tier at a time (`low` → `med` → `high`) whenever frame time stays good and
-stable for 3+ seconds. Users can override quality, motion,
-sound, and a debug HUD from the settings panel; preferences persist in
-`localStorage`.
+On both backends, Auto quality starts at `low` and ramps up one tier at a time
+(`low` -> `med` -> `high`) after 3+ seconds of stable frames at or below 18 ms.
+It steps down when average frame time reaches 20 ms over a 1.5-second window,
+and does not retry an unsustainable tier until Auto restarts. Coarse-pointer
+devices stay on Low under Auto. Explicit quality choices are never overridden;
+preferences persist in `localStorage`.
+
+| Tier | DPR cap | Stars | Scene resolution | MSAA | Sky resolution |
+| ---- | ------- | ----- | ---------------- | ---- | -------------- |
+| High | 2 | 10,000 | 100% | 4x | 40% of CSS pixels |
+| Medium | 1.25 | 2,000 | 100% | 4x | 35% of CSS pixels |
+| Low | 1 | 800 | 85% | Off | 30% of CSS pixels |
+
+Presentation stays at the output resolution. Both backends share sphere LODs,
+star/satellite billboards, cloud detail, and atmosphere sampling. Low retains
+clouds and atmospheres but skips inter-body shadows and post-effects. Its sky
+updates at 30 Hz while the camera is stationary and immediately when it moves.
+Medium and High run bloom, lens effects, and modal blur at 50% of CSS resolution;
+High also enables flow-field terrain and more detailed cloud self-shadowing.
 
 WebGL2 uses the same linear HDR composition, ACES tone mapping, gamma encoding,
 bloom, lens effects, vignette, and modal blur as WebGPU when
-`EXT_color_buffer_float` is available. Its fixed preset uses Medium-style
-sky/cloud shading, shadows, and chromatic aberration, with the sky at 35% and
-post-effects at 50% of CSS resolution. MSAA uses the highest common color/depth
-sample count up to 4; devices without float MSAA use a single-sample HDR target.
-If float targets are unavailable or incomplete, rendering falls back to RGBA8
-with per-material tone mapping, which cannot preserve the same HDR highlights.
+`EXT_color_buffer_float` is available. It prefers packed `R11F_G11F_B10F`, matching
+WebGPU's optional `rg11b10ufloat` format, with a validated `RGBA16F` fallback.
+Medium/High MSAA uses the highest common color/depth sample count up to 4;
+devices without float MSAA use a single-sample HDR target. Low renders directly
+into its scene texture without an MSAA resolve. If HDR targets are unavailable
+or incomplete, rendering falls back to RGBA8 with per-material tone mapping,
+which cannot preserve the same HDR highlights.
 
 Both backends use single-scattering atmospheres with exponential Rayleigh/Mie
 density profiles and wavelength-dependent Beer-Lambert attenuation on both
-paths. WebGPU Medium/High and WebGL2 use 16 view samples and 8 sunlight samples.
-WebGPU Low uses 8 view samples and a cached sunlight optical-depth lookup
+paths. Medium/High use 16 view samples and 8 sunlight samples on both backends.
+Low uses 8 view samples and a cached sunlight optical-depth lookup
 instead of tracing a sunlight ray at every sample. The 128x64 RG32F texture
 costs 64 KB, is generated once per renderer with 64 integration samples per
 texel, and is reused across planets, frames, and quality changes. Its coordinates
@@ -112,6 +127,28 @@ surface/background or model multiple scattering.
 Both surface shaders also skip polar-ice noise outside the mathematically
 possible ice region, avoiding work on large equatorial areas without changing
 terrain detail or render resolution.
+
+Local performance check (2026-09-18, Apple M1, Chromium/ANGLE Metal, DPR 1):
+
+| Frozen scene | Original fixed WebGL | WebGL Low | WebGPU Low |
+| ------------ | -------------------- | --------- | ---------- |
+| 1440x900 timeline | 17.1 ms | 6.1 ms | 4.3 ms |
+| 3840x2160 timeline | 75.0 ms | ~23 ms | 17.0 ms |
+| 3840x2160 close-up | 109.7 ms | 37.2 ms | 27.2 ms |
+
+Means include submission and a one-pixel GPU readback, with 30 measured frames
+after 8 warm-up frames. Camera and scene state are identical across backends;
+only the animation clock advances. The original fixed preset is Medium-like,
+not equivalent to Low. Updated WebGL Medium/High measured 16.2/20.0 ms at
+1440x900. These are local frame-cost measurements, not a 60 FPS guarantee;
+4K close-ups remain expensive even on Low. Validate shaders in a GPU-capable
+browser when changing either renderer, including tier switches and HDR fallbacks.
+
+Frozen-frame checks across all tiers covered the timeline, close-ups, night
+lighting, sun, rings, portrait layout, CRT, modal blur, and flight paths. The
+27 normal-rendering comparisons averaged below 0.05 per color channel on the
+0-255 scale when both backends used packed HDR. Native MSAA line coverage still
+differs slightly in debug wireframe mode; disabling MSAA closely matches it.
 
 ### Accessibility & SEO
 
@@ -187,9 +224,9 @@ before extending it:
    future work.
 2. **Content as typed TS validated by zod** (`src/content/`) rather than MDX
    frontmatter. The MDX Vite plugin is still wired up for future long-form pages.
-3. **GPU code is verified at build/type time only.** Runtime rendering requires
-   a real GPU and has not been exercised in CI; test in a browser when iterating
-   on shaders or the render graph.
+3. **GPU shaders require browser validation.** Typecheck/build do not compile
+  embedded GLSL or WGSL. Runtime rendering requires a real GPU and has not been
+  exercised in CI; test in a browser when iterating on the render graph.
 
 ## ⚠️ Placeholder content
 

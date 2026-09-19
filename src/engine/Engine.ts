@@ -312,7 +312,7 @@ export class Engine {
       this.resizeObserver.observe(this.canvas);
     }
 
-    if (this.settings.quality === 'auto' && this.backend === 'webgpu') {
+    if (this.settings.quality === 'auto') {
       if (this.coarsePointer) {
         // Mobile (coarse pointer) devices always stay on Low under Auto.
         this.applyTier(QUALITY_PRESETS.low);
@@ -373,9 +373,7 @@ export class Engine {
   }
 
   private applyBackendQuality(): void {
-    if (this.backend === 'webgl2') {
-      this.applyTier(QUALITY_PRESETS.webgl2);
-    } else if (this.settings.quality !== 'auto') {
+    if (this.settings.quality !== 'auto') {
       this.applyTier(QUALITY_PRESETS[this.settings.quality]);
     }
   }
@@ -950,10 +948,7 @@ export class Engine {
   setQualityPreference(pref: QualityPreference): void {
     this.settings.quality = pref;
     saveSettings(this.settings);
-    if (this.backend === 'webgl2') {
-      this.quality.stop();
-      this.applyTier(QUALITY_PRESETS.webgl2);
-    } else if (pref === 'auto') {
+    if (pref === 'auto') {
       if (this.coarsePointer) {
         this.quality.stop();
         this.applyTier(QUALITY_PRESETS.low);

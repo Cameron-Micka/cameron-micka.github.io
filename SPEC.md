@@ -155,10 +155,11 @@ Both backends use the same compositing order:
 5. Gamma encode for display.
 
 Low skips the FX chain, chromatic aberration, vignette, and modal dimming.
-WebGL2 uses `RGBA16F` when `EXT_color_buffer_float` and framebuffer validation
-allow it, otherwise retaining an RGBA8 path with reduced highlight range.
-The WebGL2 preset uses a 35%-resolution sky and 50%-resolution FX buffers,
-measured in CSS pixels, matching WebGPU Medium's low-frequency effects.
+WebGL2 prefers `R11F_G11F_B10F` when `EXT_color_buffer_float` and framebuffer
+validation allow it, matching WebGPU's optional `rg11b10ufloat` target. It falls
+back to `RGBA16F`, then RGBA8 with reduced highlight range if HDR is unavailable.
+Both backends use the same per-tier sky and FX scales in CSS pixels. Low renders
+the scene at 85% resolution and composites at native output resolution.
 
 ---
 
@@ -408,12 +409,13 @@ Because backside POIs are visible (just dimmed), users may try to click them. **
 | --------- | ------- | ----- | ---- | ------ | --- | ---------- | ---- | ------------------ |
 | High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Top of the Auto ramp |
 | Med       | 1.25    | 2k    | off  | on     | on  | 2          | 4x   |                    |
-| Low       | 1.0     | 0     | off  | off    | off | 1          | 4x   | Auto starting tier / hard fallback |
-| WebGL2    | 1.0     | 2k    | off  | on     | on  | 1          | up to 4x | Fixed Medium-style shading, shadows, and HDR effects when supported |
+| Low       | 1.0     | 800   | off  | on     | off | 0          | off  | Auto starting tier; 85% scene resolution |
 
-> WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x. WebGL2 selects a common supported color/depth sample count up to 4, including single-sample rendering when float MSAA is unavailable.
+These presets apply to both WebGPU and WebGL2. WebGL2 is a renderer choice, not a quality tier. A legacy persisted `webgl2` quality preference resets to Auto.
 
-**Selection:** Under Auto on WebGPU, the engine starts at the `Low` tier and ramps **up** one tier at a time (`Low` → `Med` → `High`). It steps up only after frame time stays good (≤ 18ms, ~55 FPS) and stable for 3+ continuous seconds; a janky frame resets the stability window, and the ramp stops once `High` is reached. It also steps back **down** one tier if frame time stays bad (≥ 28ms, ~36 FPS) for 1.5+ continuous seconds — see §7.8. Frames between the two thresholds neither earn a step up nor force a step down. Mobile (coarse-pointer) devices stay on `Low`.
+> WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x. On Medium/High, WebGL2 selects a common supported color/depth sample count up to 4, including single-sample rendering when float MSAA is unavailable. Low disables MSAA on both backends.
+
+**Selection:** Under Auto on either backend, the engine starts at `Low` and ramps **up** one tier at a time (`Low` -> `Med` -> `High`). It steps up only after frame time stays at or below 18 ms and stable for 3+ continuous seconds; a janky frame resets the stability window. It keeps monitoring at High and steps **down** when average frame time reaches 20 ms over a 1.5-second window (section 7.8). Mobile (coarse-pointer) devices stay on `Low`.
 
 User can override via the settings panel; the override is persisted to `localStorage` and stops the Auto ramp on future loads.
 
@@ -421,7 +423,7 @@ User can override via the settings panel; the override is persisted to `localSto
 
 Under Auto, the ramp is **biased upward but not one-way**. The step-up decision can only measure whatever happens to be on screen at that moment, and the scene's per-pixel cost varies enormously with the camera — a large planet filling the viewport is several times more expensive than a distant one, because the planet/cloud shaders are procedural and fragment-bound. A tier that looked affordable while flying between planets can therefore turn out to be unaffordable once a big planet is focused.
 
-To keep that from stranding the user at an unusable frame rate, the ramp steps **down** one tier when frame time stays at or above 28ms (~36 FPS) for 1.5+ continuous seconds. Two guards keep this from turning into a quality flip-flop:
+To keep that from stranding the user at an unusable frame rate, the ramp steps **down** one tier when average frame time reaches 20 ms over a 1.5-second window. Averaging also catches alternating missed-refresh frames. Two guards keep this from turning into a quality flip-flop:
 
 - **Ratchet.** A tier that failed is removed from the ramp for the rest of the session — the ramp will never climb back into it, so a downgrade happens at most once per tier.
 - **Settle window.** Samples in the first second after any tier change are ignored, since applying a tier resizes render targets and rebuilds pipelines and those frames say nothing about the new tier's steady-state cost.
@@ -430,19 +432,20 @@ Explicit (non-Auto) tier choices are never overridden.
 
 ### 7.8a Per-tier shader cost
 
-The dominant cost when a large planet fills the viewport is **fragment work**, not draw calls or geometry: the planet, cloud and nebula shaders are fully procedural and evaluate dozens of value-noise fBm octaves per pixel. Quality tiers therefore scale shader *work*, not just resolution. The active tier index reaches the shaders through `Frame.shadowMisc.y` (`0 = high, 1 = med, 2 = low`); every gate on it is uniform across the draw, so the branches are coherent and divergence-free.
+The dominant cost when a large planet fills the viewport is **fragment work**, not draw calls or geometry: the planet, cloud and nebula shaders are fully procedural and evaluate dozens of value-noise fBm octaves per pixel. Quality tiers therefore scale shader *work*, not just resolution. The active tier index reaches WGSL through `Frame.shadowMisc.y` and GLSL through `uTier` (`0 = high, 1 = med, 2 = low`); every gate on it is uniform across the draw, so the branches are coherent and divergence-free.
 
-| Shader        | High                                              | Med / Low                                        |
-| ------------- | ------------------------------------------------- | ------------------------------------------------ |
-| `planet.wgsl` | Flow-field planets take two `surfaceMarble` samples (14 fBm) and cross-fade them | One static `surfaceMarble` sample (7 fBm)        |
-| `clouds.wgsl` | Cloud self-shadow marches three sun taps plus a grain octave (10 fBm) | One tap (3 fBm)                                  |
-| `nebula.wgsl` | 28 raymarch steps, 4 octaves                       | 20/14 steps, 3 octaves, with brightness compensation |
+| Shader and GLSL mirror | High | Medium | Low |
+| ---------------------- | ---- | ------ | --- |
+| Planet | Two advected `surfaceMarble` samples on flow-field planets | One static sample | One static sample; 3 normalized cloud-shadow octaves |
+| Clouds | Three self-shadow taps plus grain | One self-shadow tap | Reuse density for self-shadow; 3 normalized octaves; no lightning |
+| Nebula | 28 steps, 4 octaves | 20 steps, 3 octaves | 14 steps, 3 octaves; stationary-camera updates at 30 Hz |
+| Atmosphere | 16 view / 8 sunlight samples | 16 view / 8 sunlight samples | 8 view samples and shared 128x64 RG32F sunlight optical-depth LUT |
 
 Independent of tier, the planet shader skips its entire polar ice-cap block (8 fBm) on worlds whose `oceans` feature is off — every ice term is multiplied by the `oceans` flag, so on a dry world that work was previously computed only to be scaled to zero. The WebGL2 mirror carries the same gate.
 
 ### 7.8b Geometry LOD
 
-Every spherical body (planet, moon, sun, and the atmosphere / cloud / aurora shells) shares a small ladder of pre-built UV-sphere meshes defined in `geometry.ts` (`SPHERE_LODS` for WebGPU, `SPHERE_LODS_WEBGL2` for the fallback). Each frame, `selectSphereLod()` picks a level from the body's **angular size** (world radius ÷ distance to camera): close-up bodies keep the original full tessellation, distant ones drop to progressively coarser meshes. A planet's shells reuse the planet's LOD so their silhouettes stay aligned with the surface. Meshes are built once at init and simply rebound at draw time, so the LOD system costs no per-frame allocation.
+Every spherical body (planet, moon, sun, and the atmosphere / cloud / aurora shells) shares a small ladder of pre-built UV-sphere meshes defined in `geometry.ts` (`SPHERE_LODS` and its `SPHERE_LODS_WEBGL2` alias). Both backends use identical tessellation. Each frame, `selectSphereLod()` picks a level from the body's **angular size** (world radius / distance to camera): close-up bodies keep the original full tessellation, distant ones drop to progressively coarser meshes. A planet's shells reuse the planet's LOD so their silhouettes stay aligned with the surface. Meshes are built once at init and simply rebound at draw time, so the LOD system costs no per-frame allocation.
 
 ### 7.9 Frame loop
 
@@ -505,7 +508,8 @@ Triggered by the gear icon top-right. Modal-style panel (smaller than POI modal,
 
 | Setting          | Options                                                | Default        |
 | ---------------- | ------------------------------------------------------ | -------------- |
-| Quality          | Auto (ramp), High, Med, Low, WebGL2 (force)            | Auto           |
+| Quality          | Auto (ramp), High, Med, Low                            | Auto           |
+| Renderer         | Auto, WebGPU, WebGL                                    | Auto           |
 | Sound            | On / Off                                               | Off            |
 | Motion           | System (follow OS), Full motion, Paused                | System         |
 | Debug HUD        | On / Off                                               | Off            |

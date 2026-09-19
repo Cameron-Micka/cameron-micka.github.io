@@ -69,14 +69,9 @@ export const SPHERE_LODS: readonly SphereLod[] = [
   [12, 16],
 ];
 
-// WebGL2 runs a slightly cheaper base tessellation than WebGPU (it targets
-// weaker hardware), so it has its own ladder with the same number of levels.
-export const SPHERE_LODS_WEBGL2: readonly SphereLod[] = [
-  [40, 56],
-  [28, 36],
-  [18, 24],
-  [12, 16],
-];
+// Matching tessellation keeps silhouettes and interpolated surface detail
+// consistent when switching renderers.
+export const SPHERE_LODS_WEBGL2: readonly SphereLod[] = SPHERE_LODS;
 
 // Angular-size (radius / distance) thresholds, one per LOD boundary. A body
 // whose apparent size is at least ANGULAR[i] uses LOD i. Distance-based rather

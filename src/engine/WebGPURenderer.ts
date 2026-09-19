@@ -227,7 +227,7 @@ export class WebGPURenderer implements SceneRenderer {
     await report(0.6, 'Compiling shaders…');
     this.createPipelines(this.sampleCount);
     await report(0.9, 'Generating starfield…');
-    this.buildStars(8000);
+    this.buildStars(QUALITY_PRESETS.high.starCount);
     await report(1, 'Entering the timeline…');
   }
 

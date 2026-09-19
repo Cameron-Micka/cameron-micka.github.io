@@ -5,7 +5,7 @@ import type { Frustum } from './math/frustum';
 
 export type RendererBackend = 'webgpu' | 'webgl2';
 
-export type QualityTier = 'high' | 'med' | 'low' | 'webgl2';
+export type QualityTier = 'high' | 'med' | 'low';
 
 export interface QualitySettings {
   tier: QualityTier;

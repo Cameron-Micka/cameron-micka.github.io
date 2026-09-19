@@ -7,7 +7,13 @@ import { mulberry32 } from './math/rng';
 import { poiMarkerDistance, poiFocusFade } from './Scene';
 import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
-import { ATMOSPHERE_SHELL_SCALE } from './atmosphere';
+import {
+  ATMOSPHERE_SHELL_SCALE,
+  ATMOSPHERE_LUT_WIDTH,
+  ATMOSPHERE_LUT_HEIGHT,
+  createAtmosphereOpticalDepthLut,
+} from './atmosphere';
+import { QUALITY_PRESETS } from './QualityManager';
 
 type PostTarget = {
   framebuffer: WebGLFramebuffer;
@@ -122,7 +128,7 @@ uniform float uHdr;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
 uniform float uCityLights;uniform float uFlow;uniform float uCraters;uniform float uIceCaps;
-uniform float uTime;
+uniform float uTime;uniform float uTier;
 uniform float uCloudShadow; // 0 = clouds off, >0 = shadow strength multiplier
 uniform mat4 uModel;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
@@ -183,7 +189,7 @@ float cVnoise(vec3 x){
   float n001=cHash3(i+vec3(0,0,1)),n101=cHash3(i+vec3(1,0,1)),n011=cHash3(i+vec3(0,1,1)),n111=cHash3(i+vec3(1,1,1));
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
-float cFbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*cVnoise(p);p*=2.03;a*=.5;}return v;}
+float cFbm(vec3 p){float v=0.,a=.5;int octaves=uTier>1.5?3:4;for(int i=0;i<4;i++){if(i>=octaves)break;v+=a*cVnoise(p);p*=2.03;a*=.5;}return v*(uTier>1.5?15.0/14.0:1.0);}
 float cloudRotation(float time,float seedf){
   float baseSpeed=0.015;
   float jitter=fract(seedf*0.000371)*0.025;
@@ -578,6 +584,48 @@ void main(){
   frag=vec4(uHdr>0.5?col:aces(col),1.0);
 }`;
 
+const STAR_VERT = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec4 aAttr;
+layout(location=2) in vec3 aColor;
+uniform mat4 uViewProj;
+uniform float uTime;
+out vec2 vUv;
+out float vIntensity;
+out vec3 vTint;
+void main(){
+  const vec2 corners[6]=vec2[6](vec2(-1,-1),vec2(1,-1),vec2(-1,1),vec2(-1,1),vec2(1,-1),vec2(1,1));
+  vec2 corner=corners[gl_VertexID];
+  vec4 clip=uViewProj*vec4(aPos,1.0);
+  gl_Position=clip+vec4(corner*aAttr.x*clip.w,0.0,0.0);
+  vUv=corner;
+  vIntensity=0.6+0.4*sin(uTime*2.0+aAttr.y*6.2831);
+  vTint=aColor;
+}`;
+
+const STAR_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+in float vIntensity;
+in vec3 vTint;
+uniform float uWireframe;
+out vec4 frag;
+void main(){
+  if(uWireframe>0.5){
+    float edgeDist=min(1.0-abs(vUv.x),1.0-abs(vUv.y));
+    float diagDist=abs(vUv.x+vUv.y)*0.70710678;
+    float lineDist=min(edgeDist,diagDist);
+    float aaLine=length(vec2(dFdx(lineDist),dFdy(lineDist)));
+    float alpha=1.0-smoothstep(0.0,1.5*aaLine,lineDist);
+    frag=vec4(vec3(1.0,0.478,0.094)*alpha,alpha);
+    return;
+  }
+  float glow=1.0-smoothstep(0.0,1.0,length(vUv));
+  float glow2=glow*glow;
+  float alpha=glow2*glow2*vIntensity;
+  frag=vec4(mix(vec3(0.7,0.8,1.0),vTint,0.5)*alpha*1.6,alpha);
+}`;
+
 const POINT_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec4 aAttr; // x size, y phase/dim, z POI shimmer order, w POI count on planet
@@ -645,7 +693,7 @@ float shimmer(vec2 uv,float ordinal,float count){
   return exp(-delta*delta*5.0)*env*SHIMMER_GAIN;
 }
 void main(){
-  vec2 uv=gl_PointCoord*2.0-1.0;
+  vec2 uv=vec2(gl_PointCoord.x,1.0-gl_PointCoord.y)*2.0-1.0;
   float d=length(uv);
   if(vAttr.z>0.5){
     if(uWireframe>0.5){
@@ -660,9 +708,7 @@ void main(){
       frag=vec4(vec3(1.0,0.478,0.094)*a,a);
       return;
     }
-    // gl_PointCoord's Y is flipped relative to the WebGPU billboards.
-    vec2 pinUv=vec2(uv.x,-uv.y);
-    float pulse=shimmer(pinUv,vOrdinal,vCount);
+    float pulse=shimmer(uv,vOrdinal,vCount);
     float radius=0.32+0.02*pulse;
     float aa=max(length(vec2(dFdx(d),dFdy(d))),1e-4);
     // Match the connector's uThick in NDC, converted to the clamped point's UV.
@@ -1185,6 +1231,7 @@ uniform vec3 uCamera;uniform vec3 uLight;
 uniform float uHdr;
 uniform vec3 uColor;uniform vec3 uCenter;
 uniform float uInner;uniform float uOuter;uniform float uFocus;uniform float uIntensity;
+uniform float uTier;uniform highp sampler2D uOpticalDepth;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
 vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 vec2 raySphere(vec3 ro,vec3 rd,vec3 ce,float ra){
@@ -1213,6 +1260,21 @@ vec2 airDensity(vec3 pos,vec3 center,float innerR,float thickness){
   vec2 falloff=vec2(6.0,18.0);
   return max((exp(-altitude*falloff)-exp(-falloff))/(vec2(1.0)-exp(-falloff)),vec2(0.0));
 }
+vec2 sunlightDepth(vec3 pos,vec3 center,vec3 sun,float innerR,float thickness){
+  vec3 up=pos-center;
+  float radius=length(up);
+  float altitude=clamp((radius-innerR)/thickness,0.0,1.0);
+  float radiusRatio=innerR/radius;
+  float horizonCosine=-sqrt(max(1.0-radiusRatio*radiusRatio,0.0));
+  float angleCoord=sqrt(clamp((dot(up,sun)/radius-horizonCosine)/(1.0-horizonCosine),0.0,1.0));
+  ivec2 dimensions=textureSize(uOpticalDepth,0);
+  vec2 coord=vec2(angleCoord,sqrt(altitude))*vec2(dimensions-ivec2(1));
+  ivec2 base=min(ivec2(coord),dimensions-ivec2(2));
+  vec2 blend=coord-vec2(base);
+  vec2 lower=mix(texelFetch(uOpticalDepth,base,0).xy,texelFetch(uOpticalDepth,base+ivec2(1,0),0).xy,blend.x);
+  vec2 upper=mix(texelFetch(uOpticalDepth,base+ivec2(0,1),0).xy,texelFetch(uOpticalDepth,base+ivec2(1,1),0).xy,blend.x);
+  return mix(lower,upper,blend.y);
+}
 void main(){
   vec3 ro=uCamera;vec3 rd=normalize(vWorld-ro);vec3 sun=normalize(uLight);
   vec2 outer=raySphere(ro,rd,uCenter,uOuter);
@@ -1228,11 +1290,13 @@ void main(){
   float phaseRayleigh=3.0*(1.0+cosine*cosine)/(16.0*3.14159265);
   float anisotropy=0.76;
   float phaseMie=(1.0-anisotropy*anisotropy)/(4.0*3.14159265*pow(1.0+anisotropy*anisotropy-2.0*anisotropy*cosine,1.5));
-  const int STEPS=16;const int LIGHT_STEPS=8;
-  float dt=(tFar-tNear)/float(STEPS);
+  bool lowQuality=uTier>=1.5;
+  int steps=lowQuality?8:16;const int LIGHT_STEPS=8;
+  float dt=(tFar-tNear)/float(steps);
   float stepLength=dt/thickness;
   vec2 viewDepth=vec2(0.0);vec3 col=vec3(0.0);
-  for(int i=0;i<STEPS;i++){
+  for(int i=0;i<16;i++){
+    if(i>=steps)break;
     float t=tNear+(float(i)+0.5)*dt;
     vec3 pos=ro+rd*t;
     vec2 density=airDensity(pos,uCenter,uInner,thickness);
@@ -1240,13 +1304,17 @@ void main(){
     viewDepth+=segmentDepth*0.5;
     vec2 ground=raySphere(pos,sun,uCenter,uInner);
     if(!(ground.x>0.0&&ground.y>ground.x)){
-      float lightDistance=max(raySphere(pos,sun,uCenter,uOuter).y,0.0);
       vec2 lightDepth=vec2(0.0);
-      for(int j=0;j<LIGHT_STEPS;j++){
-        float start=float(j)/float(LIGHT_STEPS);float end=float(j+1)/float(LIGHT_STEPS);
-        float lightStart=start*start*lightDistance;float lightEnd=end*end*lightDistance;
-        vec3 lightPos=pos+sun*(lightStart+lightEnd)*0.5;
-        lightDepth+=airDensity(lightPos,uCenter,uInner,thickness)*((lightEnd-lightStart)/thickness);
+      if(lowQuality){
+        lightDepth=sunlightDepth(pos,uCenter,sun,uInner,thickness);
+      }else{
+        float lightDistance=max(raySphere(pos,sun,uCenter,uOuter).y,0.0);
+        for(int j=0;j<LIGHT_STEPS;j++){
+          float start=float(j)/float(LIGHT_STEPS);float end=float(j+1)/float(LIGHT_STEPS);
+          float lightStart=start*start*lightDistance;float lightEnd=end*end*lightDistance;
+          vec3 lightPos=pos+sun*(lightStart+lightEnd)*0.5;
+          lightDepth+=airDensity(lightPos,uCenter,uInner,thickness)*((lightEnd-lightStart)/thickness);
+        }
       }
       vec2 opticalDepth=viewDepth+lightDepth;
       vec3 transmittance=exp(-(betaRayleigh*opticalDepth.x+betaMieExtinction*opticalDepth.y));
@@ -1701,14 +1769,20 @@ export class WebGL2Renderer implements SceneRenderer {
   private canvas!: HTMLCanvasElement;
   private width = 1;
   private height = 1;
+  private sceneWidth = 1;
+  private sceneHeight = 1;
+  private sceneScale = QUALITY_PRESETS.high.sceneScale;
+  private requestedSamples = QUALITY_PRESETS.high.msaa;
 
   private nebula!: Program;
   private backdrop!: Program;
   private planet!: Program;
+  private star!: Program;
   private point!: Program;
   private line!: Program;
   private wire!: Program;
   private atmosphere!: Program;
+  private atmosphereLut!: WebGLTexture;
   private clouds!: Program;
   private aurora!: Program;
   private ring!: Program;
@@ -1722,6 +1796,7 @@ export class WebGL2Renderer implements SceneRenderer {
   // Blend in linear HDR before applying the WebGPU tone curve at presentation.
   // Devices without float color attachments retain the RGBA8 fallback.
   private hdr = false;
+  private packedHdr = false;
   private sceneSamples = 0;
   private dpr = 1;
   private msaaFbo: WebGLFramebuffer | null = null;
@@ -1734,6 +1809,9 @@ export class WebGL2Renderer implements SceneRenderer {
   private fxWidth = 0;
   private fxHeight = 0;
   private backdropTarget: (PostTarget & { width: number; height: number }) | null = null;
+  private backdropDirty = true;
+  private backdropTime = -Infinity;
+  private backdropInvViewProj = new Float32Array(16);
 
   // Sphere meshes, one per LOD level (index 0 = finest). Each body selects a
   // level from its on-screen angular size so distant planets, moons and the
@@ -1750,6 +1828,9 @@ export class WebGL2Renderer implements SceneRenderer {
   private ringVao!: WebGLVertexArrayObject;
   private ringCount = 0;
   private ringU32 = false;
+  private ringWireVao!: WebGLVertexArrayObject;
+  private ringLineCount = 0;
+  private ringLineU32 = false;
 
   private starVao!: WebGLVertexArrayObject;
   private starCount = 0;
@@ -1793,7 +1874,8 @@ export class WebGL2Renderer implements SceneRenderer {
 
     await report(0.1, 'Initializing WebGL…');
     const gl = canvas.getContext('webgl2', {
-      antialias: true,
+      antialias: false,
+      depth: false,
       alpha: false,
       powerPreference: 'high-performance',
     });
@@ -1801,6 +1883,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.gl = gl;
     this.canvas = canvas;
     this.hdr = !!gl.getExtension('EXT_color_buffer_float');
+    this.packedHdr = this.hdr;
 
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -1813,9 +1896,10 @@ export class WebGL2Renderer implements SceneRenderer {
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow', 'uCraters', 'uIceCaps',
-      'uTime', 'uCloudShadow', 'uHdr',
+      'uTime', 'uCloudShadow', 'uHdr', 'uTier',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
+    this.star = this.makeProgram(STAR_VERT, STAR_FRAG, ['uViewProj', 'uTime', 'uWireframe']);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
       'uViewProj', 'uTime', 'uMode', 'uWireframe', 'uHeight', 'uPoiShimmer',
     ]);
@@ -1825,7 +1909,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.wire = this.makeProgram(PLANET_VERT, WIRE_FRAG, ['uViewProj', 'uModel']);
     this.atmosphere = this.makeProgram(PLANET_VERT, ATMOSPHERE_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uColor', 'uCenter',
-      'uInner', 'uOuter', 'uFocus', 'uIntensity', 'uHdr',
+      'uInner', 'uOuter', 'uFocus', 'uIntensity', 'uHdr', 'uTier', 'uOpticalDepth',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.clouds = this.makeProgram(PLANET_VERT, CLOUDS_FRAG, [
@@ -1856,10 +1940,17 @@ export class WebGL2Renderer implements SceneRenderer {
     this.present = this.makeProgram(PRESENT_VERT, PRESENT_FRAG, ['uScene', 'uFx', 'uPost', 'uFxOn', 'uBarrel', 'uHdr']);
 
     await report(0.75, 'Building scene geometry…');
+    this.atmosphereLut = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, this.atmosphereLut);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, ATMOSPHERE_LUT_WIDTH, ATMOSPHERE_LUT_HEIGHT, 0, gl.RG, gl.FLOAT, createAtmosphereOpticalDepthLut());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     this.buildSphere();
     this.buildCoronaQuad();
     await report(0.9, 'Generating starfield…');
-    this.buildStars(2000);
+    this.buildStars(QUALITY_PRESETS.high.starCount);
     this.buildPoiBuffers();
     this.buildSatBuffers();
 
@@ -1955,7 +2046,7 @@ export class WebGL2Renderer implements SceneRenderer {
 
     // Ring annulus (flat, lies in XZ). Enables the uv attribute (location 2)
     // because the ring shader needs radial/angle from uv, unlike the sphere.
-    const ringGeo = createRingGeometry(1.35, 2.1, 96);
+    const ringGeo = createRingGeometry();
     const ringData = interleave(ringGeo);
     const ringVao = gl.createVertexArray()!;
     gl.bindVertexArray(ringVao);
@@ -1973,6 +2064,17 @@ export class WebGL2Renderer implements SceneRenderer {
     this.ringVao = ringVao;
     this.ringCount = ringGeo.indexCount;
     this.ringU32 = ringGeo.indices instanceof Uint32Array;
+    const ringLines = trianglesToLineIndices(ringGeo.indices, ringGeo.vertexCount);
+    this.ringWireVao = gl.createVertexArray()!;
+    gl.bindVertexArray(this.ringWireVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, ringVbo);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ringLines, gl.STATIC_DRAW);
+    this.ringLineCount = ringLines.length;
+    this.ringLineU32 = ringLines instanceof Uint32Array;
+    gl.bindVertexArray(null);
   }
 
   private buildStars(count: number): void {
@@ -1992,12 +2094,12 @@ export class WebGL2Renderer implements SceneRenderer {
         [Math.cos(theta) * r * radius, u * radius, Math.sin(theta) * r * radius],
         i * 3,
       );
-      attr.set([20 + Math.pow(rand(), 3) * 120, rand(), 0, 0], i * 4);
-      color.set([0.7 + rand() * 0.3, 0.8, 0.9 + rand() * 0.1], i * 3);
+      attr.set([0.0009 + Math.pow(rand(), 3) * 0.0035, rand(), 0, 0], i * 4);
+      color.set([0.7 + rand() * 0.3, 1, 0.8 + rand() * 0.2], i * 3);
     }
     const vao = gl.createVertexArray()!;
     gl.bindVertexArray(vao);
-    this.bindPointAttribs(pos, attr, color);
+    this.bindPointAttribs(pos, attr, color, true);
     gl.bindVertexArray(null);
     this.starVao = vao;
     this.starCount = count;
@@ -2007,6 +2109,7 @@ export class WebGL2Renderer implements SceneRenderer {
     pos: Float32Array,
     attr: Float32Array,
     color: Float32Array,
+    instanced = false,
   ): { pos: WebGLBuffer; attr: WebGLBuffer; color: WebGLBuffer } {
     const gl = this.gl;
     const pb = gl.createBuffer()!;
@@ -2024,6 +2127,11 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, color, gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(2);
     gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 0, 0);
+    if (instanced) {
+      gl.vertexAttribDivisor(0, 1);
+      gl.vertexAttribDivisor(1, 1);
+      gl.vertexAttribDivisor(2, 1);
+    }
     return { pos: pb, attr: ab, color: cb };
   }
 
@@ -2072,6 +2180,7 @@ export class WebGL2Renderer implements SceneRenderer {
       new Float32Array(0),
       new Float32Array(0),
       new Float32Array(0),
+      true,
     );
     gl.bindVertexArray(null);
     this.satVao = vao;
@@ -2109,13 +2218,12 @@ export class WebGL2Renderer implements SceneRenderer {
         pos[n * 3 + 0] = p.center[0] + sat.offset[0];
         pos[n * 3 + 1] = p.center[1] + sat.offset[1];
         pos[n * 3 + 2] = p.center[2] + sat.offset[2];
-        // Pixel size: 22px baseline, scaled by visibility; phase for twinkle.
-        attr[n * 4 + 0] = 22 * fade;
+        attr[n * 4 + 0] = sat.size * fade;
         attr[n * 4 + 1] = (p.seed * 0.137 + s * 0.731) % 1;
         attr[n * 4 + 2] = 0;
         attr[n * 4 + 3] = 0;
-        color[n * 3 + 0] = 0.9;
-        color[n * 3 + 1] = 0.95;
+        color[n * 3 + 0] = 1.0;
+        color[n * 3 + 1] = 1.0;
         color[n * 3 + 2] = 1.0;
         n++;
       }
@@ -2135,7 +2243,7 @@ export class WebGL2Renderer implements SceneRenderer {
   resize(width: number, height: number, dpr = 1): void {
     this.width = Math.max(1, Math.floor(width));
     this.height = Math.max(1, Math.floor(height));
-    this.dpr = Math.max(1, dpr);
+    this.dpr = dpr > 0 ? dpr : 1;
     this.canvas.width = this.width;
     this.canvas.height = this.height;
     this.gl.viewport(0, 0, this.width, this.height);
@@ -2143,11 +2251,13 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   // (Re)create the offscreen MSAA color/depth renderbuffers and the resolve
-  // texture at the current canvas size. Called on every resize.
+  // texture at the active scene scale. Called on resize and quality changes.
   private ensureSceneTargets(): void {
     const gl = this.gl;
-    const w = this.width;
-    const h = this.height;
+    const w = Math.max(1, Math.round(this.width * this.sceneScale));
+    const h = Math.max(1, Math.round(this.height * this.sceneScale));
+    this.sceneWidth = w;
+    this.sceneHeight = h;
     if (this.msaaColor) gl.deleteRenderbuffer(this.msaaColor);
     if (this.msaaDepth) gl.deleteRenderbuffer(this.msaaDepth);
     if (this.msaaFbo) gl.deleteFramebuffer(this.msaaFbo);
@@ -2156,15 +2266,18 @@ export class WebGL2Renderer implements SceneRenderer {
     this.destroyPostTargets();
     this.destroyBackdropTarget();
 
-    const colorFormat = this.hdr ? gl.RGBA16F : gl.RGBA8;
+    const colorFormat = this.hdr ? (this.packedHdr ? gl.R11F_G11F_B10F : gl.RGBA16F) : gl.RGBA8;
     const colorSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, colorFormat, gl.SAMPLES) as Int32Array;
     const depthSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) as Int32Array;
-    const samples = Math.max(0, ...Array.from(colorSamples).filter((sample) => sample <= 4 && depthSamples.includes(sample)));
+    const maxSamples = this.requestedSamples > 1 ? this.requestedSamples : 0;
+    const samples = Math.max(0, ...Array.from(colorSamples).filter((sample) => sample <= maxSamples && depthSamples.includes(sample)));
     this.sceneSamples = samples;
 
-    const color = gl.createRenderbuffer()!;
-    gl.bindRenderbuffer(gl.RENDERBUFFER, color);
-    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, colorFormat, w, h);
+    const color = samples > 0 ? gl.createRenderbuffer()! : null;
+    if (color) {
+      gl.bindRenderbuffer(gl.RENDERBUFFER, color);
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, colorFormat, w, h);
+    }
     const depth = gl.createRenderbuffer()!;
     gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
     gl.renderbufferStorageMultisample(
@@ -2174,19 +2287,25 @@ export class WebGL2Renderer implements SceneRenderer {
       w,
       h,
     );
-    const msaa = gl.createFramebuffer()!;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, msaa);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
-    const sceneComplete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, colorFormat, w, h, 0, gl.RGBA, this.hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, colorFormat, w, h, 0,
+      this.packedHdr ? gl.RGB : gl.RGBA,
+      this.packedHdr ? gl.UNSIGNED_INT_10F_11F_11F_REV : this.hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
+      null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const msaa = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, msaa);
+    if (color) {
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color);
+    } else {
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    }
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+    const sceneComplete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
     const resolve = gl.createFramebuffer()!;
     gl.bindFramebuffer(gl.FRAMEBUFFER, resolve);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
@@ -2203,6 +2322,11 @@ export class WebGL2Renderer implements SceneRenderer {
     this.sceneTex = tex;
 
     if (!sceneComplete || !resolveComplete) {
+      if (this.packedHdr) {
+        this.packedHdr = false;
+        this.ensureSceneTargets();
+        return;
+      }
       if (this.hdr) {
         this.hdr = false;
         this.ensureSceneTargets();
@@ -2220,7 +2344,11 @@ export class WebGL2Renderer implements SceneRenderer {
     const gl = this.gl;
     const texture = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, this.hdr ? gl.RGBA16F : gl.RGBA8, width, height, 0, gl.RGBA, this.hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0,
+      this.hdr ? (this.packedHdr ? gl.R11F_G11F_B10F : gl.RGBA16F) : gl.RGBA8,
+      width, height, 0, this.packedHdr ? gl.RGB : gl.RGBA,
+      this.packedHdr ? gl.UNSIGNED_INT_10F_11F_11F_REV : this.hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
+      null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -2261,8 +2389,8 @@ export class WebGL2Renderer implements SceneRenderer {
   private auxSize(scale: number): [number, number] {
     const factor = Math.max(0.1, Math.min(1, scale)) / this.dpr;
     return [
-      Math.max(1, Math.min(this.width, Math.round(this.width * factor))),
-      Math.max(1, Math.min(this.height, Math.round(this.height * factor))),
+      Math.max(1, Math.min(this.sceneWidth, Math.round(this.width * factor))),
+      Math.max(1, Math.min(this.sceneHeight, Math.round(this.height * factor))),
     ];
   }
 
@@ -2278,29 +2406,55 @@ export class WebGL2Renderer implements SceneRenderer {
     if (this.backdropTarget?.width === width && this.backdropTarget.height === height) return;
     this.destroyBackdropTarget();
     this.backdropTarget = { ...this.createPostTarget(width, height), width, height };
+    this.backdropDirty = true;
+  }
+
+  private shouldRenderBackdrop(frame: FrameState): boolean {
+    if (frame.quality.tier !== 'low') return true;
+    let cameraMoved = this.backdropDirty;
+    for (let index = 0; index < 16 && !cameraMoved; index++) {
+      cameraMoved = Math.abs(frame.invViewProj[index]! - this.backdropInvViewProj[index]!) > 1e-5;
+    }
+    const interval = 1 / 30;
+    const elapsed = frame.time - this.backdropTime;
+    if (!cameraMoved && elapsed >= 0 && elapsed < interval) return false;
+    this.backdropInvViewProj.set(frame.invViewProj);
+    this.backdropTime =
+      cameraMoved || elapsed < 0 || !Number.isFinite(this.backdropTime)
+        ? frame.time
+        : this.backdropTime + Math.max(1, Math.floor(elapsed / interval)) * interval;
+    this.backdropDirty = false;
+    return true;
   }
 
   render(frame: FrameState): void {
     const gl = this.gl;
-    this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: this.estimateMemoryMB() };
-    if (!this.msaaFbo) this.ensureSceneTargets();
+    this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
+    const sceneScale = Math.max(0.5, Math.min(1, frame.quality.sceneScale));
+    if (!this.msaaFbo || this.requestedSamples !== frame.quality.msaa || this.sceneScale !== sceneScale) {
+      this.requestedSamples = frame.quality.msaa;
+      this.sceneScale = sceneScale;
+      this.ensureSceneTargets();
+    }
     const tier = frame.quality.tier === 'high' ? 0 : frame.quality.tier === 'low' ? 2 : 1;
     this.ensureBackdropTarget(frame.quality.backdropScale);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.backdropTarget!.framebuffer);
-    gl.viewport(0, 0, this.backdropTarget!.width, this.backdropTarget!.height);
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
-    gl.useProgram(this.nebula.prog);
-    gl.uniform1f(this.nebula.uniforms.uTime!, frame.time);
-    gl.uniform1f(this.nebula.uniforms.uTier!, tier);
-    gl.uniformMatrix4fv(this.nebula.uniforms.uInvViewProj!, false, frame.invViewProj);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    this.stats.drawCalls++;
+    if (this.shouldRenderBackdrop(frame)) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.backdropTarget!.framebuffer);
+      gl.viewport(0, 0, this.backdropTarget!.width, this.backdropTarget!.height);
+      gl.useProgram(this.nebula.prog);
+      gl.uniform1f(this.nebula.uniforms.uTime!, frame.time);
+      gl.uniform1f(this.nebula.uniforms.uTier!, tier);
+      gl.uniformMatrix4fv(this.nebula.uniforms.uInvViewProj!, false, frame.invViewProj);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      this.stats.drawCalls++;
+    }
     // Render the scene into the offscreen multisampled (linear) target; the
     // present pass below resolves it and applies the sRGB gamma encode.
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.msaaFbo);
-    gl.viewport(0, 0, this.width, this.height);
+    gl.viewport(0, 0, this.sceneWidth, this.sceneHeight);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -2313,18 +2467,19 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.stats.drawCalls++;
 
-    // Stars (additive points).
+    // Stars (additive billboards).
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
     if (frame.quality.starCount > 0) {
-      gl.useProgram(this.point.prog);
-      gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
-      gl.uniform1f(this.point.uniforms.uTime!, frame.time);
-      gl.uniform1f(this.point.uniforms.uMode!, 0);
-      gl.uniform1f(this.point.uniforms.uWireframe!, 0);
+      gl.useProgram(this.star.prog);
+      gl.uniformMatrix4fv(this.star.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform1f(this.star.uniforms.uTime!, frame.time);
+      gl.uniform1f(this.star.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.starVao);
-      gl.drawArrays(gl.POINTS, 0, Math.min(this.starCount, frame.quality.starCount));
+      const count = Math.min(this.starCount, frame.quality.starCount);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, count);
       this.stats.drawCalls++;
+      this.stats.triangles += count * 2;
     }
 
     // Planets + moons (opaque).
@@ -2375,7 +2530,11 @@ export class WebGL2Renderer implements SceneRenderer {
         );
       }
     } else {
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.frontFace(gl.CW);
     gl.useProgram(this.planet.prog);
+    gl.uniform1f(this.planet.uniforms.uTier!, tier);
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
@@ -2414,6 +2573,8 @@ export class WebGL2Renderer implements SceneRenderer {
         m.iceCaps,
       );
     }
+    gl.disable(gl.CULL_FACE);
+    gl.frontFace(gl.CCW);
 
     // Corona first, then the analytic body: alpha continuously masks the glow.
     // Drawing corona later would let even partial body depth hard-cut its edge.
@@ -2437,7 +2598,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform3fv(this.sun.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.sun.uniforms.uCenter!, frame.sun.center);
       gl.uniform1f(this.sun.uniforms.uRadius!, frame.sun.radius);
-      gl.uniform2f(this.sun.uniforms.uViewport!, this.width, this.height);
+      gl.uniform2f(this.sun.uniforms.uViewport!, this.sceneWidth, this.sceneHeight);
       gl.uniform1f(this.sun.uniforms.uTime!, frame.time);
       gl.uniform1f(this.sun.uniforms.uSeed!, 1234);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -2448,21 +2609,21 @@ export class WebGL2Renderer implements SceneRenderer {
 
     // Satellite point sprites. Drawn after the opaque planet+moon pass so
     // the depth buffer (with planet/moon depths) correctly hides satellites
-    // orbiting behind their planet. Reuses the POINT shader (uMode=0 makes
-    // it look identical to a star) with additive blend and depth-test-only.
+    // orbiting behind their planet. Reuses the star billboards with additive
+    // blend and depth-test-only.
     const satCount = this.uploadSatellites(frame);
     if (satCount > 0) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
       gl.depthMask(false);
-      gl.useProgram(this.point.prog);
-      gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
-      gl.uniform1f(this.point.uniforms.uTime!, frame.time);
-      gl.uniform1f(this.point.uniforms.uMode!, 0);
-      gl.uniform1f(this.point.uniforms.uWireframe!, 0);
+      gl.useProgram(this.star.prog);
+      gl.uniformMatrix4fv(this.star.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniform1f(this.star.uniforms.uTime!, frame.time);
+      gl.uniform1f(this.star.uniforms.uWireframe!, 0);
       gl.bindVertexArray(this.satVao);
-      gl.drawArrays(gl.POINTS, 0, satCount);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, satCount);
       this.stats.drawCalls++;
+      this.stats.triangles += satCount * 2;
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }
@@ -2535,6 +2696,10 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.cullFace(gl.BACK);
     gl.frontFace(gl.CW);
     gl.useProgram(this.atmosphere.prog);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.atmosphereLut);
+    gl.uniform1i(this.atmosphere.uniforms.uOpticalDepth!, 0);
+    gl.uniform1f(this.atmosphere.uniforms.uTier!, tier);
     gl.uniformMatrix4fv(this.atmosphere.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.atmosphere.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.atmosphere.uniforms.uLight!, frame.keyLightDir);
@@ -2634,6 +2799,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }
+    }
 
     // Planetary rings (alpha-blended, double-sided, depth-test but no write).
     // Drawn after the atmosphere to match the WebGPU draw order. The ring tilt
@@ -2641,7 +2807,8 @@ export class WebGL2Renderer implements SceneRenderer {
     // equator as the planet spins or is dragged.
     const anyRings = frame.planets.some((p) => p.hasRing && p.visibility > 0.02);
     if (anyRings) {
-      gl.enable(gl.BLEND);
+      if (frame.wireframe) gl.disable(gl.BLEND);
+      else gl.enable(gl.BLEND);
       // RING_FRAG already premultiplies RGB by opacity and distance fade.
       gl.blendFuncSeparate(
         gl.ONE,
@@ -2649,15 +2816,18 @@ export class WebGL2Renderer implements SceneRenderer {
         gl.ONE,
         gl.ONE_MINUS_SRC_ALPHA,
       );
-      gl.depthMask(false);
+      gl.depthMask(frame.wireframe);
       gl.disable(gl.CULL_FACE);
-      gl.useProgram(this.ring.prog);
-      gl.uniformMatrix4fv(this.ring.uniforms.uViewProj!, false, frame.viewProj);
-      gl.uniform3fv(this.ring.uniforms.uCamera!, frame.cameraPos);
-      gl.uniform3fv(this.ring.uniforms.uLight!, frame.keyLightDir);
-      this.bindShadowUniforms(this.ring, frame);
-      gl.bindVertexArray(this.ringVao);
-      const ringIdxType = this.ringU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+      const program = frame.wireframe ? this.wire : this.ring;
+      gl.useProgram(program.prog);
+      gl.uniformMatrix4fv(program.uniforms.uViewProj!, false, frame.viewProj);
+      if (!frame.wireframe) {
+        gl.uniform3fv(this.ring.uniforms.uCamera!, frame.cameraPos);
+        gl.uniform3fv(this.ring.uniforms.uLight!, frame.keyLightDir);
+        this.bindShadowUniforms(this.ring, frame);
+      }
+      gl.bindVertexArray(frame.wireframe ? this.ringWireVao : this.ringVao);
+      const ringIdxType = (frame.wireframe ? this.ringLineU32 : this.ringU32) ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
       for (const p of frame.planets) {
         if (!p.hasRing) continue;
         const vis = p.visibility;
@@ -2680,21 +2850,24 @@ export class WebGL2Renderer implements SceneRenderer {
           : [ringRot];
         for (const [r, rr] of ringRots.entries()) {
           mat4.fromRotationTranslationScale(model, rr, p.center, er);
-          gl.uniformMatrix4fv(this.ring.uniforms.uModel!, false, model);
-          gl.uniform3fv(this.ring.uniforms.uLow!, p.paletteLow);
-          gl.uniform3fv(this.ring.uniforms.uMid!, p.paletteMid);
-          gl.uniform3fv(this.ring.uniforms.uHigh!, p.paletteHigh);
-          gl.uniform1f(this.ring.uniforms.uSeed!, (p.seed + r * 7919) % 100000);
-          gl.uniform1f(this.ring.uniforms.uThin!, p.thinRing ? 1 : 0);
-          gl.uniform1f(this.ring.uniforms.uFocus!, p.focus);
-          gl.drawElements(gl.TRIANGLES, this.ringCount, ringIdxType, 0);
+          gl.uniformMatrix4fv(program.uniforms.uModel!, false, model);
+          if (frame.wireframe) {
+            gl.drawElements(gl.LINES, this.ringLineCount, ringIdxType, 0);
+          } else {
+            gl.uniform3fv(this.ring.uniforms.uLow!, p.paletteLow);
+            gl.uniform3fv(this.ring.uniforms.uMid!, p.paletteMid);
+            gl.uniform3fv(this.ring.uniforms.uHigh!, p.paletteHigh);
+            gl.uniform1f(this.ring.uniforms.uSeed!, (p.seed + r * 7919) % 100000);
+            gl.uniform1f(this.ring.uniforms.uThin!, p.thinRing ? 1 : 0);
+            gl.uniform1f(this.ring.uniforms.uFocus!, p.focus);
+            gl.drawElements(gl.TRIANGLES, this.ringCount, ringIdxType, 0);
+            this.stats.triangles += this.ringCount / 3;
+          }
           this.stats.drawCalls++;
-          this.stats.triangles += this.ringCount / 3;
         }
       }
       gl.depthMask(true);
       gl.disable(gl.BLEND);
-    }
     }
 
     // POIs (additive points, depth-tested so planets occlude them).
@@ -2710,7 +2883,7 @@ export class WebGL2Renderer implements SceneRenderer {
         gl.uniformMatrix4fv(this.line.uniforms.uViewProj!, false, frame.viewProj);
         gl.uniform1f(this.line.uniforms.uAspect!, this.width / this.height);
         gl.uniform1f(this.line.uniforms.uThick!, 0.0035);
-        gl.uniform1f(this.line.uniforms.uHeight!, this.height);
+        gl.uniform1f(this.line.uniforms.uHeight!, this.sceneHeight);
         gl.uniform1f(this.line.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
         gl.bindVertexArray(this.poiLineVao);
         gl.drawArrays(gl.TRIANGLES, 0, this.poiLineVerts);
@@ -2720,7 +2893,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 1);
-      gl.uniform1f(this.point.uniforms.uHeight!, this.height);
+      gl.uniform1f(this.point.uniforms.uHeight!, this.sceneHeight);
       gl.uniform1f(this.point.uniforms.uPoiShimmer!, frame.poiShimmer ? 1 : 0);
       gl.uniform1f(this.point.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.poiVao);
@@ -2764,13 +2937,17 @@ export class WebGL2Renderer implements SceneRenderer {
 
     // Resolve the multisampled scene into the single-sample texture, then
     // run reduced-resolution effects, then apply the WebGPU composite curve.
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msaaFbo);
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.resolveFbo);
-    gl.blitFramebuffer(
-      0, 0, this.width, this.height,
-      0, 0, this.width, this.height,
-      gl.COLOR_BUFFER_BIT, gl.NEAREST,
-    );
+    gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.DEPTH_ATTACHMENT]);
+    if (this.sceneSamples > 0) {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msaaFbo);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.resolveFbo);
+      gl.blitFramebuffer(
+        0, 0, this.sceneWidth, this.sceneHeight,
+        0, 0, this.sceneWidth, this.sceneHeight,
+        gl.COLOR_BUFFER_BIT, gl.NEAREST,
+      );
+      gl.invalidateFramebuffer(gl.READ_FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]);
+    }
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
@@ -2819,6 +2996,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.activeTexture(gl.TEXTURE0);
     this.stats.drawCalls++;
+    this.stats.gpuMemoryMB = this.estimateMemoryMB();
   }
 
   // Build per-segment instance data (prev.xyz, next.xyz) from the trajectory
@@ -3047,11 +3225,14 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   private estimateMemoryMB(): number {
-    const colorBytes = this.hdr ? 8 : 4;
-    const sceneBytes = this.width * this.height * ((colorBytes + 4) * Math.max(1, this.sceneSamples) + colorBytes);
+    const colorBytes = this.hdr && !this.packedHdr ? 8 : 4;
+    const sceneBytes = this.sceneWidth * this.sceneHeight * (this.sceneSamples > 0
+      ? (colorBytes + 4) * this.sceneSamples + colorBytes
+      : colorBytes + 4);
     const postBytes = this.fxWidth * this.fxHeight * colorBytes * 2;
     const backdropBytes = this.backdropTarget ? this.backdropTarget.width * this.backdropTarget.height * colorBytes : 0;
-    return (sceneBytes + postBytes + backdropBytes + this.starCount * 40) / (1024 * 1024);
+    const atmosphereBytes = ATMOSPHERE_LUT_WIDTH * ATMOSPHERE_LUT_HEIGHT * 8;
+    return (sceneBytes + postBytes + backdropBytes + atmosphereBytes + this.starCount * 40) / (1024 * 1024);
   }
 
   getStats(): RenderStats {
@@ -3065,6 +3246,7 @@ export class WebGL2Renderer implements SceneRenderer {
   destroy(): void {
     this.destroyPostTargets();
     this.destroyBackdropTarget();
+    this.gl?.deleteTexture(this.atmosphereLut);
     const ext = this.gl?.getExtension('WEBGL_lose_context');
     ext?.loseContext();
   }

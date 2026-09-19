@@ -40,19 +40,6 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
     backdropScale: 0.3,
     postScale: 0.5,
   },
-  webgl2: {
-    tier: 'webgl2',
-    dprCap: 1,
-    starCount: 2000,
-    ssao: false,
-    chromaticAberration: true,
-    bloomMips: 1,
-    msaa: 1,
-    shadows: true,
-    sceneScale: 1,
-    backdropScale: 0.35,
-    postScale: 0.5,
-  },
 };
 
 export type QualityPreference = 'auto' | QualityTier;
