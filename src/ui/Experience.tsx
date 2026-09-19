@@ -199,9 +199,12 @@ function FreeCameraHint() {
     <div className="freecam-hint" role="status" aria-live="polite">
       {freeCamera && visible && (
         <div className="freecam-hint-card">
-          <strong>{UI.freeCamera}</strong>
           <span className="freecam-hint-desktop">{HINTS.freeCameraDesktop}</span>
-          <span className="freecam-hint-touch">{HINTS.freeCameraTouch}</span>
+          <span className="freecam-hint-touch">
+            <strong>{HINTS.freeCameraTouch.flyAction}</strong>{HINTS.freeCameraTouch.flyDetail}
+            <br />
+            <strong>{HINTS.freeCameraTouch.moveAction}</strong>{HINTS.freeCameraTouch.moveDetail}
+          </span>
         </div>
       )}
     </div>

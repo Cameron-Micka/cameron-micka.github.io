@@ -490,8 +490,6 @@ a:hover {
   line-height: 1.6;
 }
 .freecam-hint-card strong {
-  display: block;
-  margin-bottom: 4px;
   color: var(--accent-2);
 }
 .freecam-hint-touch {
