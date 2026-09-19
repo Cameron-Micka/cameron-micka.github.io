@@ -23,7 +23,12 @@ export const HINTS = {
   scrubDesktop: 'Scroll to travel through time · drag a planet to spin it · click a glowing point',
   scrubTouch: 'Two fingers to travel · drag to spin · tap a glowing point',
   freeCameraDesktop: 'WASD to fly · Shift to boost · Space to creep · drag a planet or sun to move it · drag empty space to look',
-  freeCameraTouch: 'Drag a planet or sun to move it · drag empty space: left to fly, right to look',
+  freeCameraTouch: {
+    flyAction: 'Drag empty space',
+    flyDetail: ' - left to fly, right to look',
+    moveAction: 'Drag a planet or sun',
+    moveDetail: ' to move it',
+  },
 };
 
 export const UI = {
