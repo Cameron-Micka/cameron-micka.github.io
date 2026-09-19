@@ -199,7 +199,15 @@ function FreeCameraHint() {
     <div className="freecam-hint" role="status" aria-live="polite">
       {freeCamera && visible && (
         <div className="freecam-hint-card">
-          <span className="freecam-hint-desktop">{HINTS.freeCameraDesktop}</span>
+          <span className="freecam-hint-desktop">
+            {HINTS.freeCameraDesktop.map(({ action, detail }, index) => (
+              <span key={action}>
+                {index > 0 && ' · '}
+                <strong>{action}</strong>
+                {detail}
+              </span>
+            ))}
+          </span>
           <span className="freecam-hint-touch">
             <strong>{HINTS.freeCameraTouch.flyAction}</strong>{HINTS.freeCameraTouch.flyDetail}
             <br />
@@ -260,7 +268,6 @@ function FreeCameraButton() {
         className="icon-btn freecam-btn"
         aria-label={UI.freeCamera}
         aria-pressed={freeCamera}
-        title={UI.freeCamera}
         onClick={() => engine.setFreeCamera(!freeCamera)}
       >
         <Video ref={iconRef} size={19} strokeWidth={1.7} aria-hidden="true" />
