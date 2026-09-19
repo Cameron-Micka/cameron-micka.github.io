@@ -17,3 +17,9 @@ export function useEngineSnapshot(): EngineSnapshot {
     engine.getSnapshot,
   );
 }
+
+export function useEngineValue<T>(select: (snapshot: EngineSnapshot) => T): T {
+  const engine = useEngine();
+  const getValue = () => select(engine.getSnapshot());
+  return useSyncExternalStore(engine.subscribe, getValue, getValue);
+}

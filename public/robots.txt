@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://cameron-micka.github.io/sitemap.xml

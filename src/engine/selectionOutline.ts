@@ -1,6 +1,14 @@
 import type { Camera } from './Camera';
 import { vec3, type Vec3 } from './math/vec3';
 
+const OUTLINE_SAMPLES = 128;
+const UNIT_CIRCLE = new Float64Array(OUTLINE_SAMPLES * 2);
+for (let i = 0; i < OUTLINE_SAMPLES; i++) {
+  const angle = (i / OUTLINE_SAMPLES) * Math.PI * 2;
+  UNIT_CIRCLE[i * 2] = Math.cos(angle);
+  UNIT_CIRCLE[i * 2 + 1] = Math.sin(angle);
+}
+
 // Project the sphere's tangent circle, rather than a billboard at its center,
 // so the outline also fits nearby bodies and bodies near the screen edges.
 export function selectionOutline(
@@ -28,22 +36,19 @@ export function selectionOutline(
   const radius = body.radius * Math.sqrt(1 - ratio * ratio);
   const m = camera.viewProj;
   const points: ([number, number] | null)[] = [];
-  for (let i = 0; i < 128; i++) {
-    const angle = (i / 128) * Math.PI * 2;
-    const p = vec3.add(
-      center,
-      vec3.add(
-        vec3.scale(right, radius * Math.cos(angle)),
-        vec3.scale(up, radius * Math.sin(angle)),
-      ),
-    );
-    const w = m[3]! * p[0] + m[7]! * p[1] + m[11]! * p[2] + m[15]!;
+  for (let i = 0; i < OUTLINE_SAMPLES; i++) {
+    const u = radius * UNIT_CIRCLE[i * 2]!;
+    const v = radius * UNIT_CIRCLE[i * 2 + 1]!;
+    const px = center[0] + (right[0] * u + up[0] * v);
+    const py = center[1] + (right[1] * u + up[1] * v);
+    const pz = center[2] + (right[2] * u + up[2] * v);
+    const w = m[3]! * px + m[7]! * py + m[11]! * pz + m[15]!;
     if (w <= 0.1) {
       points.push(null);
       continue;
     }
-    let x = (m[0]! * p[0] + m[4]! * p[1] + m[8]! * p[2] + m[12]!) / w;
-    let y = (m[1]! * p[0] + m[5]! * p[1] + m[9]! * p[2] + m[13]!) / w;
+    let x = (m[0]! * px + m[4]! * py + m[8]! * pz + m[12]!) / w;
+    let y = (m[1]! * px + m[5]! * py + m[9]! * pz + m[13]!) / w;
     // Invert the composite shader's screen-to-scene barrel sampling.
     const sceneRadius = Math.hypot(x, y);
     if (barrel && sceneRadius > 0) {

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import type { QualityPreference } from '@/engine/QualityManager';
 import type { ReducedMotionPref, BackendPref } from '@/settings';
@@ -18,9 +19,20 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         onClose();
       }
     };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        !panelRef.current?.contains(target) &&
+        !target.closest('#settings-toggle')
+      )
+        onClose();
+    };
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('pointerdown', onPointerDown);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('pointerdown', onPointerDown);
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
     };
   }, [onClose]);
@@ -34,6 +46,17 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       tabIndex={-1}
       ref={panelRef}
     >
+      <div className="settings-heading">
+        <h2>{UI.settings}</h2>
+        <button
+          type="button"
+          className="icon-btn close"
+          aria-label={UI.close}
+          onClick={onClose}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
       <div className="settings-controls">
         <div className="row">
           <label htmlFor="set-quality">Quality</label>
@@ -67,7 +90,9 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="row">
-          <label htmlFor="set-backend">Renderer</label>
+          <label htmlFor="set-backend">
+            Renderer <span className="setting-note">Reloads the page</span>
+          </label>
           <select
             id="set-backend"
             value={s.forceBackend}
@@ -79,6 +104,16 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <option value="webgpu">WebGPU</option>
             <option value="webgl2">WebGL</option>
           </select>
+        </div>
+
+        <div className="row">
+          <label htmlFor="set-sound">{UI.sound}</label>
+          <input
+            id="set-sound"
+            type="checkbox"
+            checked={s.sound}
+            onChange={(e) => engine.setSound(e.target.checked)}
+          />
         </div>
 
         <div className="row">

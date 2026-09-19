@@ -45,19 +45,21 @@ The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of
 ## 2. Site Information Architecture
 
 ```
-/               → 3D Time Machine landing (client-rendered)
+/               → 3D Time Machine landing (client-rendered, readable SSG fallback)
 /about          → Bio, headshot, longer-form narrative, and contact links (SSG)
 /about#contact  → GitHub, LinkedIn, Bluesky, and X links at the bottom of About
 /blog           → "Coming soon" placeholder. MDX pipeline scaffolded for future posts. (SSG)
 /blog/[slug]    → Reserved route; not yet populated
+/photography    → Nature and automotive galleries (SSG)
+/404            → Prerendered not-found page, served as 404.html by GitHub Pages
 ```
 
 **Top navigation** (persistent on all routes, including landing):
 
 - Logo / name (links to `/`)
-- About · Blog
+- Timeline · About · Blog · Photos
 - Settings (gear icon, top-right) — see §10
-- On mobile: collapsed into a hamburger; settings stays as a discrete icon
+- On mobile: compact, always-visible navigation pills; settings stays discrete
 
 **Footer** (non-landing routes only; landing has no footer to preserve immersion):
 
@@ -174,9 +176,9 @@ the scene at 85% resolution and composites at native output resolution.
 
 ### 4.2 Scrubbing
 
-- **Desktop:** Mouse wheel + trackpad vertical scroll scrubs the camera along Z. Side ruler is also clickable to jump.
-- **Mobile:** Single-finger vertical swipe scrubs (in "scrub mode" — i.e., when not actively dragging on a planet). Two-finger drag also scrubs.
-- **Keyboard:** Up/Down arrows step to previous/next planet. PageUp/PageDown jumps to first/last. Home → "Now", End → oldest.
+- **Desktop:** Mouse wheel + trackpad vertical scroll scrubs the camera along Z. Down travels into earlier work, up toward the present. Side ruler is also clickable to jump.
+- **Mobile:** Two-finger drag scrubs; the lower ribbon provides explicit previous/next chapter buttons. One-finger drag rotates the planet.
+- **Keyboard:** Up moves toward the present; Down moves into earlier work. Home / PageUp → "Now"; End / PageDown → oldest. Shortcuts ignore interactive controls, editable content, and dialogs.
 - **Snap behavior:** During input, scrub is free and continuous. **On release**, the camera eases (cubic out, ~400ms) to the **nearest planet**. URL hash updates only on snap settling.
 
 ### 4.3 Orbit (planet rotation by user)
@@ -217,30 +219,30 @@ On the **first** mount of the landing route:
 ```
 
 - **Canvas:** Fullscreen, `position: fixed`, `inset: 0`, `z-index: 0`. All other UI sits on top (`z-index ≥ 1`).
-- **Top nav:** Translucent dark bar over the canvas. Visible on all routes.
-- **Side ruler:** Right edge, vertical scale of years with chevron tick marks. Clickable to jump to a planet. On mobile, collapses to a thin right-edge affordance; tap expands the full ruler temporarily.
-- **Bottom ribbon:** Shows currently focused planet's name + date range. Chevrons step to neighbors. Mimics the Time Machine "Cancel / Today (Now) / Restore" ribbon visually.
+- **Top nav:** Warm hardware-style bar, visible on all routes.
+- **Introduction:** Role, brief value proposition, an explicit work action, and an About link. Compact layouts prioritize the canvas and use the lower readout as the work action.
+- **Side ruler:** Right edge, newest-to-oldest chapter buttons. Hidden on narrow screens, where the ribbon supplies navigation.
+- **Bottom ribbon:** Shows the current chapter, role, dates, and an explicit story-count action. Chevrons step to neighbors.
+- **Motion:** A pause/resume control remains available beside the free-camera button.
 - **Settings gear:** Top-right, opens the settings panel (see §10).
 
 ### 5.2 POI modal
 
 When a POI is clicked:
 
-- Centered **glassmorphism card**, ~60% viewport width (max 720px) on desktop, full-width with 16px margins on mobile.
-- Card content: title, accent color stripe, MDX body (text + responsive images + optional `<video>` tags), close button.
-- **3D scene is paused** on modal open: render one extra frame, downsample + 2-pass separable Gaussian blur it, draw the blurred copy as a fullscreen quad in the canvas. Stop the rAF loop. The DOM modal sits on top of the (now static) blurred canvas.
-- On modal close: re-blit the original (unblurred) framebuffer once, then resume rAF.
+- Native modal `<dialog>` with a hardware-style shell, up to 1120px wide, with a full-screen expansion control.
+- The header includes the company, Close/Expand actions, and a keyboard-accessible picker for every story. Content reads newest to oldest and uses the existing lightweight Markdown renderer.
+- **3D scene is paused** on modal open. Render a frozen frame with modal post-processing, then skip GPU submission until the dialog closes or the viewport changes.
+- On modal close, resume the scene, or render on demand if motion is paused.
 - **Close:** ESC key, click on the dimmed backdrop, or explicit ✕ button in the modal header. All three.
 - Modal mount/unmount eased with a 200ms opacity + 4px translate transition. `prefers-reduced-motion`: instant.
 
 ### 5.3 Deep linking
 
-- URL hash convention: `/#/{planet-slug}/{poi-slug}` for an open POI; `/#/{planet-slug}` for just a focused planet; `/` for default ("Now", no modal).
-- On load, parse the hash:
-  - If `planet-slug` is present, set initial camera position to that planet (skipping the fly-in cinematic).
-  - If `poi-slug` is present, open the matching modal once the scene is ready.
-- On user navigation, **replace** the hash via `history.pushState` (so back/forward navigation works across planets and modals).
-- Invalid slugs in the hash → silently fall back to defaults.
+- URL hash convention: `/#/{planet-slug}/{poi-slug}` for an open story; `/` for default ("Now", no modal).
+- Direct links open the matching story and cancel the fly-in. They work from the About page as well as a fresh load.
+- Story changes replace the hash while preserving the router's existing history state. Closing clears the story hash.
+- Malformed encoded links and unknown stories produce diagnostic warnings without crashing or freezing the timeline.
 
 ### 5.4 Theme
 
@@ -474,14 +476,16 @@ Boot sequence:
 ## 8. Accessibility
 
 - **`prefers-reduced-motion: reduce`** (and the Paused motion setting): freezes the scene clock, so all *idle* motion stops exactly where it stands — auto-rotation, cloud drift, moon orbits, star twinkle, solar/aurora animation, intro cinematic, modal mount/unmount easing. User-initiated motion (scrubbing, dragging to orbit, free camera) still happens.
+- Settled paused frames are retained without rebuilding instances or submitting GPU commands. Visual input and resize invalidate the frame; the Auto quality ramp does not sample idle frames. System preference changes are observed live.
 - **Keyboard nav (chrome / modal / nav only):**
-  - Tab order: top nav → settings → bottom ribbon chevrons → side ruler → POI close button (when modal open).
-  - Modal: ESC closes; focus trap inside modal while open; restore focus to the triggering POI's logical DOM target on close.
-  - Arrow Up/Down (when canvas has focus): step focused planet ± 1.
+  - A skip link reaches the main landmark. All visible actions have keyboard equivalents; form controls retain their native keys.
+  - Native modal dialogs make the background inert and contain focus. Escape closes and restores focus to the triggering control.
+  - Up/Down on the timeline move toward newer/earlier chapters respectively.
 - **Screen readers:**
   - The canvas itself is `aria-hidden`.
-  - The hidden **print resume** DOM (see §11) doubles as a screen-reader-readable representation of all timeline content. It lives inside a `<main>` with `visibility: hidden; position: absolute` (still in the accessibility tree).
-  - **Known gap:** scrubbing, orbiting, and per-POI focus events are not mirrored into the SR experience. Documented in `README.md`.
+  - The introduction, live chapter readout, and project picker expose scene content without requiring spatial interaction.
+  - A readable résumé is prerendered for no-JavaScript and GPU-failure cases. While 3D is active, the duplicate résumé is print-only and creates no invisible tab stops.
+  - Gallery images have individual descriptions, and the lightbox announces its position.
 - **Color contrast:** All text overlay UI (ruler labels, ribbon, modal text) maintains WCAG AA contrast against the dark cosmic backdrop. Text never sits directly on a bright planet/glow region without a tinted background.
 - **Tap targets:** ≥ 44pt for all interactive elements on touch devices.
 
@@ -494,7 +498,7 @@ Boot sequence:
   - Single-finger drag on focused planet → orbit.
   - Two-finger vertical drag (or single-finger vertical swipe in empty space) → scrub timeline.
   - Pinch on planet → zoom focused planet (clamped range).
-- **Side ruler:** Collapsed to a thin right-edge affordance (a slim strip with current planet's accent color). Tap expands the full ruler for ~3s, then collapses.
+- **Side ruler:** Hidden on narrow screens; the bottom ribbon remains the chapter navigator.
 - **Bottom ribbon:** Always visible; chevrons are large tap targets.
 - **Modal:** Full viewport width minus 16px margins. Body scrolls within the modal if content overflows viewport.
 - **Address bar / 100vh issues:** Use `100dvh` for canvas sizing; subscribe to `visualViewport.resize` to adapt during browser-chrome show/hide.
@@ -521,7 +525,7 @@ All settings persist to `localStorage` under the key `cm-portfolio-settings`.
 
 - **Off by default.** No autoplay.
 - When On: subtle "whoosh" on scrub snap, soft "pop" on modal open/close. No ambient drone.
-- Sounds are tiny (≤ 30KB total), bundled as `.webm`/`.mp3` pair, lazy-loaded only after the user enables sound.
+- Sounds are short Web Audio oscillator cues with no downloaded assets. The audio context is created only after sound is enabled and a user gesture has occurred.
 
 ### 10.2 Debug HUD
 
@@ -540,10 +544,10 @@ All settings persist to `localStorage` under the key `cm-portfolio-settings`.
 
 ## 11. Print Stylesheet ("Print to PDF" Path)
 
-The site is the resume — recruiters print from the browser. The landing route includes a hidden `<main role="main">` containing a plain-HTML chronological version of all timeline content:
+The site is the resume — recruiters print from the browser. The interactive landing route includes a print-only article containing all timeline content, newest first:
 
 ```html
-<main class="print-resume">
+<article class="resume-content print-only">
   <h1>Cameron Micka</h1>
   <p>Principal Software Engineer · Redmond, WA</p>
   <section data-company="microsoft">
@@ -556,33 +560,34 @@ The site is the resume — recruiters print from the browser. The landing route 
     </ul>
   </section>
   ...
-</main>
+</article>
 ```
 
-- Visually hidden on screen via `clip-path` / `position: absolute; visibility: hidden` (still in the accessibility tree).
+- Hidden on screen with `display: none`, including from keyboard navigation and the accessibility tree. The non-interactive fallback uses the same component visibly.
 - `@media print` rules:
   - Hide canvas, nav, settings gear, ruler, ribbon, modal.
-  - Show the `.print-resume` block at its natural layout.
+  - Show the `.print-only` block at its natural layout, allowing multi-page overflow even when a dialog was open.
   - Force colors to black on white, sans-serif body, generous line-height.
-- This DOM is generated at build time from the same MDX content used by the 3D engine — single source of truth.
+- The résumé and the 3D stories use the same validated company data.
 
 ---
 
 ## 12. SEO & Metadata
 
-- `vite-ssg` (or equivalent) prerenders `/about`, `/blog` to static HTML.
+- `vite-react-ssg` prerenders `/`, `/about`, `/blog`, `/photography`, and `/404`.
 - Each route ships:
   - `<title>` and `<meta name="description">` from front-matter or per-route config.
-  - **Open Graph:** static `og.png` (1200×630), hand-rendered screenshot of the 3D scene, served from `/public/og.png`. Same image used for `og:image`, `twitter:image` on all routes.
-- Landing route is **not** prerendered (it's a 3D experience), but ships a basic `<title>`, description, and the same OG card. The print-resume DOM (§11) is in the initial HTML, giving crawlers something to read.
-- `robots.txt` allows all. `sitemap.xml` generated at build listing all SSG routes.
+  - Canonical URL and absolute social-image URLs; unknown routes receive `noindex`.
+  - **Open Graph:** static `og.png` (1200×630), generated from the editable `public/og.svg`. Same card is used on all routes.
+- The landing route prerenders the readable résumé. Its canvas and selected rendering backend load only on the client.
+- `public/robots.txt` allows crawling. `public/sitemap.xml` lists the four public content routes.
 
 ---
 
 ## 13. Error Handling
 
-- **React Error Boundary** at the route level. Shows the error message + stack trace in a styled panel (you, the dev, are the main consumer here; recruiters seeing it is acceptable). Includes a "Reload page" button.
-- **Engine errors:** All WebGPU pipeline / shader / device errors are caught and routed through the error boundary by re-throwing during render. Boundary text differentiates "shader error" / "device error" / "asset load error".
+- **React Error Boundary:** concise recovery copy, Reload and About links, and collapsed technical diagnostics.
+- **Engine startup errors:** show a readable résumé with a retry action and technical details, preserving access to the work when neither GPU backend starts.
 - **Content errors** (missing image, malformed MDX) **fail the build**, not at runtime.
 
 ---

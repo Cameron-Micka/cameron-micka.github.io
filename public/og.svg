@@ -1,0 +1,86 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="630"
+  viewBox="0 0 1200 630"
+>
+  <defs>
+    <radialGradient id="sky" cx="80%" cy="35%" r="90%">
+      <stop stop-color="#313d52" />
+      <stop offset="1" stop-color="#15120f" />
+    </radialGradient>
+    <radialGradient id="world" cx="30%" cy="25%" r="85%">
+      <stop stop-color="#d4e5dd" />
+      <stop offset=".3" stop-color="#6b9eac" />
+      <stop offset=".65" stop-color="#27475a" />
+      <stop offset="1" stop-color="#101923" />
+    </radialGradient>
+    <linearGradient id="panel" x2="0" y2="1">
+      <stop stop-color="#ecdfc5" />
+      <stop offset="1" stop-color="#d2bea0" />
+    </linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1200v630H0z" />
+  <g fill="#ecdfc5" opacity=".5">
+    <circle cx="650" cy="140" r="2" />
+    <circle cx="1040" cy="110" r="2" />
+    <circle cx="1110" cy="460" r="2" />
+    <circle cx="760" cy="520" r="1.5" />
+    <circle cx="700" cy="400" r="1.5" />
+    <circle cx="1150" cy="230" r="1.5" />
+    <circle cx="610" cy="530" r="1.5" />
+    <circle cx="1000" cy="550" r="1.5" />
+  </g>
+  <ellipse
+    cx="932"
+    cy="338"
+    rx="222"
+    ry="80"
+    fill="none"
+    stroke="#ecdfc5"
+    stroke-opacity=".25"
+    stroke-width="2"
+    transform="rotate(-32 932 338)"
+  />
+  <circle
+    cx="946"
+    cy="315"
+    r="142"
+    fill="url(#world)"
+    stroke="#8cb7b3"
+    stroke-opacity=".6"
+  />
+  <circle cx="777" cy="456" r="24" fill="#8e785b" />
+  <path
+    d="m1015 195 39-63m-238 193-54-5"
+    fill="none"
+    stroke="#ff9966"
+    stroke-width="2"
+  />
+  <g fill="#15120f" stroke="#ff9966" stroke-width="3">
+    <circle cx="1054" cy="132" r="6" />
+    <circle cx="762" cy="320" r="6" />
+  </g>
+  <path d="M0 0h1200v72H0z" fill="url(#panel)" />
+  <path d="m30 0 26 0-60 60H-30z" fill="#ff510b" />
+  <path d="m70 0 18 0-60 60H10z" fill="#2c251c" />
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="104" y="46" font-size="27" font-weight="700" fill="#2c251c">
+      CAMERON MICKA
+    </text>
+    <text x="66" y="190" font-size="17" letter-spacing="2" fill="#ff9966">
+      PRINCIPAL SOFTWARE ENGINEER
+    </text>
+    <g font-size="66" font-weight="700" fill="#f5eddd">
+      <text x="62" y="285">Design meets</text>
+      <text x="62" y="360">real-time</text>
+      <text x="62" y="435">engineering.</text>
+    </g>
+    <text x="66" y="513" font-size="23" fill="#bdb09b">
+      Games. Mixed reality. Creative tools.
+    </text>
+    <text x="66" y="582" font-size="17" fill="#ff9966">
+      cameron-micka.github.io
+    </text>
+  </g>
+</svg>

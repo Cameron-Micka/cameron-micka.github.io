@@ -8,8 +8,6 @@ import type {
   QualitySettings,
   QualityTier,
 } from './types';
-import { WebGPURenderer } from './WebGPURenderer';
-import { WebGL2Renderer } from './WebGL2Renderer';
 import { Camera } from './Camera';
 import { selectionOutline } from './selectionOutline';
 import {
@@ -20,7 +18,11 @@ import {
   PLANET_SPACING,
   type PlanetModel,
 } from './Scene';
-import { QualityManager, QUALITY_PRESETS, type QualityPreference } from './QualityManager';
+import {
+  QualityManager,
+  QUALITY_PRESETS,
+  type QualityPreference,
+} from './QualityManager';
 import { InputController } from './InputController';
 import { Moons } from './Moons';
 import { TinyEventEmitter } from './TinyEventEmitter';
@@ -32,7 +34,6 @@ import type { Company } from '@/content/schema';
 import {
   loadSettings,
   saveSettings,
-  resolveReducedMotion,
   applyCrt,
   type PersistedSettings,
   type ReducedMotionPref,
@@ -61,6 +62,8 @@ export interface EngineSnapshot {
   quality: QualityPreference;
   activeTier: QualityTier;
   reducedMotion: ReducedMotionPref;
+  motionPaused: boolean;
+  sound: boolean;
   forceBackend: BackendPref;
   debugHud: boolean;
   wireframe: boolean;
@@ -122,6 +125,7 @@ const ORBIT_RELEASE_WINDOW = 0.1; // holding still before release cancels the fl
 // radius in the shader, so this is roughly the fraction of the image lost at
 // the middle of each edge.
 const CRT_BARREL = 0.08;
+const EMPTY_FLIGHT_PATH = new Float32Array(0);
 
 // Normalize a yaw in degrees to (-180, 180]. Used for HUD readout.
 function normalizeYawDeg(deg: number): number {
@@ -193,6 +197,11 @@ export class Engine {
   private freePitch = 0;
 
   private running = false;
+  private destroyed = false;
+  private renderDirty = true;
+  private lastRenderedViewProj = new Float32Array(16);
+  private motionQuery: MediaQueryList | null = null;
+  private paused = false;
   private rafId = 0;
   private lastTs = 0;
   private ready = false;
@@ -225,7 +234,9 @@ export class Engine {
     this.flightPath = buildFlightPath(this.models);
     // Initial sun: far along the key light from the middle of the planet line.
     const lineCenterZ =
-      this.models.length > 0 ? ((this.models.length - 1) * PLANET_SPACING) / 2 : 0;
+      this.models.length > 0
+        ? ((this.models.length - 1) * PLANET_SPACING) / 2
+        : 0;
     this.sun = {
       center: [
         KEY_LIGHT[0] * SUN_DISTANCE,
@@ -247,7 +258,16 @@ export class Engine {
     this.scrubTarget = startIndex;
     this.focusedIndex = startIndex;
     this.settings = loadSettings();
-    this.activeQuality = QUALITY_PRESETS.high;
+    this.motionQuery =
+      typeof matchMedia === 'undefined'
+        ? null
+        : matchMedia('(prefers-reduced-motion: reduce)');
+    this.paused =
+      this.settings.reducedMotion === 'on' ||
+      (this.settings.reducedMotion === 'auto' && !!this.motionQuery?.matches);
+    this.activeTier =
+      this.settings.quality === 'auto' ? 'low' : this.settings.quality;
+    this.activeQuality = QUALITY_PRESETS[this.activeTier];
     this.coarsePointer =
       typeof matchMedia !== 'undefined' &&
       matchMedia('(pointer: coarse)').matches;
@@ -262,7 +282,7 @@ export class Engine {
       onPick: (x, y) => this.handlePick(x, y),
       onKeyStep: (dir) => this.jumpToPlanet(this.focusedIndex + dir),
       onKeyJump: (t) =>
-        this.jumpToPlanet(t === 'start' ? 0 : this.models.length - 1),
+        this.jumpToPlanet(t === 'start' ? this.models.length - 1 : 0),
       onUserInteract: () => this.onUserInteract(),
       onLook: (dx, dy) => this.onLook(dx, dy),
       onBodyDragStart: (x, y) => this.startBodyDrag(x, y),
@@ -279,8 +299,10 @@ export class Engine {
   // ---- lifecycle ----
 
   async start(): Promise<void> {
+    if (this.destroyed) return;
     try {
       this.renderer = await this.createRenderer((frac, label) => {
+        if (this.destroyed) return;
         // Monotonic: a WebGPU→WebGL2 fallback restarts at a low frac, so never
         // let the visible bar regress.
         const next = Math.max(this.loadState.frac, frac);
@@ -288,22 +310,27 @@ export class Engine {
         this.events.emit('loadProgress', this.loadState);
       });
     } catch (err) {
+      if (this.destroyed) return;
       this.failed = err instanceof Error ? err.message : 'Renderer init failed';
       this.commit();
       throw err;
     }
 
-    this.renderer.onDeviceLost(() => {
-      // Per spec: a lost device is unrecoverable here — hard reload.
-      if (typeof location !== 'undefined') location.reload();
-    });
-
-    if (this.motionPaused()) {
-      this.cinematicActive = false;
-      this.camera.setExtraDistance(0);
+    // Route changes can unmount the canvas while shader compilation is pending.
+    if (this.destroyed) {
+      this.renderer.destroy();
+      this.renderer = null;
+      return;
     }
 
-    this.applyBackendQuality();
+    this.renderer.onDeviceLost(() => {
+      // Per spec: a lost device is unrecoverable here — hard reload.
+      if (!this.destroyed && typeof location !== 'undefined') location.reload();
+    });
+
+    this.motionQuery?.addEventListener('change', this.syncMotionPreference);
+    this.syncMotionPreference();
+
     this.resize();
     this.input.attach(this.canvas);
 
@@ -312,18 +339,10 @@ export class Engine {
       this.resizeObserver.observe(this.canvas);
     }
 
-    if (this.settings.quality === 'auto') {
-      if (this.coarsePointer) {
-        // Mobile (coarse pointer) devices always stay on Low under Auto.
-        this.applyTier(QUALITY_PRESETS.low);
-      } else {
-        // Start at Low and ramp up a tier whenever performance stays good and
-        // stable for 3+ seconds.
-        this.applyTier(QUALITY_PRESETS.low);
-        this.quality.start('low', (tier) => {
-          this.applyTier(QUALITY_PRESETS[tier]);
-        });
-      }
+    if (this.settings.quality === 'auto' && !this.coarsePointer) {
+      this.quality.start('low', (tier) => {
+        this.applyTier(QUALITY_PRESETS[tier]);
+      });
     }
 
     // Honor a persisted free-camera preference: seed the fly-cam state and
@@ -339,15 +358,22 @@ export class Engine {
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.running = false;
     cancelAnimationFrame(this.rafId);
     this.input.detach();
     this.resizeObserver?.disconnect();
+    this.motionQuery?.removeEventListener('change', this.syncMotionPreference);
+    this.quality.stop();
     this.renderer?.destroy();
     this.renderer = null;
+    this.listeners.clear();
+    document.documentElement.classList.remove('motion-paused');
   }
 
-  private async createRenderer(onProgress?: LoadProgressFn): Promise<SceneRenderer> {
+  private async createRenderer(
+    onProgress?: LoadProgressFn,
+  ): Promise<SceneRenderer> {
     const force = this.settings.forceBackend;
     const preferWebGL =
       force === 'auto' &&
@@ -359,22 +385,30 @@ export class Engine {
       typeof navigator !== 'undefined' &&
       navigator.gpu
     ) {
+      let candidate: SceneRenderer | null = null;
       try {
-        const r = new WebGPURenderer();
-        await r.init(this.canvas, onProgress);
-        return r;
+        const { WebGPURenderer } = await import('./WebGPURenderer');
+        if (this.destroyed)
+          throw new DOMException('Timeline unmounted', 'AbortError');
+        candidate = new WebGPURenderer();
+        await candidate.init(this.canvas, onProgress);
+        return candidate;
       } catch (err) {
+        candidate?.destroy();
+        if (this.destroyed) throw err;
         console.warn('WebGPU unavailable, falling back to WebGL2:', err);
       }
     }
+    const { WebGL2Renderer } = await import('./WebGL2Renderer');
+    if (this.destroyed)
+      throw new DOMException('Timeline unmounted', 'AbortError');
     const r2 = new WebGL2Renderer();
-    await r2.init(this.canvas, onProgress);
-    return r2;
-  }
-
-  private applyBackendQuality(): void {
-    if (this.settings.quality !== 'auto') {
-      this.applyTier(QUALITY_PRESETS[this.settings.quality]);
+    try {
+      await r2.init(this.canvas, onProgress);
+      return r2;
+    } catch (error) {
+      r2.destroy();
+      throw error;
     }
   }
 
@@ -393,6 +427,7 @@ export class Engine {
     const frameMs = dt * 1000;
 
     const modalOpen = this.openPoi !== null;
+    const paused = this.motionPaused();
     if (modalOpen) {
       this.fps = 0;
       this.fpsFrames = 0;
@@ -403,10 +438,12 @@ export class Engine {
       if (this.modalFrameRendered) return;
       this.blurCurrent = 1;
     } else {
-      this.qualitySampleTime += frameMs;
-      this.quality.sample(this.qualitySampleTime, frameMs);
-      this.trackFps(ts, frameMs);
-      this.blurCurrent = damp(this.blurCurrent, 0, 9, dt);
+      if (!paused) {
+        this.qualitySampleTime += frameMs;
+        this.quality.sample(this.qualitySampleTime, frameMs);
+      }
+      this.blurCurrent = paused ? 0 : damp(this.blurCurrent, 0, 9, dt);
+      if (this.blurCurrent < 0.001) this.blurCurrent = 0;
     }
 
     if (this.settings.freeCamera) {
@@ -425,15 +462,43 @@ export class Engine {
 
       if (!modalOpen) {
         this.advanceClocks(dt, ts);
-        this.scrubCurrent = damp(this.scrubCurrent, this.scrubTarget, 8, dt);
-        this.zoomCurrent = damp(this.zoomCurrent, this.zoomTarget, 9, dt);
+        this.scrubCurrent =
+          Math.abs(this.scrubCurrent - this.scrubTarget) < 0.0001
+            ? this.scrubTarget
+            : damp(this.scrubCurrent, this.scrubTarget, 8, dt);
+        this.zoomCurrent =
+          Math.abs(this.zoomCurrent - this.zoomTarget) < 0.0001
+            ? this.zoomTarget
+            : damp(this.zoomCurrent, this.zoomTarget, 9, dt);
         this.updateFocus();
       }
 
       this.camera.setZoom(this.zoomCurrent);
       this.camera.update(this.scrubCurrent);
     }
-    this.renderFrame(!modalOpen && !this.motionPaused() ? dt : 0);
+    // A paused, unchanged scene needs no instance rebuilding or GPU submission.
+    if (
+      paused &&
+      !modalOpen &&
+      !this.renderDirty &&
+      this.camera.viewProj.every(
+        (value, i) => value === this.lastRenderedViewProj[i],
+      )
+    ) {
+      this.fpsFrames = 0;
+      this.lastStatsTs = ts;
+      if (this.fps !== 0) {
+        this.fps = 0;
+        if (this.settings.debugHud) this.commit();
+      }
+      return;
+    }
+    if (!modalOpen) {
+      this.trackFps(ts, frameMs);
+    }
+    this.renderFrame(!modalOpen && !paused ? dt : 0);
+    this.lastRenderedViewProj.set(this.camera.viewProj);
+    this.renderDirty = false;
     this.modalFrameRendered = modalOpen;
 
     if (!this.ready) {
@@ -504,9 +569,24 @@ export class Engine {
     const targetVy = fwdY * nf * speed;
     const targetVz = (fwdZ * nf + rightZ * nr) * speed;
 
-    this.freeVelocity[0] = damp(this.freeVelocity[0], targetVx, FLY_VELOCITY_DAMP, dt);
-    this.freeVelocity[1] = damp(this.freeVelocity[1], targetVy, FLY_VELOCITY_DAMP, dt);
-    this.freeVelocity[2] = damp(this.freeVelocity[2], targetVz, FLY_VELOCITY_DAMP, dt);
+    this.freeVelocity[0] = damp(
+      this.freeVelocity[0],
+      targetVx,
+      FLY_VELOCITY_DAMP,
+      dt,
+    );
+    this.freeVelocity[1] = damp(
+      this.freeVelocity[1],
+      targetVy,
+      FLY_VELOCITY_DAMP,
+      dt,
+    );
+    this.freeVelocity[2] = damp(
+      this.freeVelocity[2],
+      targetVz,
+      FLY_VELOCITY_DAMP,
+      dt,
+    );
 
     this.freePos[0] += this.freeVelocity[0] * dt;
     this.freePos[1] += this.freeVelocity[1] * dt;
@@ -540,7 +620,6 @@ export class Engine {
   // given on the last unpaused frame and the scene freezes where it stands.
   private advanceClocks(dt: number, ts: number): void {
     if (this.motionPaused()) {
-      this.orbitVelocity = [0, 0, 0];
       return;
     }
     this.time += dt;
@@ -549,19 +628,24 @@ export class Engine {
   }
 
   private updateRotations(dt: number, ts: number): void {
-    const recentlyOrbited = this.orbitDragging || ts / 1000 - this.lastInteract < 2.5;
+    const recentlyOrbited =
+      this.orbitDragging || ts / 1000 - this.lastInteract < 2.5;
     const orbitSpeed = vec3.length(this.orbitVelocity);
     if (!this.orbitDragging && orbitSpeed > 0) {
       const decay = Math.exp(-ORBIT_DAMPING * dt);
       // Integrate exponential damping exactly so the coast is frame-rate independent.
-      const angle = orbitSpeed * (1 - decay) / ORBIT_DAMPING;
-      const delta = quat.fromAxisAngle(vec3.scale(this.orbitVelocity, 1 / orbitSpeed), angle);
+      const angle = (orbitSpeed * (1 - decay)) / ORBIT_DAMPING;
+      const delta = quat.fromAxisAngle(
+        vec3.scale(this.orbitVelocity, 1 / orbitSpeed),
+        angle,
+      );
       this.orientations[this.lastOrbitIndex] = quat.normalize(
         quat.multiply(delta, this.orientations[this.lastOrbitIndex]!),
       );
-      this.orbitVelocity = orbitSpeed * decay < 0.01
-        ? [0, 0, 0]
-        : vec3.scale(this.orbitVelocity, decay);
+      this.orbitVelocity =
+        orbitSpeed * decay < 0.01
+          ? [0, 0, 0]
+          : vec3.scale(this.orbitVelocity, decay);
     }
 
     // Per-planet cloud pacing: ease the drift toward a slow crawl when the
@@ -572,7 +656,8 @@ export class Engine {
     for (let i = 0; i < this.cloudPace.length; i++) {
       const paused = recentlyOrbited && i === this.lastOrbitIndex;
       const target = paused ? PAUSED_CLOUD_PACE : 1;
-      this.cloudPace[i] = this.cloudPace[i]! + (target - this.cloudPace[i]!) * k;
+      this.cloudPace[i] =
+        this.cloudPace[i]! + (target - this.cloudPace[i]!) * k;
       this.cloudTimes[i] = this.cloudTimes[i]! + dt * this.cloudPace[i]!;
     }
 
@@ -654,7 +739,9 @@ export class Engine {
       wireframe: this.settings.wireframe,
       poiShimmer: !poiShimmerMuted,
       crtBarrel: this.settings.crt ? CRT_BARREL : 0,
-      flightPath: this.settings.flightPath ? this.flightPath : new Float32Array(0),
+      flightPath: this.settings.flightPath
+        ? this.flightPath
+        : EMPTY_FLIGHT_PATH,
     };
     r.render(frame);
     if (this.bodyDrag) {
@@ -698,7 +785,11 @@ export class Engine {
 
   private onScrub(delta: number): void {
     if (this.openPoi) return;
-    this.scrubTarget = clamp(this.scrubTarget + delta, 0, this.models.length - 1);
+    this.scrubTarget = clamp(
+      this.scrubTarget + delta,
+      0,
+      this.models.length - 1,
+    );
   }
 
   private onScrubEnd(): void {
@@ -712,24 +803,33 @@ export class Engine {
 
   private onOrbitStart(): void {
     this.orbitVelocity = [0, 0, 0];
-    this.orbitDragging = !this.openPoi && !this.settings.freeCamera && this.models.length > 0;
+    this.orbitDragging =
+      !this.openPoi && !this.settings.freeCamera && this.models.length > 0;
     this.lastOrbitSample = performance.now() / 1000;
     if (this.orbitDragging) {
-      this.lastOrbitIndex = clamp(Math.round(this.scrubCurrent), 0, this.models.length - 1);
+      this.lastOrbitIndex = clamp(
+        Math.round(this.scrubCurrent),
+        0,
+        this.models.length - 1,
+      );
       this.lastInteract = this.lastOrbitSample;
     }
   }
 
   private onOrbitEnd(cancelled: boolean): void {
     this.orbitDragging = false;
-    if (cancelled || this.motionPaused() ||
-        performance.now() / 1000 - this.lastOrbitSample > ORBIT_RELEASE_WINDOW) {
+    if (
+      cancelled ||
+      this.motionPaused() ||
+      performance.now() / 1000 - this.lastOrbitSample > ORBIT_RELEASE_WINDOW
+    ) {
       this.orbitVelocity = [0, 0, 0];
     }
   }
 
   private onOrbit(dx: number, dy: number): void {
     if (this.openPoi || !this.orbitDragging) return;
+    this.renderDirty = true;
     const idx = clamp(Math.round(this.scrubCurrent), 0, this.models.length - 1);
     this.lastOrbitIndex = idx;
     const now = performance.now() / 1000;
@@ -749,9 +849,10 @@ export class Engine {
     const axisLength = vec3.length(axis);
     const angle = 2 * Math.atan2(axisLength, Math.abs(delta[3]));
     const speed = Math.min(angle / elapsed, ORBIT_MAX_SPEED);
-    this.orbitVelocity = axisLength > 0 && !this.motionPaused()
-      ? vec3.scale(axis, (delta[3] < 0 ? -1 : 1) * speed / axisLength)
-      : [0, 0, 0];
+    this.orbitVelocity =
+      axisLength > 0 && !this.motionPaused()
+        ? vec3.scale(axis, ((delta[3] < 0 ? -1 : 1) * speed) / axisLength)
+        : [0, 0, 0];
   }
 
   private onZoom(factor: number): void {
@@ -789,7 +890,10 @@ export class Engine {
     }
 
     const sunT = raySphere(ray, this.sun.center, this.sun.radius);
-    let moon = this.moons.pick(ray, Math.min(hitT, sunT >= 0 ? sunT : Infinity));
+    let moon = this.moons.pick(
+      ray,
+      Math.min(hitT, sunT >= 0 ? sunT : Infinity),
+    );
     const moonT = moon ? raySphere(ray, moon.center, moon.radius) : Infinity;
     // Forgive near misses over empty space without stealing body or POI taps.
     // Keep moonT at Infinity for padded hits so actual POI hits still win.
@@ -824,7 +928,11 @@ export class Engine {
       // Distance to the planet body along this ray, used to reject only POIs
       // that are genuinely hidden behind the planet (true backside). Markers on
       // the horizon are pulled outside the silhouette and stay clickable.
-      const planetT = raySphere(ray, center, model.radius * this.planetVisibility(focused));
+      const planetT = raySphere(
+        ray,
+        center,
+        model.radius * this.planetVisibility(focused),
+      );
       for (let i = 0; i < model.poiDirs.length; i++) {
         const poi = model.poiDirs[i]!;
         const dir = quat.rotateVec3(rot, poi.dir);
@@ -886,6 +994,7 @@ export class Engine {
       planeNormal: [-view[2]!, -view[6]!, -view[10]!],
       offset: vec3.sub(body.center, planePoint),
     };
+    this.renderDirty = true;
     return true;
   }
 
@@ -895,9 +1004,12 @@ export class Engine {
     const ray = this.bodyPointerRay(ndcX, ndcY);
     const denominator = vec3.dot(ray.dir, drag.planeNormal);
     if (Math.abs(denominator) < 1e-6) return;
-    const t = vec3.dot(vec3.sub(drag.planePoint, ray.origin), drag.planeNormal) / denominator;
+    const t =
+      vec3.dot(vec3.sub(drag.planePoint, ray.origin), drag.planeNormal) /
+      denominator;
     if (t < 0 || !Number.isFinite(t)) return;
     drag.body.center = vec3.add(rayPointAt(ray, t), drag.offset);
+    this.renderDirty = true;
     if (drag.body !== this.sun) this.flightPath = buildFlightPath(this.models);
   }
 
@@ -924,10 +1036,18 @@ export class Engine {
   }
 
   openPoiRef(company: string, poi: string): void {
+    const idx = this.models.findIndex((m) => m.company.slug === company);
+    if (
+      idx < 0 ||
+      !this.models[idx]?.company.pois.some((p) => p.slug === poi)
+    ) {
+      console.warn(`Unknown project: ${company}/${poi}`);
+      return;
+    }
+    if (this.openPoi?.company === company && this.openPoi.poi === poi) return;
     // A startup deep link should not begin the fly-in when its modal closes.
     if (!this.ready) this.onUserInteract();
-    const idx = this.models.findIndex((m) => m.company.slug === company);
-    if (idx >= 0) this.scrubTarget = idx;
+    this.scrubTarget = idx;
     this.openPoi = { company, poi };
     this.onOrbitEnd(true);
     // First POI opened this session: the markers no longer need to advertise
@@ -941,6 +1061,7 @@ export class Engine {
     if (!this.openPoi) return;
     this.openPoi = null;
     this.modalFrameRendered = false;
+    this.renderDirty = true;
     this.events.emit('poiClosed', null);
     this.commit();
   }
@@ -968,11 +1089,26 @@ export class Engine {
   setReducedMotion(pref: ReducedMotionPref): void {
     this.settings.reducedMotion = pref;
     saveSettings(this.settings);
-    if (this.motionPaused()) {
+    this.syncMotionPreference();
+  }
+
+  private syncMotionPreference = (): void => {
+    this.paused =
+      this.settings.reducedMotion === 'on' ||
+      (this.settings.reducedMotion === 'auto' && !!this.motionQuery?.matches);
+    document.documentElement.classList.toggle('motion-paused', this.paused);
+    if (this.paused) {
       this.orbitVelocity = [0, 0, 0];
       this.cinematicActive = false;
       this.camera.setExtraDistance(0);
     }
+    this.renderDirty = true;
+    this.commit();
+  };
+
+  setSound(on: boolean): void {
+    this.settings.sound = on;
+    saveSettings(this.settings);
     this.commit();
   }
 
@@ -996,12 +1132,14 @@ export class Engine {
   setWireframe(on: boolean): void {
     this.settings.wireframe = on;
     saveSettings(this.settings);
+    this.renderDirty = true;
     this.commit();
   }
 
   setFreeCamera(on: boolean): void {
     if (this.settings.freeCamera === on) return;
     this.settings.freeCamera = on;
+    this.renderDirty = true;
     saveSettings(this.settings);
     if (on) {
       this.enterFreeCamera();
@@ -1019,6 +1157,7 @@ export class Engine {
   setFlightPath(on: boolean): void {
     if (this.settings.flightPath === on) return;
     this.settings.flightPath = on;
+    this.renderDirty = true;
     saveSettings(this.settings);
     this.commit();
   }
@@ -1028,6 +1167,7 @@ export class Engine {
     this.settings.crt = on;
     saveSettings(this.settings);
     applyCrt(on);
+    this.renderDirty = true;
     this.commit();
   }
 
@@ -1036,7 +1176,7 @@ export class Engine {
   // True when the "Paused" motion preference is active (either chosen
   // explicitly or inherited from the OS `prefers-reduced-motion` setting).
   private motionPaused(): boolean {
-    return resolveReducedMotion(this.settings.reducedMotion);
+    return this.paused;
   }
 
   // Planets more recent than the focused one (higher index after the timeline
@@ -1077,7 +1217,10 @@ export class Engine {
     if (!r) return;
     const cssW = this.canvas.clientWidth || window.innerWidth;
     const cssH = this.canvas.clientHeight || window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio || 1, this.activeQuality.dprCap);
+    const dpr = Math.min(
+      window.devicePixelRatio || 1,
+      this.activeQuality.dprCap,
+    );
     const w = Math.max(1, Math.round(cssW * dpr));
     const h = Math.max(1, Math.round(cssH * dpr));
     this.canvas.width = w;
@@ -1085,6 +1228,7 @@ export class Engine {
     this.camera.setAspect(w / h);
     r.resize(w, h, dpr);
     this.modalFrameRendered = false;
+    this.renderDirty = true;
   }
 
   private buildSnapshot(): EngineSnapshot {
@@ -1095,11 +1239,7 @@ export class Engine {
     };
     const freeCameraState = this.settings.freeCamera
       ? {
-          position: [
-            this.freePos[0],
-            this.freePos[1],
-            this.freePos[2],
-          ] as Vec3,
+          position: [this.freePos[0], this.freePos[1], this.freePos[2]] as Vec3,
           yawDeg: normalizeYawDeg((this.freeYaw * 180) / Math.PI),
           pitchDeg: (this.freePitch * 180) / Math.PI,
         }
@@ -1113,6 +1253,8 @@ export class Engine {
       quality: this.settings.quality,
       activeTier: this.activeTier,
       reducedMotion: this.settings.reducedMotion,
+      motionPaused: this.paused,
+      sound: this.settings.sound,
       forceBackend: this.settings.forceBackend,
       debugHud: this.settings.debugHud,
       wireframe: this.settings.wireframe,

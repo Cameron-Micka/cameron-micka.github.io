@@ -8,7 +8,8 @@ import { fileURLToPath, URL } from 'node:url';
 export default defineConfig({
   base: '/',
   ssgOptions: {
-    script: 'async',
+    // Hydration reads bootstrap data emitted at the end of the document.
+    script: 'defer',
     entry: 'src/main.tsx',
     formatting: 'none',
   },

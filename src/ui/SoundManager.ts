@@ -33,12 +33,18 @@ export class SoundManager {
 
   private blip(freq: number, dur: number, type: OscillatorType): void {
     if (!this.enabled) return;
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive)
+      return;
     if (!this.ctx && typeof AudioContext !== 'undefined') {
       this.ctx = new AudioContext();
     }
     if (!this.ctx) return;
     const ctx = this.ctx;
-    if (ctx.state === 'suspended') void ctx.resume();
+    if (ctx.state === 'suspended') {
+      void ctx.resume().catch((error: unknown) => {
+        console.warn('Could not start portfolio sound:', error);
+      });
+    }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
@@ -47,6 +53,10 @@ export class SoundManager {
     gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
     osc.connect(gain).connect(ctx.destination);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
     osc.start();
     osc.stop(ctx.currentTime + dur + 0.02);
   }
@@ -54,7 +64,9 @@ export class SoundManager {
   destroy(): void {
     this.unsub.forEach((u) => u());
     this.unsub = [];
-    void this.ctx?.close();
+    void this.ctx?.close().catch((error: unknown) => {
+      console.warn('Could not close portfolio sound:', error);
+    });
     this.ctx = null;
   }
 }

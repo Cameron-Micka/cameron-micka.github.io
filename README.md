@@ -37,17 +37,43 @@ src/
     Engine.ts     Owns state + RAF loop; exposes a useSyncExternalStore store
   content/        Company + photo data (TS) validated by a zod schema
   ui/             React overlay: nav, ruler, ribbon, POI modal, settings, HUD
-  routes/         Landing (CSR canvas) + /about /blog /photography (SSG)
+  routes/         SSG pages + a lazy-loaded, client-only landing canvas
 ```
 
-The engine owns all per-frame state and never re-renders React on every frame.
-React subscribes to a small immutable snapshot via `useSyncExternalStore`, so
-the UI only updates on meaningful changes (focused planet, open POI, settings,
-stats).
+The engine owns the simulation outside React. Overlay components subscribe to
+the snapshot values they need via `useSyncExternalStore`, so camera readouts
+and debug stats do not re-render project content or navigation. The photography
+grid also stays unchanged while paging through the lightbox.
+
+The 3D experience is a separate lazy chunk. It imports only the selected
+rendering backend; static pages do not download either renderer. Navigating
+away during asynchronous initialization disposes the completed renderer
+without attaching input handlers or starting a stray animation loop. Failed
+renderer candidates are also disposed before fallback or error recovery.
+Intentional teardown must not trigger the hardware-loss reload path.
+Production bootstrapping is deferred until the document is parsed, so the SSG
+router never races its inline hydration data or build-manifest identifier.
+
+### Finding the work
+
+The landing introduction explains the experience and provides an explicit
+**Explore the work** action. The lower readout also shows the current chapter's
+story count. A native project picker in the story dialog exposes every project
+without requiring a precise click on a 3D marker.
+
+The timeline reads newest to oldest: scroll down or press **Down** for earlier
+work; scroll up or press **Up** to return toward the present. **Home / Page Up**
+go to the current role, and **End / Page Down** go to the earliest chapter.
+These shortcuts do not intercept links, form controls, editable content, or
+dialogs. On touch screens, use the ribbon arrows or a two-finger drag to travel.
+
+The About page provides a conventional, newest-first career summary and direct
+links to every story. Sound effects are opt-in in Settings and never start
+before a user gesture.
 
 ### Free camera
 
-Use the compass button to enter free camera. On desktop, WASD flies, Shift
+Use the camera button to enter free camera. On desktop, WASD flies, Shift
 boosts, and Space slows movement. Click and drag a planet or the sun to move
 it across the view; drag empty space (or right-drag anywhere) to look around.
 Planet moons, satellites, and the flight path follow the moved planet.
@@ -55,6 +81,10 @@ Leaving free camera restores the original scene layout for timeline navigation.
 On touch screens, drag a planet or the sun to move it. Drag empty space on
 the left half to fly or the right half to look; these two camera gestures can
 run simultaneously.
+
+Body-selection outlines reuse 128 cached circle samples and scalar projection,
+avoiding 512 temporary vectors and 256 trigonometric calls per computed outline
+without changing its shape or six-pixel clearance.
 
 ### Moon launching
 
@@ -84,6 +114,15 @@ It steps down when average frame time reaches 20 ms over a 1.5-second window,
 and does not retry an unsustainable tier until Auto restarts. Coarse-pointer
 devices stay on Low under Auto. Explicit quality choices are never overridden;
 preferences persist in `localStorage`.
+The initial output size uses the chosen tier immediately, rather than allocating
+a High-DPR canvas and resizing it down at startup.
+
+Paused motion renders on demand: once the camera settles, an unchanged scene
+does not rebuild instances or submit GPU work. Dragging, travel, resizing,
+quality changes, and other visual settings still invalidate the frame. The
+Auto ramp samples animated frames only, so idle time cannot promote quality.
+A visible pause/resume control is available beside the camera control, and
+System motion responds to OS preference changes without a reload.
 
 | Tier | DPR cap | Stars | Scene resolution | MSAA | Sky resolution |
 | ---- | ------- | ----- | ---------------- | ---- | -------------- |
@@ -152,15 +191,59 @@ differs slightly in debug wireframe mode; disabling MSAA closely matches it.
 
 ### Accessibility & SEO
 
-- A semantic, crawlable résumé (`ui/ResumeContent.tsx`) mirrors all scene
-  content. It's visually hidden on screen but exposed to search engines, screen
-  readers, and **printing** (print styles hide the canvas and show the résumé).
-- `prefers-reduced-motion` (and the Paused motion setting) freezes the scene
-  clock, so the cinematic is skipped and all idle animation stands still.
-- The POI modal traps focus, restores it on close, and closes on
-  Esc / click-outside / ✕. The photo lightbox follows the same pattern and
-  adds ← / → paging within the active gallery section.
-- POIs are deep-linkable via `#/{company}/{poi}`.
+- The landing page prerenders a readable, semantic résumé from the same
+  company data. It remains usable without JavaScript or a working GPU. A GPU
+  startup failure shows this content with a reload action and collapsible
+  diagnostics, rather than blocking the entire portfolio.
+- During the interactive experience, the duplicate résumé is print-only:
+  it cannot create invisible keyboard stops or duplicate screen-reader content.
+  Printing hides the canvas and controls and exposes the complete résumé.
+- Every route has a main landmark and a visible-on-focus skip link. Route
+  changes reset scroll/focus unless navigating to a section anchor.
+- Settings controls have 44px hit targets. Short touch-landscape layouts use
+  the larger ribbon controls rather than squeezing in the side ruler.
+- `prefers-reduced-motion` and Paused motion freeze idle scene animation, skip
+  the fly-in, and disable dialog entrance effects. Direct interaction remains
+  available. Important company labels no longer animate or glitch.
+- Story and photo viewers use native modal dialogs for background inertness,
+  focus containment, and focus restoration. Esc / backdrop / Close dismiss
+  them; the lightbox adds ← / → paging and native touch swiping.
+- All current photos have image-specific descriptions. The lightbox displays
+  the caption, or the description when no separate caption is authored. Gallery
+  tiles are real image links, so opening the original in a new tab or viewing it
+  without JavaScript still works.
+- POIs are deep-linkable via `#/{company}/{poi}`. Hash updates preserve router
+  history state; malformed links cannot crash or freeze the experience.
+- Every prerendered route has its own title, description, canonical URL, and
+  absolute social-image URL. `public/robots.txt` and `public/sitemap.xml` cover
+  the public routes. The generated `404.html` is a real not-found page, not a
+  redirect loop.
+  If the domain changes, update `SITE.url`, the robots file, and the sitemap.
+- `public/og.svg` is the editable source for the 1200×630 social card. Regenerate
+  the committed PNG after editing it:
+
+  ```bash
+  node --input-type=module -e "import sharp from 'sharp'; await sharp('public/og.svg').png().toFile('public/og.png')"
+  ```
+
+### Browser checks
+
+In addition to typecheck, lint, and the production build, exercise:
+
+- Desktop, 320px/390px portrait, and short landscape layouts; no horizontal
+  overflow, obscured actions, or inaccessible settings controls.
+- Wheel, keyboard, ribbon, and ruler navigation in both directions; form
+  controls and dialog scrolling must not also move the timeline.
+- Direct story links, project switching, expansion, Esc, Tab wrapping, and
+  return focus in both viewers.
+- Live system-motion changes, paused interaction, quality switches, and both
+  rendering backends. A settled paused scene should submit **zero GPU draws**.
+- Navigation away while shaders initialize; renderer failure and JavaScript
+  disabled; prerendered metadata and printing.
+
+A local 1440×900 WebGL2 check counted 7,950 indexed draw calls over two seconds
+with motion paused before on-demand rendering, and zero after. This measures
+eliminated idle submissions, not an improvement to the cost of an animated frame.
 
 ## Photography assets
 
@@ -204,10 +287,10 @@ those folders are ignored by git. To use different watermark text, pass
 `--name "Your Name"`; to rebuild only the manifest from existing derivatives,
 pass `--manifest-only`.
 
-Generated entries receive a category-based fallback description. Add an entry
-to `photoDetails` in `src/content/photos.ts` when a photo needs more descriptive
-`alt` text, a caption, or a location; those authored details survive future
-batch conversions.
+New generated entries receive a category-based fallback description. Add an
+image-specific description to `photoDetails` in `src/content/photos.ts` before
+publishing new photos; captions and locations are optional. These authored
+details survive future batch conversions.
 
 Keep the site comfortably under GitHub Pages' ~1 GB soft limit. If the gallery
 ever outgrows that, move the files to an external object store/CDN and change
@@ -233,5 +316,5 @@ before extending it:
 Company **dates, roles, summaries, and POI copy** in
 `src/content/companies.ts` are best-effort placeholders pending confirmation.
 Planet size derives from tenure and POI placement is seed-derived, so editing
-dates/seeds deterministically restyles the scene. The contact email in
-`src/ui/strings.ts` is also a placeholder.
+dates/seeds deterministically restyles the scene. Verify career claims and
+project descriptions before publishing; the UX polish does not validate them.

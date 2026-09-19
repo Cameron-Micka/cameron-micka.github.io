@@ -7,8 +7,8 @@ import {
   Play,
   X,
 } from 'lucide-react';
-import type { Company, Media } from '@/content/schema';
-import { useEngine, useEngineSnapshot } from './EngineContext';
+import { tenureLabel, type Company, type Media } from '@/content/schema';
+import { useEngine, useEngineValue } from './EngineContext';
 import { Markdown } from './Markdown';
 import { UI } from './strings';
 
@@ -121,7 +121,7 @@ function MediaItem({ m }: { m: Media }) {
       </video>
     );
   }
-  return <img src={m.src} alt={m.alt ?? ''} loading="lazy" />;
+  return <img src={m.src} alt={m.alt ?? ''} loading="lazy" decoding="async" />;
 }
 
 type Entry = {
@@ -134,11 +134,10 @@ type Entry = {
 
 export function PoiModal({ companies }: { companies: Company[] }) {
   const engine = useEngine();
-  const { openPoi } = useEngineSnapshot();
-  const cardRef = useRef<HTMLDivElement>(null);
+  const openPoi = useEngineValue((s) => s.openPoi);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef(new Map<string, HTMLElement>());
-  const lastFocused = useRef<Element | null>(null);
   // Key of the POI the list is currently parked on. Kept in a ref so the
   // scroll handler and the "openPoi changed elsewhere" effect can tell who
   // moved last and avoid fighting each other.
@@ -149,7 +148,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
   // whole career the same way the old prev/next buttons did.
   const entries = useMemo<Entry[]>(
     () =>
-      companies.flatMap((company) =>
+      [...companies].reverse().flatMap((company) =>
         company.pois.map((poi, i) => ({
           key: `${company.slug}/${poi.slug}`,
           company,
@@ -170,8 +169,19 @@ export function PoiModal({ companies }: { companies: Company[] }) {
     }
   }, [isOpen]);
 
-  // Scroll to the open POI whenever it changed from outside the list (initial
-  // open, a click on a marker in the 3D scene, or a hash change).
+  useEffect(() => {
+    if (!isOpen) return;
+    const dialog = dialogRef.current;
+    const previousOverflow = document.body.style.overflow;
+    dialog?.showModal();
+    listRef.current?.focus({ preventScroll: true });
+    document.body.style.overflow = 'hidden';
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen || !openKey || openKey === activeKey.current) return;
     activeKey.current = openKey;
@@ -179,42 +189,6 @@ export function PoiModal({ companies }: { companies: Company[] }) {
     const section = sectionRefs.current.get(openKey);
     if (list && section) list.scrollTop = section.offsetTop;
   }, [isOpen, openKey]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    lastFocused.current = document.activeElement;
-    const card = cardRef.current;
-    // Focus the scroll container so arrow keys / page keys move through the
-    // POIs immediately after the modal opens.
-    (listRef.current ?? card)?.focus();
-
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        engine.closePoi();
-      } else if (e.key === 'Tab' && card) {
-        const focusable = card.querySelectorAll<HTMLElement>(
-          'a[href], button, video, iframe, [tabindex]:not([tabindex="-1"])',
-        );
-        if (focusable.length === 0) return;
-        const first = focusable[0]!;
-        const last = focusable[focusable.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      if (lastFocused.current instanceof HTMLElement) {
-        lastFocused.current.focus();
-      }
-    };
-  }, [isOpen, engine]);
 
   if (!isOpen || !openKey) return null;
 
@@ -254,19 +228,26 @@ export function PoiModal({ companies }: { companies: Company[] }) {
   const titleId = (key: string) => `poi-title-${key.replace('/', '--')}`;
 
   return (
-    <div
+    <dialog
+      ref={dialogRef}
       className="modal-scrim"
-      onMouseDown={(e) => {
+      aria-labelledby={titleId(openKey)}
+      onCancel={(e) => {
+        e.preventDefault();
+        engine.closePoi();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          engine.closePoi();
+        }
+      }}
+      onPointerDown={(e) => {
         if (e.target === e.currentTarget) engine.closePoi();
       }}
     >
       <div
         className={expanded ? 'modal poi-modal expanded' : 'modal poi-modal'}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId(openKey)}
-        tabIndex={-1}
-        ref={cardRef}
       >
         <div className="modal-header">
           <div className="modal-title">
@@ -275,7 +256,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
               style={{ background: activeCompany?.palette.high }}
               aria-hidden="true"
             />
-            <span className="glitch company-glitch">{activeCompany?.name}</span>
+            <span className="company-name">{activeCompany?.name}</span>
           </div>
           <div className="modal-actions">
             <button
@@ -301,6 +282,33 @@ export function PoiModal({ companies }: { companies: Company[] }) {
             >
               <X size={18} aria-hidden="true" />
             </button>
+          </div>
+          <div className="project-jump">
+            <label htmlFor="project-jump">{UI.projectJump}</label>
+            <select
+              id="project-jump"
+              value={openKey}
+              onChange={(event) => {
+                const entry = entries.find(
+                  (item) => item.key === event.target.value,
+                );
+                if (entry)
+                  engine.openPoiRef(entry.company.slug, entry.poi.slug);
+              }}
+            >
+              {[...companies].reverse().map((company) => (
+                <optgroup key={company.slug} label={company.name}>
+                  {company.pois.map((poi) => (
+                    <option
+                      key={poi.slug}
+                      value={`${company.slug}/${poi.slug}`}
+                    >
+                      {poi.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -329,6 +337,10 @@ export function PoiModal({ companies }: { companies: Company[] }) {
                 </span>
               </h2>
               <div className="body">
+                <p className="story-meta">
+                  {entry.company.name} ·{' '}
+                  {tenureLabel(entry.company.start, entry.company.end)}
+                </p>
                 <Markdown text={entry.poi.body} />
               </div>
               {entry.poi.media.length > 0 && (
@@ -342,6 +354,6 @@ export function PoiModal({ companies }: { companies: Company[] }) {
           ))}
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

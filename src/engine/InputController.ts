@@ -103,6 +103,7 @@ export class InputController {
   }
 
   detach(): void {
+    window.clearTimeout(this.scrubEndTimer);
     const el = this.el;
     if (!el) return;
     el.removeEventListener('wheel', this.onWheel);
@@ -157,8 +158,10 @@ export class InputController {
   // Diagonal normalization is the engine's responsibility.
   getMovementAxes(): { forward: number; right: number } {
     const h = this.heldCodes;
-    const forward = (h.has('KeyW') ? 1 : 0) - (h.has('KeyS') ? 1 : 0) + this.touchForward;
-    const right = (h.has('KeyD') ? 1 : 0) - (h.has('KeyA') ? 1 : 0) + this.touchRight;
+    const forward =
+      (h.has('KeyW') ? 1 : 0) - (h.has('KeyS') ? 1 : 0) + this.touchForward;
+    const right =
+      (h.has('KeyD') ? 1 : 0) - (h.has('KeyA') ? 1 : 0) + this.touchRight;
     return { forward, right };
   }
 
@@ -191,7 +194,10 @@ export class InputController {
       this.h.onZoom(1 + e.deltaY * 0.002);
       return;
     }
-    this.h.onScrub(e.deltaY * WHEEL_SCALE);
+    const deltaPixels =
+      e.deltaY *
+      (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? this.el!.clientHeight : 1);
+    this.h.onScrub(-deltaPixels * WHEEL_SCALE);
     this.scheduleScrubEnd();
   };
 
@@ -204,7 +210,12 @@ export class InputController {
   }
 
   private onPointerDown = (e: PointerEvent): void => {
-    if (e.pointerType === 'touch' || this.pointerDown || this.freeBodyId !== null) return; // touch handled separately
+    if (
+      e.pointerType === 'touch' ||
+      this.pointerDown ||
+      this.freeBodyId !== null
+    )
+      return; // touch handled separately
     this.pointerDown = true;
     this.pointerId = e.pointerId;
     this.pointerButton = e.button;
@@ -217,7 +228,9 @@ export class InputController {
       this.h.onOrbitStart();
     }
     if (this.freeMode && e.button === 0) {
-      this.bodyDrag = this.h.onBodyDragStart(...this.toNDC(e.clientX, e.clientY));
+      this.bodyDrag = this.h.onBodyDragStart(
+        ...this.toNDC(e.clientX, e.clientY),
+      );
       if (this.bodyDrag && this.el) {
         this.previousCursor = this.el.style.cursor;
         this.el.style.cursor = 'grabbing';
@@ -232,7 +245,8 @@ export class InputController {
     const dy = e.clientY - this.lastY;
     if (
       !this.dragging &&
-      Math.hypot(e.clientX - this.downX, e.clientY - this.downY) > DRAG_THRESHOLD
+      Math.hypot(e.clientX - this.downX, e.clientY - this.downY) >
+        DRAG_THRESHOLD
     ) {
       this.dragging = true;
     }
@@ -303,7 +317,10 @@ export class InputController {
       this.touchMode = 'scrub';
       const [a, b] = [e.touches[0]!, e.touches[1]!];
       this.lastTouchMidY = (a.clientY + b.clientY) / 2;
-      this.lastPinchDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      this.lastPinchDist = Math.hypot(
+        a.clientX - b.clientX,
+        a.clientY - b.clientY,
+      );
     } else {
       this.clearOrbit();
       this.touchMode = 'none';
@@ -322,7 +339,8 @@ export class InputController {
       const dy = t.clientY - this.lastY;
       if (
         !this.dragging &&
-        Math.hypot(t.clientX - this.downX, t.clientY - this.downY) > DRAG_THRESHOLD
+        Math.hypot(t.clientX - this.downX, t.clientY - this.downY) >
+          DRAG_THRESHOLD
       ) {
         this.dragging = true;
       }
@@ -347,7 +365,11 @@ export class InputController {
       this.onFreeTouchEnd(e);
       return;
     }
-    if (e.type !== 'touchcancel' && this.touchMode === 'orbit' && !this.dragging) {
+    if (
+      e.type !== 'touchcancel' &&
+      this.touchMode === 'orbit' &&
+      !this.dragging
+    ) {
       const t = e.changedTouches[0];
       if (t) {
         const [x, y] = this.toNDC(t.clientX, t.clientY);
@@ -371,9 +393,10 @@ export class InputController {
     if (this.pointerDown || this.freeBodyId !== null) return;
     this.h.onUserInteract();
     const first = e.touches[0];
-    this.freeTap = e.touches.length === 1 && first
-      ? { id: first.identifier, x: first.clientX, y: first.clientY }
-      : null;
+    this.freeTap =
+      e.touches.length === 1 && first
+        ? { id: first.identifier, x: first.clientX, y: first.clientY }
+        : null;
     const r = this.el.getBoundingClientRect();
     const mid = r.left + r.width / 2;
     for (let i = 0; i < e.changedTouches.length; i++) {
@@ -411,14 +434,19 @@ export class InputController {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i]!;
-      if (this.freeTap?.id === t.identifier &&
-          Math.hypot(t.clientX - this.freeTap.x, t.clientY - this.freeTap.y) > DRAG_THRESHOLD) {
+      if (
+        this.freeTap?.id === t.identifier &&
+        Math.hypot(t.clientX - this.freeTap.x, t.clientY - this.freeTap.y) >
+          DRAG_THRESHOLD
+      ) {
         this.freeTap = null;
       }
       if (t.identifier === this.freeBodyId) {
         if (
-          Math.hypot(t.clientX - this.freeBodyStartX, t.clientY - this.freeBodyStartY) >
-          DRAG_THRESHOLD
+          Math.hypot(
+            t.clientX - this.freeBodyStartX,
+            t.clientY - this.freeBodyStartY,
+          ) > DRAG_THRESHOLD
         ) {
           this.freeBodyDragging = true;
         }
@@ -450,8 +478,11 @@ export class InputController {
       const t = e.changedTouches[i]!;
       const id = t.identifier;
       if (this.freeTap?.id === id) {
-        if (e.type !== 'touchcancel' &&
-            Math.hypot(t.clientX - this.freeTap.x, t.clientY - this.freeTap.y) <= DRAG_THRESHOLD) {
+        if (
+          e.type !== 'touchcancel' &&
+          Math.hypot(t.clientX - this.freeTap.x, t.clientY - this.freeTap.y) <=
+            DRAG_THRESHOLD
+        ) {
           this.h.onPick(...this.toNDC(t.clientX, t.clientY));
         }
         this.freeTap = null;
@@ -469,16 +500,19 @@ export class InputController {
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    const target = e.target instanceof Element ? e.target : null;
+    if (
+      e.defaultPrevented ||
+      e.altKey ||
+      e.ctrlKey ||
+      e.metaKey ||
+      target?.closest(
+        'a, button, input, select, textarea, [contenteditable], dialog, [role="dialog"]',
+      )
+    )
+      return;
     if (this.freeMode) {
-      // Don't steal keys from form controls (the settings panel has selects /
-      // checkboxes; Space toggles a focused checkbox / opens a focused select).
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      const inForm =
-        tag === 'INPUT' ||
-        tag === 'SELECT' ||
-        tag === 'TEXTAREA' ||
-        tag === 'BUTTON';
-      if (!inForm && MOVE_CODES.has(e.code)) {
+      if (MOVE_CODES.has(e.code)) {
         // Space scrolls the page by default; arrow keys are unused here.
         if (e.code === 'Space') e.preventDefault();
         this.heldCodes.add(e.code);
@@ -490,17 +524,23 @@ export class InputController {
     }
     switch (e.key) {
       case 'ArrowDown':
-        this.h.onUserInteract();
-        this.h.onKeyStep(1);
-        break;
-      case 'ArrowUp':
+        e.preventDefault();
         this.h.onUserInteract();
         this.h.onKeyStep(-1);
         break;
+      case 'ArrowUp':
+        e.preventDefault();
+        this.h.onUserInteract();
+        this.h.onKeyStep(1);
+        break;
       case 'Home':
+      case 'PageUp':
+        e.preventDefault();
         this.h.onKeyJump('start');
         break;
       case 'End':
+      case 'PageDown':
+        e.preventDefault();
         this.h.onKeyJump('end');
         break;
     }

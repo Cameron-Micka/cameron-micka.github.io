@@ -25,50 +25,54 @@ export default function About() {
   return (
     <>
       <TopNav solid />
-      <article className="page">
-        <h1>About</h1>
-        <p className="lede">{SITE.tagline}</p>
-        <figure className="profile-photo">
-          <img
-            src="https://avatars.githubusercontent.com/Cameron-Micka?s=320"
-            alt={`Portrait of ${SITE.name}`}
-            width={160}
-            height={160}
-            loading="lazy"
-          />
-        </figure>
+      <main id="main-content" className="page about-page" tabIndex={-1}>
+        <header className="about-header">
+          <div>
+            <p className="eyebrow">{SITE.role}</p>
+            <h1>About</h1>
+            <p className="lede">{SITE.tagline}</p>
+          </div>
+          <figure className="profile-photo">
+            <img
+              src="https://avatars.githubusercontent.com/Cameron-Micka?s=360"
+              alt={`Portrait of ${SITE.name}`}
+              width={180}
+              height={180}
+              decoding="async"
+            />
+          </figure>
+        </header>
         <p>
           I'm {SITE.name}, a {SITE.role.toLowerCase()} who takes pride in
           handing other creative people superpowers. Fifteen-plus years, a
-          drawer full of shipped titles, and a stubborn love for the layer
-          right above the silicon: custom engines, renderers, gameplay and AI
-          systems, physics, and the design tools that turn "what if" into
-          "ship it." My work spans mixed reality at Microsoft and console game
-          development at studios like Fun Bits Interactive and LucasArts, all
-          rooted in a real-time interactive simulation education at DigiPen.
+          drawer full of shipped titles, and a stubborn love for the layer right
+          above the silicon: custom engines, renderers, gameplay and AI systems,
+          physics, and the design tools that turn "what if" into "ship it." My
+          work spans mixed reality at Microsoft and console game development at
+          studios like Fun Bits Interactive and LucasArts, all rooted in a
+          real-time interactive simulation education at DigiPen.
         </p>
         <p>
           It started with one of the very first games submitted to the iTunes
           App Store — a scrappy little thing Microsoft liked enough to buy for
-          the Zune HD. That got me a seat at LucasArts as a gameplay engineer
-          on the Star Wars: The Force Unleashed series for Xbox 360 and
-          PlayStation 3, where I learned that lightsabers are mostly physics
-          problems wearing a great costume.
+          the Zune HD. That got me a seat at LucasArts as a gameplay engineer on
+          the Star Wars: The Force Unleashed series for Xbox 360 and PlayStation
+          3, where I learned that lightsabers are mostly physics problems
+          wearing a great costume.
         </p>
         <p>
           Next came Fun Bits Interactive and Escape Plan, a bestselling
-          PlayStation Vita title built on a custom port of Unity. I was
-          promoted to Technical Director and led a team of 12 engineers through
-          Fat Princess Adventures, a cooperative online multiplayer RPG — while
+          PlayStation Vita title built on a custom port of Unity. I was promoted
+          to Technical Director and led a team of 12 engineers through Fat
+          Princess Adventures, a cooperative online multiplayer RPG — while
           building the PlayStation 4 engine underneath it. In 2016 I joined
           Microsoft, where I've been chasing mixed reality ever since.
         </p>
         <p>
           This site is itself a small engine: the{' '}
-          <Link to="/">landing page</Link> renders a 3D
-          "time machine" of my career with WebGPU (falling back to WebGL2),
-          where each planet is a place I've worked and each glowing point opens
-          a story.
+          <Link to="/">landing page</Link> renders a 3D "time machine" of my
+          career with WebGPU (falling back to WebGL2), where each planet is a
+          place I've worked and each glowing point opens a story.
         </p>
         <p>
           You can also find my credits on{' '}
@@ -82,16 +86,33 @@ export default function About() {
           .
         </p>
 
-        <section>
-          <h2>Where I've worked &amp; studied</h2>
-          <ul>
-            {companies.map((c) => (
+        <section id="experience">
+          <h2>Experience, chapter by chapter</h2>
+          <ol className="career-list">
+            {[...companies].reverse().map((c) => (
               <li key={c.slug}>
-                <strong>{c.name}</strong> — {c.role} (
-                {tenureLabel(c.start, c.end)})
+                <p className="career-dates">{tenureLabel(c.start, c.end)}</p>
+                <div>
+                  <h3>{c.name}</h3>
+                  <p className="career-role">{c.role}</p>
+                  <p>{c.summary}</p>
+                  <ul
+                    className="story-links"
+                    aria-label={`${c.name} project stories`}
+                  >
+                    {c.pois.map((poi) => (
+                      <li key={poi.slug}>
+                        <Link to={`/#/${c.slug}/${poi.slug}`}>
+                          {poi.title}{' '}
+                          <ArrowUpRight size={14} aria-hidden="true" />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </li>
             ))}
-          </ul>
+          </ol>
         </section>
         <section id="contact">
           <h2>Contact</h2>
@@ -124,7 +145,7 @@ export default function About() {
           loading="lazy"
           decoding="async"
         />
-      </article>
+      </main>
     </>
   );
 }

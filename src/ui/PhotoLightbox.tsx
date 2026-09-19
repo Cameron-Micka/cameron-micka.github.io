@@ -22,9 +22,8 @@ export function PhotoLightbox({
   onClose: () => void;
   onNavigate: (index: number) => void;
 }) {
-  const cardRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
-  const lastFocused = useRef<Element | null>(null);
   const scrollIndex = useRef<number | null>(null);
   const photo = photos[index];
 
@@ -46,6 +45,17 @@ export function PhotoLightbox({
   const goNext = useCallback(() => {
     if (index < photos.length - 1) scrollToPhoto(index + 1);
   }, [index, photos.length, scrollToPhoto]);
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    const previousOverflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 
   // Position the opening photo before paint, without interrupting native swipes
   // when a scroll event reports a new index back to the parent.
@@ -75,87 +85,35 @@ export function PhotoLightbox({
     return () => observer.disconnect();
   }, []);
 
-  // Grab focus on open and hand it back to the tile that opened the viewer.
-  // Runs once per mount so paging never yanks focus off the nav buttons.
-  useEffect(() => {
-    lastFocused.current = document.activeElement;
-    cardRef.current?.focus();
-    return () => {
-      if (lastFocused.current instanceof HTMLElement) {
-        lastFocused.current.focus();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const card = cardRef.current;
-
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        onClose();
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        goPrev();
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        goNext();
-      } else if (e.key === 'Tab' && card) {
-        const focusable = [
-          ...card.querySelectorAll<HTMLElement>(
-            'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])',
-          ),
-        ];
-        if (focusable.length === 0) return;
-        const first = focusable[0]!;
-        const last = focusable[focusable.length - 1]!;
-        const focusOutsideControls = !focusable.includes(
-          document.activeElement as HTMLElement,
-        );
-        if (
-          e.shiftKey &&
-          (document.activeElement === first || focusOutsideControls)
-        ) {
-          e.preventDefault();
-          last.focus();
-        } else if (
-          !e.shiftKey &&
-          (document.activeElement === last || focusOutsideControls)
-        ) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, goPrev, goNext]);
-
-  // Lock body scroll for as long as the viewer is mounted.
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
-
   if (!photo) return null;
 
   return (
-    <div
+    <dialog
+      ref={dialogRef}
       className="modal-scrim lightbox-scrim"
-      onMouseDown={(e) => {
+      aria-label={PHOTOGRAPHY.lightboxLabel}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          onClose();
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          goPrev();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          goNext();
+        }
+      }}
+      onPointerDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="lightbox"
-        role="dialog"
-        aria-modal="true"
-        aria-label={PHOTOGRAPHY.lightboxLabel}
-        tabIndex={-1}
-        ref={cardRef}
-      >
+      <div className="lightbox">
         <button
           type="button"
           className="lightbox-control lightbox-close"
@@ -202,13 +160,11 @@ export function PhotoLightbox({
                       draggable={false}
                     />
                   </div>
-                  {(slide.caption || slide.location) && (
-                    <figcaption>
-                      {[slide.caption, slide.location]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </figcaption>
-                  )}
+                  <figcaption>
+                    {[slide.caption ?? slide.alt, slide.location]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </figcaption>
                 </>
               )}
             </figure>
@@ -249,6 +205,6 @@ export function PhotoLightbox({
           )}
         </nav>
       </div>
-    </div>
+    </dialog>
   );
 }

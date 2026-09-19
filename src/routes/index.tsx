@@ -15,6 +15,7 @@ export const routes: RouteRecord[] = [
       { path: 'about', Component: About },
       { path: 'blog', Component: Blog },
       { path: 'photography', Component: Photography },
+      { path: '404', Component: NotFound },
       { path: '*', Component: NotFound },
     ],
   },

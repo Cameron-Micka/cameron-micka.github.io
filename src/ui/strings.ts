@@ -1,8 +1,17 @@
 export const SITE = {
   name: 'Cameron Micka',
   role: 'Principal Software Engineer',
+  url: 'https://cameron-micka.github.io',
   tagline:
     'Engineer who loves bridging the gap between design and engineering.',
+};
+
+export const INTRO = {
+  title: 'Design meets real-time engineering.',
+  body: 'Games, mixed reality, and tools that give creative people superpowers.',
+  explore: 'Explore the work',
+  about: 'About & contact',
+  note: 'Every world is a chapter. Every glowing point, a story.',
 };
 
 export const NAV = {
@@ -20,8 +29,9 @@ export const SOCIAL = {
 };
 
 export const HINTS = {
-  scrubDesktop: 'Scroll to travel through time · drag a planet to spin it · click a glowing point',
-  scrubTouch: 'Two fingers to travel · drag to spin · tap a glowing point',
+  scrubDesktop:
+    'Scroll down for earlier work · drag to rotate · select a glowing point',
+  scrubTouch: 'Use the arrows to travel · drag to rotate · tap a glowing point',
   freeCameraDesktop: [
     { action: 'WASD', detail: ' to fly' },
     { action: 'Drag empty space', detail: ' to look' },
@@ -39,16 +49,26 @@ export const HINTS = {
 
 export const UI = {
   loading: 'Entering the timeline…',
-  errorTitle: 'Something went wrong',
-  errorBody: 'The 3D experience failed to start. The details below may help.',
+  errorTitle: "The timeline couldn't start.",
+  errorBody:
+    'The 3D view is unavailable, but the work is all here. Read the full story below, or try reloading.',
   reload: 'Reload',
   close: 'Close',
   expand: 'Expand',
   collapse: 'Collapse',
-  poiList: 'Points of interest',
+  poiList: 'Project stories',
+  projectJump: 'Jump to a story',
+  projects: (count: number) => `${count} ${count === 1 ? 'story' : 'stories'}`,
+  earlier: 'Earlier chapter',
+  later: 'More recent chapter',
+  pause: 'Pause motion',
+  resume: 'Resume motion',
+  sound: 'Sound effects',
+  skip: 'Skip to content',
+  details: 'Technical details',
   settings: 'Settings',
   freeCamera: 'Free camera',
-  blogSoon: 'Writing is on the way. Check back soon.',
+  blogSoon: 'Notes from the workbench.',
 };
 
 export const PHOTOGRAPHY = {

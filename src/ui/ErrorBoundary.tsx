@@ -27,8 +27,10 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="error-screen">
         <div className="error-card">
-          <h1>{UI.errorTitle}</h1>
-          <p>{UI.errorBody}</p>
+          <h1>This page hit a snag.</h1>
+          <p>
+            Please reload, or return to the <a href="/about">About page</a>.
+          </p>
           <button
             type="button"
             className="skip-btn"
@@ -37,12 +39,15 @@ export class ErrorBoundary extends Component<Props, State> {
           >
             {UI.reload}
           </button>
-          <pre>
-            {error.message}
-            {'\n'}
-            {error.stack}
-            {info ? `\n\nComponent stack:${info}` : ''}
-          </pre>
+          <details>
+            <summary>{UI.details}</summary>
+            <pre>
+              {error.message}
+              {'\n'}
+              {error.stack}
+              {info ? `\n\nComponent stack:${info}` : ''}
+            </pre>
+          </details>
         </div>
       </div>
     );

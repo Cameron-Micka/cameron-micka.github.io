@@ -1,15 +1,23 @@
-import { useEngineSnapshot } from './EngineContext';
+import { useEngineSnapshot, useEngineValue } from './EngineContext';
 
 export function DebugHud() {
-  const { debugHud, stats, backend, activeTier, freeCameraState } =
+  const enabled = useEngineValue((s) => s.debugHud);
+  return enabled ? <DebugReadout /> : null;
+}
+
+function DebugReadout() {
+  const { stats, backend, activeTier, freeCameraState, motionPaused } =
     useEngineSnapshot();
-  if (!debugHud) return null;
   return (
     <div className="hud" aria-hidden="true">
       <div>
         {backend} · {activeTier}
       </div>
-      <div>{stats.fps} fps</div>
+      <div>
+        {motionPaused && stats.fps === 0
+          ? 'Paused · on demand'
+          : `${stats.fps} fps`}
+      </div>
       <div>frame {stats.frameMs.toFixed(1)} ms</div>
       <div>draws {stats.drawCalls}</div>
       <div>tris {stats.triangles.toLocaleString()}</div>

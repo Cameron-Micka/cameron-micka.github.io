@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { TopNav } from '@/ui/TopNav';
 import { PhotoLightbox } from '@/ui/PhotoLightbox';
 import { PHOTOGRAPHY } from '@/ui/strings';
@@ -14,12 +14,14 @@ const SECTIONS: { id: PhotoCategory; title: string }[] = [
 // lightbox's prev/next stay within that section.
 type Selection = { category: PhotoCategory; index: number };
 
-function PhotoGrid({
+const PhotoGrid = memo(function PhotoGrid({
   photos,
+  category,
   onOpen,
 }: {
   photos: Photo[];
-  onOpen: (index: number) => void;
+  category: PhotoCategory;
+  onOpen: (category: PhotoCategory, index: number) => void;
 }) {
   if (photos.length === 0) {
     return <p className="photo-empty">{PHOTOGRAPHY.empty}</p>;
@@ -28,11 +30,21 @@ function PhotoGrid({
     <ul className="photo-grid" aria-label={PHOTOGRAPHY.gridLabel}>
       {photos.map((photo, i) => (
         <li key={photo.id}>
-          <button
-            type="button"
+          <a
+            href={assetUrl(photo.src)}
             className="photo-tile"
-            onClick={() => onOpen(i)}
-            aria-label={`${PHOTOGRAPHY.open}: ${photo.alt}`}
+            onClick={(event) => {
+              if (
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return;
+              event.preventDefault();
+              onOpen(category, i);
+            }}
+            aria-label={`${PHOTOGRAPHY.open}: ${photo.alt} (${PHOTOGRAPHY.counter(i + 1, photos.length)})`}
           >
             <img
               src={assetUrl(photo.thumb)}
@@ -42,24 +54,27 @@ function PhotoGrid({
               // reserve the correct space before the image loads.
               width={photo.width}
               height={photo.height}
-              loading="lazy"
+              loading={category === 'nature' && i < 2 ? 'eager' : 'lazy'}
               decoding="async"
             />
-          </button>
+          </a>
         </li>
       ))}
     </ul>
   );
-}
+});
 
 export default function Photography() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const openPhotos = selection ? photosByCategory(selection.category) : [];
+  const openPhoto = useCallback((category: PhotoCategory, index: number) => {
+    setSelection({ category, index });
+  }, []);
 
   return (
     <>
       <TopNav solid />
-      <article className="page photography">
+      <main id="main-content" className="page photography" tabIndex={-1}>
         <h1>{PHOTOGRAPHY.title}</h1>
         <p className="lede">{PHOTOGRAPHY.lede}</p>
         <nav className="photo-jump" aria-label={PHOTOGRAPHY.jumpLabel}>
@@ -71,10 +86,14 @@ export default function Photography() {
         </nav>
         {SECTIONS.map((section) => (
           <section key={section.id} id={section.id}>
-            <h2>{section.title}</h2>
+            <h2 className="gallery-heading">
+              {section.title}
+              <span>{photosByCategory(section.id).length} frames</span>
+            </h2>
             <PhotoGrid
               photos={photosByCategory(section.id)}
-              onOpen={(index) => setSelection({ category: section.id, index })}
+              category={section.id}
+              onOpen={openPhoto}
             />
           </section>
         ))}
@@ -87,7 +106,7 @@ export default function Photography() {
           loading="lazy"
           decoding="async"
         />
-      </article>
+      </main>
       {selection && (
         <PhotoLightbox
           photos={openPhotos}

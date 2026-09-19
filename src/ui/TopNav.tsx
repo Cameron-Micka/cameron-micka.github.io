@@ -64,6 +64,7 @@ export function TopNav({
         </NavLink>
         {onToggleSettings && (
           <button
+            id="settings-toggle"
             type="button"
             className={`icon-btn${settingsOpen ? ' active' : ''}`}
             aria-label={UI.settings}

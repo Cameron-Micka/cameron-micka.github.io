@@ -1861,6 +1861,10 @@ export class WebGL2Renderer implements SceneRenderer {
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
+  private readonly handleContextLost = (event: Event): void => {
+    event.preventDefault();
+    this.deviceLostCb?.();
+  };
 
   // Scratch for uShadowSpheres[8] uploads (8 vec4 = 32 floats).
   private shadowScratch = new Float32Array(32);
@@ -1885,10 +1889,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.hdr = !!gl.getExtension('EXT_color_buffer_float');
     this.packedHdr = this.hdr;
 
-    canvas.addEventListener('webglcontextlost', (e) => {
-      e.preventDefault();
-      this.deviceLostCb?.();
-    });
+    canvas.addEventListener('webglcontextlost', this.handleContextLost);
 
     await report(0.35, 'Compiling shaders…');
     this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj', 'uTier']);
@@ -3244,6 +3245,8 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   destroy(): void {
+    this.canvas?.removeEventListener('webglcontextlost', this.handleContextLost);
+    this.deviceLostCb = null;
     this.destroyPostTargets();
     this.destroyBackdropTarget();
     this.gl?.deleteTexture(this.atmosphereLut);
