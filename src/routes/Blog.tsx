@@ -16,7 +16,7 @@ export default function Blog() {
           creative tools, and closing the gap between a design and a shipped
           experience. The first essays are still taking shape.
         </p>
-        <p>In the meantime, the work speaks for itself.</p>
+        <p>In the meantime, please checkout my timeline.</p>
         <div className="page-actions">
           <Link className="action-link primary" to="/">
             Explore the timeline <ArrowRight size={16} aria-hidden="true" />
