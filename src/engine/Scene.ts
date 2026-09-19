@@ -118,7 +118,11 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
         orbitRadius: radius * (1.7 + i * company.features.moonOrbitSpacing),
         size: radius * (0.04 + t * 0.55),
         phase: rand() * Math.PI * 2,
-        speed: 0.25 + rand() * 0.4,
+        // In the (cos a, y, sin a) orbit, negative angles follow the planet's
+        // +Y spin. Only a seeded minority of small moons orbit retrograde.
+        speed:
+          (0.25 + rand() * 0.4) *
+          (t < 0.1 && mulberry32(moonSeed ^ 0x9e3779b9)() < 0.3 ? 1 : -1),
         paletteLow: pal.low,
         paletteMid: pal.mid,
         paletteHigh: pal.high,
