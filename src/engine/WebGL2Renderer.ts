@@ -1629,6 +1629,7 @@ precision highp float;
 in vec3 vOffset;
 out vec4 frag;
 uniform vec3 uCamera;uniform float uTime;uniform float uSeed;
+uniform vec3 uColor;
 uniform mat4 uViewProj;uniform vec3 uCenter;uniform float uRadius;
 uniform float uHdr;
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
@@ -1660,7 +1661,7 @@ vec3 sunShade(vec3 p){
   vec3 col=mix(warm,hot,gran*0.6+mottle*0.4);
   col=mix(col,vec3(0.6,0.28,0.12),penumbra*0.75);
   col=mix(col,vec3(0.32,0.13,0.05),umbra*0.88);
-  return col;
+  return col*uColor/vec3(1.0,0.66,0.30);
 }
 void main(){
   float radius=max(uRadius,1e-5);
@@ -1722,6 +1723,7 @@ precision highp float;
 in vec2 vUv;
 out vec4 frag;
 uniform float uTime;
+uniform vec3 uColor;
 float hash3(vec3 p){vec3 q=fract(p*0.3183099+vec3(0.1,0.2,0.3));q*=17.0;return fract(q.x*q.y*q.z*(q.x+q.y+q.z));}
 float vnoise(vec3 x){
   vec3 i=floor(x),f=fract(x);vec3 u=f*f*(3.0-2.0*f);
@@ -1756,7 +1758,7 @@ void main(){
   float radial=1.0-smoothstep(edge-0.5,edge,r);
   float glow=radial*(0.16+1.4*arm*armVary)*streak*pulse*1.3;
   vec3 col=mix(vec3(1.0,0.92,0.6),vec3(1.0,0.42,0.14),r)*glow;
-  frag=vec4(col,glow);
+  frag=vec4(col*uColor/vec3(1.0,0.66,0.30),glow);
 }`;
 
 interface Program {
@@ -1933,10 +1935,10 @@ export class WebGL2Renderer implements SceneRenderer {
       'uViewProj', 'uAspect', 'uThick', 'uCamera', 'uWireframe', 'uTime',
     ]);
     this.sun = this.makeProgram(SUN_VERT, SUN_FRAG, [
-      'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uViewport', 'uTime', 'uSeed', 'uHdr',
+      'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uViewport', 'uTime', 'uSeed', 'uHdr', 'uColor',
     ]);
     this.corona = this.makeProgram(CORONA_VERT, CORONA_FRAG, [
-      'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime',
+      'uViewProj', 'uCamera', 'uCenter', 'uRadius', 'uTime', 'uColor',
     ]);
     this.downsample = this.makeProgram(PRESENT_VERT, DOWNSAMPLE_FRAG, ['uScene', 'uFxTexel']);
     this.postfx = this.makeProgram(PRESENT_VERT, POSTFX_FRAG, ['uScene', 'uFlare', 'uAspect', 'uFxTexel', 'uBlur', 'uBloom']);
@@ -2599,6 +2601,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform3fv(this.corona.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.corona.uniforms.uCenter!, frame.sun.center);
       gl.uniform1f(this.corona.uniforms.uRadius!, frame.sun.radius);
+      gl.uniform3fv(this.corona.uniforms.uColor!, frame.sun.color);
       gl.uniform1f(this.corona.uniforms.uTime!, frame.time);
       gl.bindVertexArray(this.coronaVao);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -2612,6 +2615,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform2f(this.sun.uniforms.uViewport!, this.sceneWidth, this.sceneHeight);
       gl.uniform1f(this.sun.uniforms.uTime!, frame.time);
       gl.uniform1f(this.sun.uniforms.uSeed!, 1234);
+      gl.uniform3fv(this.sun.uniforms.uColor!, frame.sun.color);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       this.stats.drawCalls += 2;
       this.stats.triangles += 4;

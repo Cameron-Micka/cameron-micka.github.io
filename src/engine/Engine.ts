@@ -15,6 +15,8 @@ import {
   buildPlanetModels,
   buildFlightPath,
   instanceFromModel,
+  regeneratePlanet,
+  regenerateSun,
   poiMarkerDistance,
   PLANET_SPACING,
   type PlanetModel,
@@ -148,7 +150,8 @@ export class Engine {
   private renderer: SceneRenderer | null = null;
   private camera = new Camera();
   private models: PlanetModel[];
-  private readonly sun: { center: Vec3; radius: number };
+  private readonly sun: FrameState['sun'];
+  private lastPickedBody: PlanetModel | FrameState['sun'] | null = null;
   private readonly initialSunCenter: Vec3;
   private readonly sceneCenter: Vec3;
   private bodyDrag: {
@@ -255,6 +258,7 @@ export class Engine {
         lineCenterZ + KEY_LIGHT[2] * SUN_DISTANCE,
       ],
       radius: SUN_RADIUS,
+      color: [1, 0.66, 0.3],
     };
     this.initialSunCenter = [...this.sun.center];
     this.sceneCenter = [0, 0, lineCenterZ];
@@ -292,7 +296,7 @@ export class Engine {
       onOrbit: (dx, dy) => this.onOrbit(dx, dy),
       onOrbitEnd: (cancelled) => this.onOrbitEnd(cancelled),
       onZoom: (f) => this.onZoom(f),
-      onPick: (x, y) => this.handlePick(x, y),
+      onPick: (x, y, doublePick) => this.handlePick(x, y, doublePick),
       onKeyStep: (dir) => this.jumpToPlanet(this.focusedIndex + dir),
       onKeyJump: (t) =>
         this.jumpToPlanet(t === 'start' ? this.models.length - 1 : 0),
@@ -910,7 +914,9 @@ export class Engine {
     this.commit();
   }
 
-  private handlePick(ndcX: number, ndcY: number): void {
+  private handlePick(ndcX: number, ndcY: number, doublePick = false): void {
+    const previousBody = this.lastPickedBody;
+    this.lastPickedBody = null;
     if (this.openPoi) return;
     const ray = this.bodyPointerRay(ndcX, ndcY);
 
@@ -940,9 +946,28 @@ export class Engine {
     if (!moon && hitIndex < 0 && sunT < 0) {
       moon = this.moons.pick(ray, Infinity, this.coarsePointer ? 2 : 1.5);
     }
+    const body =
+      sunT >= 0 && sunT < hitT
+        ? this.sun
+        : hitIndex >= 0
+          ? this.models[hitIndex]!
+          : null;
+    const pickBody = (): boolean => {
+      this.lastPickedBody = body;
+      if (!doublePick || !body || body !== previousBody) return false;
+      if (body === this.sun) regenerateSun(this.sun);
+      else {
+        regeneratePlanet(body as PlanetModel);
+        this.flightPathDirty = true;
+      }
+      this.lastPickedBody = null;
+      this.renderDirty = true;
+      return true;
+    };
     // Free camera allows moon taps, but never opens POIs or changes focus.
     if (this.settings.freeCamera) {
       if (moon) this.moons.launch(moon, ray.dir);
+      else pickBody();
       return;
     }
 
@@ -990,7 +1015,7 @@ export class Engine {
     }
 
     // A clicked POI marker (in front of the planet) wins over the planet body.
-    if (bestPoi >= 0 && bestT < moonT) {
+    if (bestPoi >= 0 && bestT < moonT && (sunT < 0 || bestT < sunT)) {
       const model = this.models[focused]!;
       const poi = model.poiDirs[bestPoi]!;
       this.scrubTarget = focused;
@@ -1002,7 +1027,8 @@ export class Engine {
       this.moons.launch(moon, ray.dir);
       return;
     }
-    if (hitIndex >= 0) this.jumpToPlanet(hitIndex);
+    if (pickBody()) return;
+    if (body && body !== this.sun && hitIndex >= 0) this.jumpToPlanet(hitIndex);
   }
 
   private bodyPointerRay(ndcX: number, ndcY: number) {

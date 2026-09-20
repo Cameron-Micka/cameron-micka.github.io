@@ -5,7 +5,7 @@ export interface InputHandlers {
   onOrbit(dx: number, dy: number): void;
   onOrbitEnd(cancelled: boolean): void;
   onZoom(factor: number): void;
-  onPick(ndcX: number, ndcY: number): void;
+  onPick(ndcX: number, ndcY: number, doublePick: boolean): void;
   onKeyStep(dir: number): void;
   onKeyJump(target: 'start' | 'end'): void;
   onUserInteract(): void;
@@ -16,6 +16,7 @@ export interface InputHandlers {
 }
 
 const DRAG_THRESHOLD = 6; // px before a press becomes an orbit drag
+const DOUBLE_PICK_DELAY = 350;
 const WHEEL_SCALE = 0.0016;
 const SCRUB_END_DELAY = 140;
 const TOUCH_MOVE_RANGE = 70; // px thumbstick displacement for full thrust
@@ -49,6 +50,12 @@ export class InputController {
   private lastX = 0;
   private lastY = 0;
   private scrubEndTimer = 0;
+  private lastPick: {
+    x: number;
+    y: number;
+    time: number;
+    source: string;
+  } | null = null;
 
   // Touch state.
   private touchMode: 'none' | 'orbit' | 'scrub' = 'none';
@@ -183,7 +190,23 @@ export class InputController {
     return [x, y];
   }
 
+  private pick(clientX: number, clientY: number, source: string): void {
+    const now = performance.now();
+    const previous = this.lastPick;
+    const doublePick =
+      previous !== null &&
+      previous.source === source &&
+      now - previous.time <= DOUBLE_PICK_DELAY &&
+      Math.hypot(clientX - previous.x, clientY - previous.y) <=
+        (source === 'touch' ? 24 : DRAG_THRESHOLD);
+    this.lastPick = doublePick
+      ? null
+      : { x: clientX, y: clientY, time: now, source };
+    this.h.onPick(...this.toNDC(clientX, clientY), doublePick);
+  }
+
   private onWheel = (e: WheelEvent): void => {
+    this.lastPick = null;
     if (this.freeMode) {
       // In free-fly mode the wheel has no scene meaning; let the page own it.
       return;
@@ -219,6 +242,7 @@ export class InputController {
     this.pointerDown = true;
     this.pointerId = e.pointerId;
     this.pointerButton = e.button;
+    if (e.button !== 0) this.lastPick = null;
     this.dragging = false;
     this.downX = this.lastX = e.clientX;
     this.downY = this.lastY = e.clientY;
@@ -251,6 +275,7 @@ export class InputController {
       this.dragging = true;
     }
     if (this.dragging) {
+      this.lastPick = null;
       if (this.bodyDrag) this.h.onBodyDrag(...this.toNDC(e.clientX, e.clientY));
       else if (this.freeMode) this.h.onLook(dx, dy);
       else if (this.orbitActive) this.h.onOrbit(dx, dy);
@@ -263,8 +288,7 @@ export class InputController {
     if (e.pointerId !== this.pointerId) return;
     // The engine limits free-mode picks to moons.
     if (this.pointerDown && !this.dragging && this.pointerButton === 0) {
-      const [x, y] = this.toNDC(e.clientX, e.clientY);
-      this.h.onPick(x, y);
+      this.pick(e.clientX, e.clientY, e.pointerType);
     }
     this.clearPointer(false);
   };
@@ -279,6 +303,7 @@ export class InputController {
   }
 
   private clearPointer(cancelled = true): void {
+    if (cancelled) this.lastPick = null;
     this.clearOrbit(cancelled);
     this.touchMode = 'none';
     const id = this.pointerId;
@@ -297,6 +322,10 @@ export class InputController {
 
   // ---- Touch (multi-touch scrub + pinch) ----
   private onTouchStart = (e: TouchEvent): void => {
+    if (e.touches.length > 1) {
+      this.lastPick = null;
+      this.freeTap = null;
+    }
     if (this.freeMode) {
       this.onFreeTouchStart(e);
       return;
@@ -344,7 +373,10 @@ export class InputController {
       ) {
         this.dragging = true;
       }
-      if (this.dragging && this.orbitActive) this.h.onOrbit(dx, dy);
+      if (this.dragging) {
+        this.lastPick = null;
+        if (this.orbitActive) this.h.onOrbit(dx, dy);
+      }
       this.lastX = t.clientX;
       this.lastY = t.clientY;
     } else if (this.touchMode === 'scrub' && e.touches.length === 2) {
@@ -361,6 +393,7 @@ export class InputController {
   };
 
   private onTouchEnd = (e: TouchEvent): void => {
+    if (e.type === 'touchcancel') this.lastPick = null;
     if (this.freeMode) {
       this.onFreeTouchEnd(e);
       return;
@@ -372,8 +405,7 @@ export class InputController {
     ) {
       const t = e.changedTouches[0];
       if (t) {
-        const [x, y] = this.toNDC(t.clientX, t.clientY);
-        this.h.onPick(x, y);
+        this.pick(t.clientX, t.clientY, 'touch');
       }
     }
     if (this.touchMode === 'scrub') this.scheduleScrubEnd();
@@ -406,7 +438,6 @@ export class InputController {
         this.freeLookId === null &&
         this.h.onBodyDragStart(...this.toNDC(t.clientX, t.clientY))
       ) {
-        this.freeTap = null;
         this.freeBodyId = t.identifier;
         this.freeBodyStartX = t.clientX;
         this.freeBodyStartY = t.clientY;
@@ -440,6 +471,7 @@ export class InputController {
           DRAG_THRESHOLD
       ) {
         this.freeTap = null;
+        this.lastPick = null;
       }
       if (t.identifier === this.freeBodyId) {
         if (
@@ -483,7 +515,7 @@ export class InputController {
           Math.hypot(t.clientX - this.freeTap.x, t.clientY - this.freeTap.y) <=
             DRAG_THRESHOLD
         ) {
-          this.h.onPick(...this.toNDC(t.clientX, t.clientY));
+          this.pick(t.clientX, t.clientY, 'touch');
         }
         this.freeTap = null;
       }

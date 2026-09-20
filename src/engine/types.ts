@@ -123,7 +123,7 @@ export interface FrameState {
   // The star lighting the scene. Positioned along keyLightDir so the visible
   // sun and the directional key light agree. Rendered with its own dedicated
   // shader (bright emissive surface + sunspots + corona), not the planet shader.
-  sun: { center: Vec3; radius: number };
+  sun: { center: Vec3; radius: number; color: Vec3 };
   planets: PlanetInstance[];
   moons: MoonInstance[];
   quality: QualitySettings;
