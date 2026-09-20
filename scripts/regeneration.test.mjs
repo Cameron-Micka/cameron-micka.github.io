@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 let server;
 let InputController;
 let Engine;
+let TinyEventEmitter;
 let scene;
 let company;
 
@@ -21,6 +22,9 @@ before(async () => {
     '/src/engine/InputController.ts',
   ));
   ({ Engine } = await server.ssrLoadModule('/src/engine/Engine.ts'));
+  ({ TinyEventEmitter } = await server.ssrLoadModule(
+    '/src/engine/TinyEventEmitter.ts',
+  ));
   scene = await server.ssrLoadModule('/src/engine/Scene.ts');
   const { companySchema } = await server.ssrLoadModule(
     '/src/content/schema.ts',
@@ -248,6 +252,10 @@ function engineProbe(freeCamera = false) {
   engine.openPoi = null;
   engine.focusedIndex = -1;
   engine.lastPickedBody = null;
+  engine.regenerationTimes = new Map();
+  engine.time = 0;
+  engine.paused = false;
+  engine.events = new TinyEventEmitter();
   engine.renderDirty = false;
   engine.flightPathDirty = false;
   engine.planetVisibility = () => 1;
@@ -256,6 +264,138 @@ function engineProbe(freeCamera = false) {
   engine.jumpToPlanet = () => {};
   return engine;
 }
+
+function regenerate(engine) {
+  engine.handlePick(0, 0);
+  engine.handlePick(0, 0, true);
+}
+
+test('regenerated bodies scale in, overshoot and settle without changing model sizes', () => {
+  const engine = engineProbe(true);
+  const model = engine.models[0];
+  const radius = model.radius;
+  regenerate(engine);
+  assert.ok(Math.abs(engine.bodyRadius(model) / radius - 0.15) < 1e-9);
+  engine.time = 0.15;
+  assert.ok(engine.bodyRadius(model) > radius * 0.8);
+  engine.time = 0.3;
+  assert.ok(engine.bodyRadius(model) > radius);
+  engine.time = 0.5;
+  assert.equal(engine.bodyRadius(model), radius);
+  assert.equal(engine.regenerationTimes.size, 0);
+  assert.equal(model.radius, radius);
+
+  model.center = [30, 0, 0];
+  regenerate(engine);
+  const sunRadius = engine.sun.radius;
+  assert.ok(Math.abs(engine.bodyRadius(engine.sun) / sunRadius - 0.15) < 1e-9);
+  engine.time = 1;
+  assert.equal(engine.bodyRadius(engine.sun), sunRadius);
+  assert.equal(engine.sun.radius, sunRadius);
+});
+
+test('repeat regeneration restarts the animation and bodies animate independently', () => {
+  const engine = engineProbe(true);
+  const model = engine.models[0];
+  regenerate(engine);
+  engine.time = 0.2;
+  regenerate(engine);
+  assert.equal(engine.regenerationTimes.get(model), 0.2);
+  model.center = [30, 0, 0];
+  engine.time = 0.3;
+  regenerate(engine);
+  assert.equal(engine.regenerationTimes.get(engine.sun), 0.3);
+  engine.time = 0.7;
+  assert.equal(engine.bodyRadius(model), model.radius);
+  assert.notEqual(engine.bodyRadius(engine.sun), engine.sun.radius);
+  engine.time = 0.81;
+  assert.equal(engine.bodyRadius(engine.sun), engine.sun.radius);
+});
+
+test('paused motion skips scale animation but still emits regeneration feedback', () => {
+  const engine = engineProbe(true);
+  const events = [];
+  engine.events.on('bodyRegenerated', (event) => events.push(event));
+  engine.paused = true;
+  regenerate(engine);
+  assert.equal(engine.bodyRadius(engine.models[0]), engine.models[0].radius);
+  assert.equal(engine.regenerationTimes.size, 0);
+  assert.deepEqual(events, [null]);
+  engine.paused = false;
+  regenerate(engine);
+  assert.ok(engine.bodyRadius(engine.models[0]) < engine.models[0].radius);
+  engine.paused = true;
+  assert.equal(engine.bodyRadius(engine.models[0]), engine.models[0].radius);
+  assert.equal(engine.regenerationTimes.size, 0);
+});
+
+test('only successful double picks emit regeneration feedback', () => {
+  for (const freeCamera of [false, true]) {
+    const engine = engineProbe(freeCamera);
+    let count = 0;
+    engine.events.on('bodyRegenerated', () => count++);
+    engine.handlePick(0, 0);
+    assert.equal(count, 0);
+    engine.handlePick(0, 0, true);
+    assert.equal(count, freeCamera ? 1 : 0);
+    engine.models[0].center = [30, 0, 0];
+    regenerate(engine);
+    assert.equal(count, freeCamera ? 2 : 0);
+    engine.openPoi = { company: 'test', poi: 'project' };
+    regenerate(engine);
+    assert.equal(count, freeCamera ? 2 : 0);
+  }
+});
+
+test('rendering, shadows and moon collisions share animated body radii', () => {
+  const engine = engineProbe(true);
+  const model = engine.models[0];
+  regenerate(engine);
+  engine.regenerationTimes.set(engine.sun, 0);
+  engine.scrubCurrent = 0;
+  engine.cloudTimes = [];
+  engine.orientations = [];
+  engine.sceneCenter = [0, 0, 0];
+  engine.camera = {
+    frustum: { intersectsSphere: () => true },
+  };
+  engine.activeQuality = { shadows: true };
+  let frame;
+  engine.renderer = { render: (value) => (frame = value) };
+  let collisionBodies;
+  engine.moons.update = (planets, _time, _dt, sun) => {
+    collisionBodies = { planets, sun };
+  };
+  engine.renderFrame(0);
+  assert.equal(frame.planets[0].radius, engine.bodyRadius(model));
+  assert.equal(frame.sun.radius, engine.bodyRadius(engine.sun));
+  assert.equal(frame.shadowCasters[0].radius, frame.planets[0].radius);
+  assert.equal(collisionBodies.planets[0].radius, frame.planets[0].radius);
+  assert.equal(collisionBodies.sun.radius, frame.sun.radius);
+  assert.equal(model.radius, scene.buildPlanetModels([company])[0].radius);
+  engine.time = 0.5;
+  engine.renderFrame(0);
+  assert.equal(frame.planets[0].radius, model.radius);
+  assert.equal(frame.sun.radius, engine.sun.radius);
+});
+
+test('picking and dragging miss the empty area around a scaling body', () => {
+  const engine = engineProbe(true);
+  const model = engine.models[0];
+  regenerate(engine);
+  engine.sun.center = [100, 0, -40];
+  const seed = model.seed;
+  engine.bodyPointerRay = () => ({
+    origin: [model.radius * 0.5, 0, 10],
+    dir: [0, 0, -1],
+  });
+  regenerate(engine);
+  assert.equal(model.seed, seed);
+  assert.equal(engine.startBodyDrag(0, 0), false);
+  engine.time = 0.5;
+  regenerate(engine);
+  assert.notEqual(model.seed, seed);
+});
 
 for (const freeCamera of [false, true]) {
   test(`picking ${freeCamera ? 'regenerates only the same nearest body' : 'never regenerates bodies'} in ${freeCamera ? 'free' : 'timeline'} mode`, () => {
