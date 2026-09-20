@@ -950,8 +950,6 @@ export class WebGPURenderer implements SceneRenderer {
     this.width = width;
     this.height = height;
     this.dpr = dpr;
-    if (this.canvas.width !== width) this.canvas.width = width;
-    if (this.canvas.height !== height) this.canvas.height = height;
     return true;
   }
 
@@ -1173,6 +1171,8 @@ export class WebGPURenderer implements SceneRenderer {
   }
 
   render(frame: FrameState): void {
+    if (this.canvas.width !== this.width) this.canvas.width = this.width;
+    if (this.canvas.height !== this.height) this.canvas.height = this.height;
     const d = this.device;
     this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
 

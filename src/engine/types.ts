@@ -169,6 +169,7 @@ export interface SceneRenderer {
     onProgress?: LoadProgressFn,
     signal?: AbortSignal,
   ): Promise<void>;
+  // Queue dimensions; only render() may resize and clear the backing buffer.
   resize(width: number, height: number, dpr: number): boolean;
   renderInitialFrame?(frame: FrameState): Promise<void>;
   render(frame: FrameState): void;

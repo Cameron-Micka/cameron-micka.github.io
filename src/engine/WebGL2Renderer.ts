@@ -2254,8 +2254,6 @@ export class WebGL2Renderer implements SceneRenderer {
     this.width = width;
     this.height = height;
     this.dpr = dpr;
-    if (this.canvas.width !== width) this.canvas.width = width;
-    if (this.canvas.height !== height) this.canvas.height = height;
     return true;
   }
 
@@ -2437,6 +2435,8 @@ export class WebGL2Renderer implements SceneRenderer {
   }
 
   render(frame: FrameState): void {
+    if (this.canvas.width !== this.width) this.canvas.width = this.width;
+    if (this.canvas.height !== this.height) this.canvas.height = this.height;
     const gl = this.gl;
     this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
     const sceneScale = Math.max(0.5, Math.min(1, frame.quality.sceneScale));

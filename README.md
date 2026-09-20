@@ -15,7 +15,7 @@ npm install
 npm run dev        # local dev server
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint, zero warnings
-npm test           # node --test: photo pipeline regression checks
+npm test           # node --test: photo pipeline and renderer resize checks
 npm run build      # static site -> dist/ (SSG)
 npm run preview    # preview the production build
 ```
@@ -139,6 +139,10 @@ known. At 1440x900 Low, WebGL2 startup uses 3 textures, 1 renderbuffer, and 3
 framebuffers (previously 5, 5, and 7); WebGPU uses 6 textures (previously 16).
 These counts include the atmosphere lookup texture. Identical resize
 notifications neither reset the canvas nor reallocate targets.
+Resize notifications queue the new output dimensions. The backing buffer is
+resized only inside the next drawing frame, so live window resizing cannot
+clear the last image between drawing and presentation. Both backends preserve
+the previous frame until its replacement is drawn.
 
 Paused motion renders on demand: once the camera settles, an unchanged scene
 does not rebuild instances or submit GPU work. Dragging, travel, resizing,
@@ -259,6 +263,8 @@ In addition to typecheck, lint, and the production build, exercise:
 
 - Desktop, 320px/390px portrait, and short landscape layouts; no horizontal
   overflow, obscured actions, or inaccessible settings controls.
+- Continuous window resizing with motion running, paused, and a story open;
+  no black frames during resizing, including when crossing layout breakpoints.
 - Wheel, keyboard, ribbon, and ruler navigation in both directions; form
   controls and dialog scrolling must not also move the timeline.
 - Interaction-hint dismissal through wheel, mouse/pen, touch, keyboard,

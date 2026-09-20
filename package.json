@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "photos:build": "node scripts/build-photos.mjs",
-    "test": "node --test scripts/build-photos.test.mjs",
+    "test": "node --test scripts/*.test.mjs",
     "format": "prettier --write ."
   },
   "dependencies": {
