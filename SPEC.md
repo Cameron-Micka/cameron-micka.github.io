@@ -457,7 +457,7 @@ Independent of tier, the planet shader skips its entire polar ice-cap block (8 f
 
 ### 7.8b Geometry LOD
 
-Every spherical body (planet, moon, sun, and the atmosphere / cloud / aurora shells) shares a small ladder of pre-built UV-sphere meshes defined in `geometry.ts` (`SPHERE_LODS` and its `SPHERE_LODS_WEBGL2` alias). Both backends use identical tessellation. Each frame, `selectSphereLod()` picks a level from the body's **angular size** (world radius / distance to camera): close-up bodies keep the original full tessellation, distant ones drop to progressively coarser meshes. A planet's shells reuse the planet's LOD so their silhouettes stay aligned with the surface. Meshes are built once at init and simply rebound at draw time, so the LOD system costs no per-frame allocation.
+Planets, moons, and the atmosphere / cloud / aurora shells share a small ladder of pre-built **icosphere (geosphere)** meshes defined in `geometry.ts` (`SPHERE_LODS` and its `SPHERE_LODS_WEBGL2` alias). The sun uses the same meshes in wireframe mode; its shaded body remains an analytic sphere. Both backends use identical tessellation: subdividing an icosahedron 4, 3, 2, or 1 times gives 5,120, 1,280, 320, or 80 triangles, with shared edge vertices projected onto the unit sphere. Each frame, `selectSphereLod()` picks a level from the body's **angular size** (world radius / distance to camera): close-up bodies use full tessellation, distant ones drop to progressively coarser meshes. A planet's shells reuse the planet's LOD so their silhouettes stay aligned with the surface. Meshes are built once at init and simply rebound at draw time, so the LOD system costs no per-frame allocation.
 
 ### 7.9 Frame loop
 

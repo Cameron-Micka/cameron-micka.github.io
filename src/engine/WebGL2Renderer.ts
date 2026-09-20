@@ -1,5 +1,5 @@
 import type { FrameState, LoadProgressFn, PlanetInstance, RenderStats, SceneRenderer } from './types';
-import { createSphere, createRingGeometry, interleave, trianglesToLineIndices, selectSphereLod, SPHERE_LODS_WEBGL2 } from './geometry';
+import { createIcosphere, createRingGeometry, interleave, trianglesToLineIndices, selectSphereLod, SPHERE_LODS_WEBGL2 } from './geometry';
 import { mat4 } from './math/mat4';
 import { quat, type Quat } from './math/quat';
 import { vec3 } from './math/vec3';
@@ -442,7 +442,7 @@ void main(){
     shadeN=normalize(n-gradWorld);
   }
   // Cook-Torrance PBR direct lighting from key sun. Water = smooth dielectric
-  // (roughness floor 0.35 to keep GGX highlight FWHM wider than a UV-sphere
+  // (roughness floor 0.35 to keep GGX highlight FWHM wider than a sphere
   // triangle face, see planet.wgsl for the FWHM derivation); land = rough.
   vec3 albedo=base;
   float metallic=0.0;
@@ -2010,8 +2010,8 @@ export class WebGL2Renderer implements SceneRenderer {
   private buildSphere(): void {
     const gl = this.gl;
     this.sphereLods = [];
-    for (const [latBands, lonBands] of SPHERE_LODS_WEBGL2) {
-      const geo = createSphere(latBands, lonBands);
+    for (const subdivisions of SPHERE_LODS_WEBGL2) {
+      const geo = createIcosphere(subdivisions);
       const data = interleave(geo);
       const vao = gl.createVertexArray()!;
       gl.bindVertexArray(vao);

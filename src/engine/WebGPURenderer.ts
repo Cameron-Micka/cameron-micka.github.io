@@ -7,7 +7,7 @@ import type {
 } from './types';
 import { WebGPUCanvasError } from './types';
 import {
-  createSphere,
+  createIcosphere,
   createRingGeometry,
   interleave,
   trianglesToLineIndices,
@@ -290,8 +290,8 @@ export class WebGPURenderer implements SceneRenderer {
     // distant planets simply bind a coarser level at draw time.
     this.sphereLods = [];
     this.sphereLineLods = [];
-    for (const [latBands, lonBands] of SPHERE_LODS) {
-      const geo = createSphere(latBands, lonBands);
+    for (const subdivisions of SPHERE_LODS) {
+      const geo = createIcosphere(subdivisions);
       const data = interleave(geo);
       const vb = d.createBuffer({
         size: data.byteLength,

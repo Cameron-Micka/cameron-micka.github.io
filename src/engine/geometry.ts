@@ -7,39 +7,70 @@ export interface GeometryData {
   indexCount: number;
 }
 
-// UV sphere. Normals equal positions (unit sphere), used as the base mesh for
-// every procedural planet; the shader displaces/colors it from noise.
-export function createSphere(
-  latBands = 48,
-  lonBands = 64,
-): GeometryData {
+// Subdivide an icosahedron and project each midpoint onto the unit sphere.
+// Shared edge vertices keep the mesh watertight, including in wireframe.
+export function createIcosphere(subdivisions = 4): GeometryData {
+  if (!Number.isInteger(subdivisions) || subdivisions < 0 || subdivisions > 7) {
+    throw new RangeError('Icosphere subdivisions must be an integer from 0 to 7');
+  }
   const positions: number[] = [];
-  const normals: number[] = [];
   const uvs: number[] = [];
-  const indices: number[] = [];
+  const addVertex = (x: number, y: number, z: number): number => {
+    const length = Math.hypot(x, y, z);
+    const index = positions.length / 3;
+    positions.push(x / length, y / length, z / length);
+    return index;
+  };
+  const t = (1 + Math.sqrt(5)) / 2;
+  for (const [x, y, z] of [
+    [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
+    [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t],
+    [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],
+  ]) {
+    addVertex(x!, y!, z!);
+  }
+  // Clockwise when viewed from outside, matching both renderers' culling.
+  let indices = [
+    0, 5, 11, 0, 1, 5, 0, 7, 1, 0, 10, 7, 0, 11, 10,
+    1, 9, 5, 5, 4, 11, 11, 2, 10, 10, 6, 7, 7, 8, 1,
+    3, 4, 9, 3, 2, 4, 3, 6, 2, 3, 8, 6, 3, 9, 8,
+    4, 5, 9, 2, 11, 4, 6, 10, 2, 8, 7, 6, 9, 1, 8,
+  ];
 
-  for (let lat = 0; lat <= latBands; lat++) {
-    const theta = (lat * Math.PI) / latBands;
-    const sinT = Math.sin(theta);
-    const cosT = Math.cos(theta);
-    for (let lon = 0; lon <= lonBands; lon++) {
-      const phi = (lon * 2 * Math.PI) / lonBands;
-      const x = Math.cos(phi) * sinT;
-      const y = cosT;
-      const z = Math.sin(phi) * sinT;
-      positions.push(x, y, z);
-      normals.push(x, y, z);
-      uvs.push(lon / lonBands, lat / latBands);
+  for (let level = 0; level < subdivisions; level++) {
+    const vertexCount = positions.length / 3;
+    const midpoints = new Map<number, number>();
+    const midpoint = (a: number, b: number): number => {
+      const key = Math.min(a, b) * vertexCount + Math.max(a, b);
+      const cached = midpoints.get(key);
+      if (cached !== undefined) return cached;
+      const index = addVertex(
+        positions[a * 3]! + positions[b * 3]!,
+        positions[a * 3 + 1]! + positions[b * 3 + 1]!,
+        positions[a * 3 + 2]! + positions[b * 3 + 2]!,
+      );
+      midpoints.set(key, index);
+      return index;
+    };
+    const refined: number[] = [];
+    for (let i = 0; i < indices.length; i += 3) {
+      const a = indices[i]!;
+      const b = indices[i + 1]!;
+      const c = indices[i + 2]!;
+      const ab = midpoint(a, b);
+      const bc = midpoint(b, c);
+      const ca = midpoint(c, a);
+      refined.push(a, ab, ca, b, bc, ab, c, ca, bc, ab, bc, ca);
     }
+    indices = refined;
   }
 
-  const stride = lonBands + 1;
-  for (let lat = 0; lat < latBands; lat++) {
-    for (let lon = 0; lon < lonBands; lon++) {
-      const a = lat * stride + lon;
-      const b = a + stride;
-      indices.push(a, b, a + 1, a + 1, b, b + 1);
-    }
+  // Preserve the vertex layout; procedural sphere shaders use positions, not UVs.
+  for (let i = 0; i < positions.length; i += 3) {
+    uvs.push(
+      Math.atan2(positions[i + 2]!, positions[i]!) / (2 * Math.PI) + 0.5,
+      Math.acos(Math.max(-1, Math.min(1, positions[i + 1]!))) / Math.PI,
+    );
   }
 
   const vertexCount = positions.length / 3;
@@ -48,7 +79,7 @@ export function createSphere(
 
   return {
     positions: new Float32Array(positions),
-    normals: new Float32Array(normals),
+    normals: new Float32Array(positions),
     uvs: new Float32Array(uvs),
     indices: indexArray,
     vertexCount,
@@ -60,18 +91,12 @@ export function createSphere(
 // Index 0 is the full-detail mesh used for bodies that fill a large part of
 // the screen (the focused planet, the sun); the coarser levels are swapped in
 // as a body shrinks with distance, where the extra vertices are invisible.
-export type SphereLod = readonly [latBands: number, lonBands: number];
-
-export const SPHERE_LODS: readonly SphereLod[] = [
-  [48, 64],
-  [32, 40],
-  [20, 26],
-  [12, 16],
-];
+// Subdivision counts: 5,120 / 1,280 / 320 / 80 triangles.
+export const SPHERE_LODS: readonly number[] = [4, 3, 2, 1];
 
 // Matching tessellation keeps silhouettes and interpolated surface detail
 // consistent when switching renderers.
-export const SPHERE_LODS_WEBGL2: readonly SphereLod[] = SPHERE_LODS;
+export const SPHERE_LODS_WEBGL2: readonly number[] = SPHERE_LODS;
 
 // Angular-size (radius / distance) thresholds, one per LOD boundary. A body
 // whose apparent size is at least ANGULAR[i] uses LOD i. Distance-based rather
@@ -176,5 +201,4 @@ export function trianglesToLineIndices(
   }
   return vertexCount > 65535 ? new Uint32Array(out) : new Uint16Array(out);
 }
-
 
