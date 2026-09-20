@@ -1027,7 +1027,6 @@ export class Engine {
       this.moons.launch(moon, ray.dir);
       return;
     }
-    if (pickBody()) return;
     if (body && body !== this.sun && hitIndex >= 0) this.jumpToPlanet(hitIndex);
   }
 

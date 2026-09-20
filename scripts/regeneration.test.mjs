@@ -258,7 +258,7 @@ function engineProbe(freeCamera = false) {
 }
 
 for (const freeCamera of [false, true]) {
-  test(`picking regenerates only the same nearest body in ${freeCamera ? 'free' : 'timeline'} mode`, () => {
+  test(`picking ${freeCamera ? 'regenerates only the same nearest body' : 'never regenerates bodies'} in ${freeCamera ? 'free' : 'timeline'} mode`, () => {
     const engine = engineProbe(freeCamera);
     const model = engine.models[0];
     const seed = model.seed;
@@ -266,10 +266,10 @@ for (const freeCamera of [false, true]) {
     engine.handlePick(0, 0);
     assert.equal(model.seed, seed);
     engine.handlePick(0, 0, true);
-    assert.notEqual(model.seed, seed);
+    assert.equal(model.seed !== seed, freeCamera);
     assert.deepEqual(engine.sun, sunBefore);
-    assert.equal(engine.renderDirty, true);
-    assert.equal(engine.flightPathDirty, true);
+    assert.equal(engine.renderDirty, freeCamera);
+    assert.equal(engine.flightPathDirty, freeCamera);
 
     engine.handlePick(0, 0);
     model.center = [20, 0, 0];
@@ -281,14 +281,19 @@ for (const freeCamera of [false, true]) {
     );
     engine.handlePick(0, 0);
     engine.handlePick(0, 0, true);
-    assert.notDeepEqual(engine.sun.color, sunBefore.color);
-    assert.notEqual(engine.sun.radius, sunBefore.radius);
+    if (freeCamera) {
+      assert.notDeepEqual(engine.sun.color, sunBefore.color);
+      assert.notEqual(engine.sun.radius, sunBefore.radius);
+    } else {
+      assert.deepEqual(engine.sun, sunBefore);
+      assert.equal(engine.lastPickedBody, null);
+    }
   });
 }
 
 test('hidden planets, moons, empty space and modals do not regenerate planets', () => {
   for (const blocker of ['hidden', 'moon', 'empty', 'modal']) {
-    const engine = engineProbe();
+    const engine = engineProbe(true);
     const before = structuredClone(engine.models);
     if (blocker === 'hidden') engine.planetVisibility = () => 0;
     if (blocker === 'moon') {
@@ -322,7 +327,24 @@ test('foreground POIs retain single-click priority over regeneration', () => {
   assert.deepEqual(opened[0], ['test', 'project']);
 });
 
-test('a foreground sun blocks planet and POI picks', () => {
+test('timeline double picks still focus planets and launch moons', () => {
+  const engine = engineProbe();
+  const focused = [];
+  engine.jumpToPlanet = (index) => focused.push(index);
+  engine.handlePick(0, 0);
+  engine.handlePick(0, 0, true);
+  assert.deepEqual(focused, [0, 0]);
+  const moon = { center: [0, 0, 5], radius: 0.2 };
+  const launched = [];
+  engine.moons.pick = () => moon;
+  engine.moons.launch = (body) => launched.push(body);
+  engine.handlePick(0, 0);
+  engine.handlePick(0, 0, true);
+  assert.deepEqual(launched, [moon, moon]);
+  assert.deepEqual(focused, [0, 0]);
+});
+
+test('a foreground sun blocks planet and POI picks without regenerating in timeline mode', () => {
   const engine = engineProbe();
   const model = engine.models[0];
   const seed = model.seed;
@@ -337,11 +359,11 @@ test('a foreground sun blocks planet and POI picks', () => {
   engine.handlePick(0, 0);
   engine.handlePick(0, 0, true);
   assert.equal(model.seed, seed);
-  assert.notEqual(engine.sun.radius, 2);
+  assert.equal(engine.sun.radius, 2);
 });
 
 test('regeneration picks use the CRT-adjusted ray and visible planet radius', () => {
-  const engine = engineProbe();
+  const engine = engineProbe(true);
   delete engine.bodyPointerRay;
   engine.camera = {
     invViewProj: new Float32Array([
