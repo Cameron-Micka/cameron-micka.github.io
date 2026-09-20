@@ -258,7 +258,7 @@ export class Engine {
         lineCenterZ + KEY_LIGHT[2] * SUN_DISTANCE,
       ],
       radius: SUN_RADIUS,
-      color: [1, 0.66, 0.3],
+      color: [1, 1, 1],
     };
     this.initialSunCenter = [...this.sun.center];
     this.sceneCenter = [0, 0, lineCenterZ];
