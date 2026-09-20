@@ -5,11 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
 let server;
+let Engine;
 let WebGPURenderer;
 let WebGL2Renderer;
 let quality;
 const shaders = new URL('../src/engine/shaders/', import.meta.url);
-const colors = [[1, 0.66, 0.30], [0.36, 0.64, 1]];
+const colors = [[1, 1, 1], [1, 0.66, 0.30], [0.36, 0.64, 1]];
 const identity = new Float32Array([
   1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
 ]);
@@ -22,6 +23,7 @@ before(async () => {
     optimizeDeps: { noDiscovery: true, include: [] },
     logLevel: 'error',
   });
+  ({ Engine } = await server.ssrLoadModule('/src/engine/Engine.ts'));
   ({ WebGPURenderer } = await server.ssrLoadModule('/src/engine/WebGPURenderer.ts'));
   ({ WebGL2Renderer } = await server.ssrLoadModule('/src/engine/WebGL2Renderer.ts'));
   const { QUALITY_PRESETS } = await server.ssrLoadModule('/src/engine/QualityManager.ts');
@@ -30,6 +32,11 @@ before(async () => {
 
 after(async () => {
   await server?.close();
+});
+
+test('the initial sun is white to preserve the original neutral lighting', () => {
+  const engine = new Engine({}, []);
+  assert.deepEqual(engine.sun.color, [1, 1, 1]);
 });
 
 function frame() {
