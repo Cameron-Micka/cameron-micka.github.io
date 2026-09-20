@@ -1273,7 +1273,7 @@ export class WebGPURenderer implements SceneRenderer {
       1234, // seed for surface noise variation
       frame.time,
       9, // kind: sun
-      [1, 1, 1],
+      frame.sun.color,
       [1, 1, 1],
       [1, 1, 1],
       this.sceneWidth, // p1.xy: sun billboard padding in render-target pixels

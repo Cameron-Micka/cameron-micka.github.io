@@ -1,7 +1,7 @@
 import type { Company } from '@/content/schema';
 import { hexToRgb, tenureYears } from '@/content/schema';
 import { hashString, fibonacciSpherePoints, mulberry32 } from './math/rng';
-import type { PlanetInstance } from './types';
+import type { FrameState, PlanetInstance } from './types';
 import { vec3, type Vec3 } from './math/vec3';
 import type { Quat } from './math/quat';
 
@@ -14,6 +14,7 @@ export interface PlanetModel {
   center: Vec3;
   radius: number;
   seed: number;
+  features: Company['features'];
   paletteLow: Vec3;
   paletteMid: Vec3;
   paletteHigh: Vec3;
@@ -161,6 +162,7 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       center: [0, 0, index * PLANET_SPACING],
       radius,
       seed,
+      features: company.features,
       paletteLow: hexToRgb(company.palette.low),
       paletteMid: hexToRgb(company.palette.mid),
       paletteHigh: hexToRgb(company.palette.high),
@@ -169,6 +171,51 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
       satelliteSpecs,
     };
   });
+}
+
+export function regeneratePlanet(
+  model: PlanetModel,
+  rand: () => number = Math.random,
+): void {
+  // Keep career data, tenure-based size, POIs and orbits intact.
+  model.seed = (model.seed + 1 + Math.floor(rand() * 99999)) % 100000;
+  const hue = rand();
+  model.paletteLow = hsvToRgb(hue, 0.65 + rand() * 0.3, 0.08);
+  model.paletteMid = hsvToRgb((hue + 0.08) % 1, 0.45 + rand() * 0.4, 0.4);
+  model.paletteHigh = hsvToRgb((hue + 0.16) % 1, 0.15 + rand() * 0.3, 0.85);
+  const rings = rand() < 0.6;
+  model.features = {
+    ...model.features,
+    rings,
+    ringTilt: (rand() - 0.5) * Math.PI,
+    thinRing: rand() < 0.5,
+    secondRing: rings && rand() < 0.3,
+    secondRingTilt: 0.5 + rand() * 1.5,
+    oceans: rand() < 0.5,
+    clouds: rand() < 0.6,
+    cityLights: rand() < 0.4,
+    flowMap: rand() < 0.4,
+    aurora: rand() < 0.5,
+  };
+}
+
+const SUN_COLORS: Vec3[] = [
+  [1, 0.66, 0.3],
+  [1, 0.25, 0.12],
+  [0.35, 0.65, 1],
+  [0.75, 0.35, 1],
+  [0.4, 1, 0.65],
+];
+
+export function regenerateSun(
+  sun: FrameState['sun'],
+  rand: () => number = Math.random,
+): void {
+  const colors = SUN_COLORS.filter(
+    (color) => color.some((value, i) => value !== sun.color[i]),
+  );
+  sun.color = [...colors[Math.floor(rand() * colors.length)]!];
+  sun.radius = sun.radius >= 20 ? 12 + rand() * 6 : 22 + rand() * 6;
 }
 
 // Distance from a planet's center at which its POI markers float. Keeps the
@@ -395,7 +442,7 @@ export function instanceFromModel(
   focus: number,
   visibility: number,
 ): PlanetInstance {
-  const f = model.company.features;
+  const f = model.features;
   return {
     slug: model.company.slug,
     center: model.center,
