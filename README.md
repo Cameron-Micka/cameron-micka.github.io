@@ -17,7 +17,7 @@ npm install
 npm run dev        # local dev server
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint, zero warnings
-npm test           # node --test: photo pipeline and renderer resize checks
+npm test           # node --test: photos, renderer resizing, and orbit momentum
 npm run build      # static site -> dist/ (SSG)
 npm run preview    # preview the production build
 ```
@@ -85,6 +85,10 @@ toward older work; scroll up or press **Up** to return toward the present.
 earliest chapter.
 These shortcuts do not intercept links, form controls, editable content, or
 dialogs. On touch screens, use the ribbon arrows or a two-finger drag to travel.
+
+Drag a planet to rotate it; faster swipes carry more momentum and coast farther
+after release. Grab again or hold still before releasing to stop the spin.
+Reduced motion keeps direct rotation available without the coast.
 
 The scroll/drag/tap hint disappears after the first scene interaction, chapter
 button activation, or story opening. It stays dismissed across client-side
