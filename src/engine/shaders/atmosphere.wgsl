@@ -9,6 +9,7 @@ struct Frame {
   misc : vec4<f32>,
   shadowSpheres : array<vec4<f32>, 8>,
   shadowMisc : vec4<f32>,
+  sunColor : vec4<f32>,
 };
 
 struct Obj {
@@ -171,7 +172,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   }
   let focus = obj.p1.x;
   let intensity = obj.p1.y * (0.85 + 0.3 * focus);
-  col = col * (5.0 * intensity);
+  col = col * frame.sunColor.rgb * (5.0 * intensity);
 
   // Distance fog (matches planet + ring): additive shell, so just attenuate
   // the contribution rather than mixing toward a colour.
