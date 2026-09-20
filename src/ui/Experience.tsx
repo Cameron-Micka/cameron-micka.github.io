@@ -12,7 +12,7 @@ import { PoiModal } from './PoiModal';
 import { SettingsPanel } from './SettingsPanel';
 import { DebugHud } from './DebugHud';
 import { PortfolioFallback, ResumeContent } from './ResumeContent';
-import { HINTS, INTRO, SITE, UI } from './strings';
+import { HINTS, INTRO, UI } from './strings';
 
 function SoundBridge() {
   const engine = useEngine();
@@ -205,6 +205,7 @@ function SceneIntro({ companies }: { companies: Company[] }) {
   const engine = useEngine();
   const focusedIndex = useEngineValue((s) => s.focusedIndex);
   const hidden = useEngineValue((s) => s.freeCamera || s.openPoi !== null);
+  const hintDismissed = useEngineValue((s) => s.sceneHintDismissed);
   const company = companies[focusedIndex];
   const firstPoi = company?.pois[0];
 
@@ -214,7 +215,6 @@ function SceneIntro({ companies }: { companies: Company[] }) {
       hidden={hidden}
       aria-labelledby="intro-title"
     >
-      <p className="eyebrow">{SITE.role}</p>
       <h1 id="intro-title">{INTRO.title}</h1>
       <p className="intro-body">{INTRO.body}</p>
       <div className="intro-actions">
@@ -231,11 +231,12 @@ function SceneIntro({ companies }: { companies: Company[] }) {
           {INTRO.explore} <ArrowRight size={16} aria-hidden="true" />
         </button>
       </div>
-      <p className="intro-note">{INTRO.note}</p>
-      <p className="scene-hint">
-        <span className="hint-desktop">{HINTS.scrubDesktop}</span>
-        <span className="hint-touch">{HINTS.scrubTouch}</span>
-      </p>
+      {!hintDismissed && (
+        <p className="scene-hint">
+          <span className="hint-desktop">{HINTS.scrubDesktop}</span>
+          <span className="hint-touch">{HINTS.scrubTouch}</span>
+        </p>
+      )}
     </section>
   );
 }

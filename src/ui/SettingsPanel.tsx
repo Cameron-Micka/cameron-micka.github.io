@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import type { QualityPreference } from '@/engine/QualityManager';
-import type { ReducedMotionPref, BackendPref } from '@/settings';
+import type { BackendPref } from '@/settings';
 import { UI } from './strings';
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
@@ -71,21 +71,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <option value="high">High</option>
             <option value="med">Medium</option>
             <option value="low">Low</option>
-          </select>
-        </div>
-
-        <div className="row">
-          <label htmlFor="set-motion">Motion</label>
-          <select
-            id="set-motion"
-            value={s.reducedMotion}
-            onChange={(e) =>
-              engine.setReducedMotion(e.target.value as ReducedMotionPref)
-            }
-          >
-            <option value="auto">System</option>
-            <option value="off">Full motion</option>
-            <option value="on">Paused</option>
           </select>
         </div>
 

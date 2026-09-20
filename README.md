@@ -67,6 +67,10 @@ go to the current role, and **End / Page Down** go to the earliest chapter.
 These shortcuts do not intercept links, form controls, editable content, or
 dialogs. On touch screens, use the ribbon arrows or a two-finger drag to travel.
 
+The scroll/drag/tap hint disappears after the first scene interaction, chapter
+button activation, or story opening. It stays dismissed across client-side
+navigation until the page is reloaded.
+
 The About page provides a conventional, newest-first career summary and direct
 links to every story. Sound effects are opt-in in Settings and never start
 before a user gesture.
@@ -111,9 +115,9 @@ platform. WebGL runs without a compatibility notice.
 On both backends, Auto quality starts at `low` and ramps up one tier at a time
 (`low` -> `med` -> `high`) after 3+ seconds of stable frames at or below 18 ms.
 It steps down when average frame time reaches 20 ms over a 1.5-second window,
-and does not retry an unsustainable tier until Auto restarts. Coarse-pointer
-devices stay on Low under Auto. Explicit quality choices are never overridden;
-preferences persist in `localStorage`.
+and does not retry an unsustainable tier until Auto restarts. Desktop and
+mobile/coarse-pointer devices use the same performance-based ramp. Explicit
+quality choices are never overridden; preferences persist in `localStorage`.
 The initial output size uses the chosen tier immediately, rather than allocating
 a High-DPR canvas and resizing it down at startup.
 
@@ -121,8 +125,9 @@ Paused motion renders on demand: once the camera settles, an unchanged scene
 does not rebuild instances or submit GPU work. Dragging, travel, resizing,
 quality changes, and other visual settings still invalidate the frame. The
 Auto ramp samples animated frames only, so idle time cannot promote quality.
-A visible pause/resume control is available beside the camera control, and
-System motion responds to OS preference changes without a reload.
+Motion is controlled with the pause/resume button beside the camera control,
+not in Settings. By default, motion follows OS reduced-motion preferences and
+responds to changes without a reload.
 
 | Tier | DPR cap | Stars | Scene resolution | MSAA | Sky resolution |
 | ---- | ------- | ----- | ---------------- | ---- | -------------- |
@@ -234,10 +239,16 @@ In addition to typecheck, lint, and the production build, exercise:
   overflow, obscured actions, or inaccessible settings controls.
 - Wheel, keyboard, ribbon, and ruler navigation in both directions; form
   controls and dialog scrolling must not also move the timeline.
+- Interaction-hint dismissal through wheel, mouse/pen, touch, keyboard,
+  chapter buttons, and story opening; it stays hidden after closing a dialog
+  or returning from another route, and reappears on a fresh page load.
 - Direct story links, project switching, expansion, Esc, Tab wrapping, and
   return focus in both viewers.
 - Live system-motion changes, paused interaction, quality switches, and both
   rendering backends. A settled paused scene should submit **zero GPU draws**.
+- Auto quality can reach Medium/High on both fine- and coarse-pointer devices
+  when frame times permit; manual tiers stay selected, and switching back to
+  Auto restarts the ramp at Low.
 - Navigation away while shaders initialize; renderer failure and JavaScript
   disabled; prerendered metadata and printing.
 

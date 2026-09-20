@@ -301,9 +301,6 @@ main:focus {
   pointer-events: none;
   background: radial-gradient(ellipse at 20% 30%, #15120fd9, #15120f00 75%);
 }
-.scene-intro .eyebrow {
-  margin: 0 0 12px;
-}
 .scene-intro h1 {
   max-width: 13ch;
   margin: 0;
@@ -324,12 +321,6 @@ main:focus {
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
-}
-.intro-note {
-  max-width: 38ch;
-  margin: 18px 0 0;
-  color: var(--muted);
-  font: 12px/1.6 var(--font-display);
 }
 .scene-hint {
   position: fixed;
@@ -667,7 +658,7 @@ main:focus {
   align-items: center;
   padding: 8px 4px;
   border: 1px solid var(--panel-edge);
-  border-radius: calc(var(--radius) - 4px);
+  border-radius: 999px;
   background:
     var(--panel-wear) 58px 24px / 384px 384px,
     var(--panel-grain),
@@ -1311,16 +1302,31 @@ main:focus {
 .project-jump label {
   flex-shrink: 0;
 }
+.project-jump-control {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
 .project-jump select {
+  appearance: none;
+  -webkit-appearance: none;
   width: 100%;
   min-width: 0;
   min-height: 44px;
-  padding: 10px 12px;
+  padding: 10px 40px 10px 12px;
   border: 1px solid var(--screen-edge);
   border-radius: var(--radius-control);
   background: var(--screen);
   color: var(--phosphor);
   font: 13px var(--font-display);
+}
+.project-jump-caret {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: var(--phosphor);
+  pointer-events: none;
 }
 .modal.poi-modal .story-meta {
   color: var(--muted);
@@ -2386,15 +2392,10 @@ main:focus {
     max-width: 20ch;
     font-size: 26px;
   }
-  .scene-intro .eyebrow {
-    margin-bottom: 8px;
-    font-size: 9px;
-  }
   .intro-actions {
     margin-top: 16px;
   }
-  .intro-body,
-  .intro-note {
+  .intro-body {
     display: none;
   }
   .scene-hint {
@@ -2606,7 +2607,6 @@ main:focus {
 }
 
 @media (max-width: 720px) and (max-height: 640px) and (orientation: portrait) {
-  .scene-intro .eyebrow,
   .intro-actions,
   .scene-hint {
     display: none;
@@ -2625,7 +2625,6 @@ main:focus {
     font-size: 24px;
   }
   .intro-body,
-  .intro-note,
   .scene-hint {
     display: none;
   }

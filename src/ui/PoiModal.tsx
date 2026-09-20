@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ChevronDown,
   ExternalLink,
   LoaderCircle,
   Maximize2,
@@ -285,30 +286,37 @@ export function PoiModal({ companies }: { companies: Company[] }) {
           </div>
           <div className="project-jump">
             <label htmlFor="project-jump">{UI.projectJump}</label>
-            <select
-              id="project-jump"
-              value={openKey}
-              onChange={(event) => {
-                const entry = entries.find(
-                  (item) => item.key === event.target.value,
-                );
-                if (entry)
-                  engine.openPoiRef(entry.company.slug, entry.poi.slug);
-              }}
-            >
-              {[...companies].reverse().map((company) => (
-                <optgroup key={company.slug} label={company.name}>
-                  {company.pois.map((poi) => (
-                    <option
-                      key={poi.slug}
-                      value={`${company.slug}/${poi.slug}`}
-                    >
-                      {poi.title}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+            <div className="project-jump-control">
+              <select
+                id="project-jump"
+                value={openKey}
+                onChange={(event) => {
+                  const entry = entries.find(
+                    (item) => item.key === event.target.value,
+                  );
+                  if (entry)
+                    engine.openPoiRef(entry.company.slug, entry.poi.slug);
+                }}
+              >
+                {[...companies].reverse().map((company) => (
+                  <optgroup key={company.slug} label={company.name}>
+                    {company.pois.map((poi) => (
+                      <option
+                        key={poi.slug}
+                        value={`${company.slug}/${poi.slug}`}
+                      >
+                        {poi.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <ChevronDown
+                className="project-jump-caret"
+                size={16}
+                aria-hidden="true"
+              />
+            </div>
           </div>
         </div>
 

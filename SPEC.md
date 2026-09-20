@@ -130,7 +130,7 @@ POIs are positioned on each planet's sphere using **Poisson-disk sampling on the
 
 ### 3.5 Planet rotation
 
-- **Ambient rotation:** Slow auto-rotation around each planet's local Y axis (~1 rev / 90 seconds). Frozen while motion is paused (`prefers-reduced-motion: reduce` or the Paused motion setting).
+- **Ambient rotation:** Slow auto-rotation around each planet's local Y axis (~1 rev / 90 seconds). Frozen while motion is paused (`prefers-reduced-motion: reduce` or the pause/resume button).
 - **Manual orbit:** Click-and-drag (desktop) or one-finger-drag (mobile) on the focused planet rotates it. Manual interaction temporarily suspends ambient rotation; it resumes after a few seconds of idle.
 
 ### 3.6 Lighting
@@ -194,7 +194,7 @@ On the **first** mount of the landing route:
 - Camera starts far back in the void (deep `−Z`, beyond the oldest planet's depth).
 - Dolly forward over ~2 seconds (cubic ease-out) and settle at "Now" (Microsoft).
 - **Skippable** via any user input (click, key, scroll, touch). Skip immediately cuts to the rest state.
-- **Paused motion** (`prefers-reduced-motion: reduce` or the Paused motion setting) skips the cinematic entirely.
+- **Paused motion** (`prefers-reduced-motion: reduce` or the pause/resume button) skips the cinematic entirely.
 
 ---
 
@@ -220,10 +220,11 @@ On the **first** mount of the landing route:
 
 - **Canvas:** Fullscreen, `position: fixed`, `inset: 0`, `z-index: 0`. All other UI sits on top (`z-index ≥ 1`).
 - **Top nav:** Warm hardware-style bar, visible on all routes.
-- **Introduction:** Role, brief value proposition, and an explicit work action. Compact layouts prioritize the canvas and use the lower readout as the work action.
-- **Side ruler:** Right edge, newest-to-oldest chapter buttons. Hidden on narrow screens, where the ribbon supplies navigation.
+- **Introduction:** Brief value proposition and an explicit work action. Compact layouts prioritize the canvas and use the lower readout as the work action.
+- **Interaction hint:** Dismissed after wheel, pointer, touch, or keyboard scene input, chapter navigation, or story opening. Stays dismissed across client-side navigation until a full page reload.
+- **Side ruler:** Right edge, newest-to-oldest chapter buttons in a capsule-shaped housing with semicircular top and bottom ends. Hidden on narrow screens, where the ribbon supplies navigation.
 - **Bottom ribbon:** Shows the current chapter, role, dates, and an explicit story-count action. Chevrons step to neighbors.
-- **Motion:** A pause/resume control remains available beside the free-camera button.
+- **Motion:** Controlled by the pause/resume button beside the free-camera button, not in Settings. Follows the OS reduced-motion preference by default.
 - **Settings gear:** Top-right, opens the settings panel (see §10).
 
 ### 5.2 POI modal
@@ -231,7 +232,7 @@ On the **first** mount of the landing route:
 When a POI is clicked:
 
 - Native modal `<dialog>` with a hardware-style shell, up to 1120px wide, with a full-screen expansion control.
-- The header includes the company, Close/Expand actions, and a keyboard-accessible picker for every story. Content reads newest to oldest and uses the existing lightweight Markdown renderer.
+- The header includes the company, Close/Expand actions, and a keyboard-accessible native picker for every story, with an inset caret and reserved text padding. Content reads newest to oldest and uses the existing lightweight Markdown renderer.
 - **3D scene is paused** on modal open. Render a frozen frame with modal post-processing, then skip GPU submission until the dialog closes or the viewport changes.
 - On modal close, resume the scene, or render on demand if motion is paused.
 - **Close:** ESC key, click on the dimmed backdrop, or explicit ✕ button in the modal header. All three.
@@ -417,7 +418,7 @@ These presets apply to both WebGPU and WebGL2. WebGL2 is a renderer choice, not 
 
 > WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x. On Medium/High, WebGL2 selects a common supported color/depth sample count up to 4, including single-sample rendering when float MSAA is unavailable. Low disables MSAA on both backends.
 
-**Selection:** Under Auto on either backend, the engine starts at `Low` and ramps **up** one tier at a time (`Low` -> `Med` -> `High`). It steps up only after frame time stays at or below 18 ms and stable for 3+ continuous seconds; a janky frame resets the stability window. It keeps monitoring at High and steps **down** when average frame time reaches 20 ms over a 1.5-second window (section 7.8). Mobile (coarse-pointer) devices stay on `Low`.
+**Selection:** Under Auto on either backend, the engine starts at `Low` and ramps **up** one tier at a time (`Low` -> `Med` -> `High`). It steps up only after frame time stays at or below 18 ms and stable for 3+ continuous seconds; a janky frame resets the stability window. It keeps monitoring at High and steps **down** when average frame time reaches 20 ms over a 1.5-second window (section 7.8). The same performance-based ramp applies to desktop and mobile (coarse-pointer) devices.
 
 User can override via the settings panel; the override is persisted to `localStorage` and stops the Auto ramp on future loads.
 
@@ -475,7 +476,7 @@ Boot sequence:
 
 ## 8. Accessibility
 
-- **`prefers-reduced-motion: reduce`** (and the Paused motion setting): freezes the scene clock, so all *idle* motion stops exactly where it stands — auto-rotation, cloud drift, moon orbits, star twinkle, solar/aurora animation, intro cinematic, modal mount/unmount easing. User-initiated motion (scrubbing, dragging to orbit, free camera) still happens.
+- **`prefers-reduced-motion: reduce`** (or manually pausing with the pause/resume button): freezes the scene clock, so all *idle* motion stops exactly where it stands — auto-rotation, cloud drift, moon orbits, star twinkle, solar/aurora animation, intro cinematic, modal mount/unmount easing. User-initiated motion (scrubbing, dragging to orbit, free camera) still happens.
 - Settled paused frames are retained without rebuilding instances or submitting GPU commands. Visual input and resize invalidate the frame; the Auto quality ramp does not sample idle frames. System preference changes are observed live.
 - **Keyboard nav (chrome / modal / nav only):**
   - A skip link reaches the main landmark. All visible actions have keyboard equivalents; form controls retain their native keys.
@@ -515,7 +516,6 @@ Triggered by the gear icon top-right. Modal-style panel (smaller than POI modal,
 | Quality          | Auto (ramp), High, Med, Low                            | Auto           |
 | Renderer         | Auto, WebGPU, WebGL                                    | Auto           |
 | Sound            | On / Off                                               | Off            |
-| Motion           | System (follow OS), Full motion, Paused                | System         |
 | Debug HUD        | On / Off                                               | Off            |
 | Wireframe        | On / Off (debug: renders scene meshes as wireframe)   | Off            |
 

@@ -53,12 +53,16 @@ export interface OpenPoiRef {
 // so a fresh page load turns the shimmer back on.
 let poiShimmerMuted = false;
 
+// Keep the interaction hint dismissed across client-side navigation.
+let sceneHintDismissed = false;
+
 export interface EngineSnapshot {
   backend: RendererBackend | null;
   ready: boolean;
   failed: string | null;
   focusedIndex: number;
   openPoi: OpenPoiRef | null;
+  sceneHintDismissed: boolean;
   quality: QualityPreference;
   activeTier: QualityTier;
   reducedMotion: ReducedMotionPref;
@@ -339,7 +343,7 @@ export class Engine {
       this.resizeObserver.observe(this.canvas);
     }
 
-    if (this.settings.quality === 'auto' && !this.coarsePointer) {
+    if (this.settings.quality === 'auto') {
       this.quality.start('low', (tier) => {
         this.applyTier(QUALITY_PRESETS[tier]);
       });
@@ -781,6 +785,10 @@ export class Engine {
       this.camera.setExtraDistance(0);
       this.events.emit('flyInDone', null);
     }
+    if (!sceneHintDismissed) {
+      sceneHintDismissed = true;
+      this.commit();
+    }
   }
 
   private onScrub(delta: number): void {
@@ -1046,7 +1054,7 @@ export class Engine {
     }
     if (this.openPoi?.company === company && this.openPoi.poi === poi) return;
     // A startup deep link should not begin the fly-in when its modal closes.
-    if (!this.ready) this.onUserInteract();
+    this.onUserInteract();
     this.scrubTarget = idx;
     this.openPoi = { company, poi };
     this.onOrbitEnd(true);
@@ -1070,15 +1078,10 @@ export class Engine {
     this.settings.quality = pref;
     saveSettings(this.settings);
     if (pref === 'auto') {
-      if (this.coarsePointer) {
-        this.quality.stop();
-        this.applyTier(QUALITY_PRESETS.low);
-      } else {
-        this.applyTier(QUALITY_PRESETS.low);
-        this.quality.start('low', (tier) =>
-          this.applyTier(QUALITY_PRESETS[tier]),
-        );
-      }
+      this.applyTier(QUALITY_PRESETS.low);
+      this.quality.start('low', (tier) =>
+        this.applyTier(QUALITY_PRESETS[tier]),
+      );
     } else {
       this.quality.stop();
       this.applyTier(QUALITY_PRESETS[pref]);
@@ -1250,6 +1253,7 @@ export class Engine {
       failed: this.failed,
       focusedIndex: this.focusedIndex,
       openPoi: this.openPoi,
+      sceneHintDismissed,
       quality: this.settings.quality,
       activeTier: this.activeTier,
       reducedMotion: this.settings.reducedMotion,
