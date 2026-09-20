@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>04 — Meridian</title>
+  <circle cx="32" cy="32" r="31" fill="#17191d"/>
+  <circle cx="32" cy="32" r="27" fill="none" stroke="#f5eedc" stroke-width="2"/>
+  <path d="M32 7V57" stroke="#f5eedc" stroke-width="2"/>
+  <g fill="#f5eedc" stroke="#17191d" stroke-width="2.5">
+    <circle cx="32" cy="39" r="14"/>
+    <circle cx="32" cy="25" r="10"/>
+    <circle cx="32" cy="15" r="6"/>
+  </g>
+</svg>

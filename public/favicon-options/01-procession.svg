@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>01 — Procession</title>
+  <circle cx="32" cy="32" r="31" fill="#17191d"/>
+  <circle cx="32" cy="32" r="27" fill="none" stroke="#f5eedc" stroke-width="2"/>
+  <g fill="#f5eedc" stroke="#17191d" stroke-width="2.5">
+    <circle cx="23" cy="32" r="13"/>
+    <circle cx="37" cy="32" r="10"/>
+    <circle cx="48" cy="32" r="6"/>
+  </g>
+</svg>

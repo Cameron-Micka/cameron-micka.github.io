@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>10 — Phase Chain</title>
+  <circle cx="32" cy="32" r="31" fill="#17191d"/>
+  <circle cx="32" cy="32" r="27" fill="none" stroke="#f5eedc" stroke-width="2"/>
+  <g stroke="#f5eedc" stroke-width="2.5">
+    <circle cx="19" cy="32" r="10" fill="#f5eedc"/>
+    <circle cx="32" cy="32" r="10" fill="#17191d"/>
+    <circle cx="45" cy="32" r="10" fill="#17191d"/>
+  </g>
+  <path d="M45 22A10 10 0 0 1 45 42Z" fill="#f5eedc"/>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>06 — Signal</title>
+  <circle cx="32" cy="32" r="31" fill="#17191d"/>
+  <g fill="none" stroke="#f5eedc" stroke-width="2" stroke-linecap="round">
+    <path d="M32 7V13M19.5 10.5L22.5 15.7M10.5 19.5L15.7 22.5M44.5 10.5L41.5 15.7M53.5 19.5L48.3 22.5"/>
+    <path d="M32 51V57M22.5 48.3L19.5 53.5M15.7 41.5L10.5 44.5M41.5 48.3L44.5 53.5M48.3 41.5L53.5 44.5"/>
+  </g>
+  <g fill="#f5eedc" stroke="#17191d" stroke-width="2.5">
+    <circle cx="21" cy="32" r="12"/>
+    <circle cx="35" cy="32" r="9"/>
+    <circle cx="46" cy="32" r="6"/>
+  </g>
+</svg>

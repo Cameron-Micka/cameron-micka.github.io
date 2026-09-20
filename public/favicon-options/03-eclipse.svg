@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>03 — Eclipse</title>
+  <circle cx="32" cy="32" r="31" fill="#17191d"/>
+  <g stroke="#f5eedc" stroke-width="2.5">
+    <circle cx="23" cy="32" r="16" fill="#f5eedc"/>
+    <circle cx="35" cy="32" r="12" fill="#17191d"/>
+    <circle cx="46" cy="32" r="8" fill="#17191d"/>
+    <circle cx="53" cy="32" r="4" fill="#f5eedc" stroke="#17191d" stroke-width="2"/>
+  </g>
+</svg>

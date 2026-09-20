@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>09 — Transit</title>
+  <circle cx="32" cy="32" r="31" fill="#17191d"/>
+  <path d="M11 47L49 9M15 55L55 15" fill="none" stroke="#f5eedc" stroke-width="2" stroke-linecap="round"/>
+  <g stroke="#17191d" stroke-width="2.5">
+    <circle cx="23" cy="41" r="13" fill="#f5eedc"/>
+    <circle cx="34" cy="30" r="10" fill="#f5eedc"/>
+    <circle cx="44" cy="20" r="7" fill="#ff6b35"/>
+  </g>
+</svg>
