@@ -123,8 +123,9 @@ const FLY_VELOCITY_DAMP = 5; // half-life ~0.14s → noticeable but snappy momen
 const LOOK_SENSITIVITY = 0.0025; // rad / px
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
 
-const ORBIT_DAMPING = 5; // short, gentle coast after release
-const ORBIT_MAX_SPEED = 4; // radians/sec
+const ORBIT_DAMPING = 3; // ease out without cutting a quick flick short
+const ORBIT_MAX_SPEED = 20; // radians/sec; leave room for fast swipes
+const ORBIT_VELOCITY_SMOOTHING = 0.04; // seconds of recent motion
 const ORBIT_RELEASE_WINDOW = 0.1; // holding still before release cancels the fling
 
 // Barrel distortion of the presented frame. Renormalized against the corner
@@ -191,6 +192,7 @@ export class Engine {
   private orbitDragging = false;
   private orbitVelocity: Vec3 = [0, 0, 0];
   private lastOrbitSample = 0;
+  private orbitSampled = false;
   private lastInteract = -10;
 
   private cinematicActive = true;
@@ -832,6 +834,7 @@ export class Engine {
 
   private onOrbitStart(): void {
     this.orbitVelocity = [0, 0, 0];
+    this.orbitSampled = false;
     this.orbitDragging =
       !this.openPoi && !this.settings.freeCamera && this.models.length > 0;
     this.lastOrbitSample = performance.now() / 1000;
@@ -862,7 +865,7 @@ export class Engine {
     const idx = clamp(Math.round(this.scrubCurrent), 0, this.models.length - 1);
     this.lastOrbitIndex = idx;
     const now = performance.now() / 1000;
-    const elapsed = Math.max(now - this.lastOrbitSample, 1 / 120);
+    const elapsed = Math.max(now - this.lastOrbitSample, 0.001);
     this.lastOrbitSample = now;
     this.lastInteract = now;
     // Trackball: premultiply by screen-relative axes so dragging rotates the
@@ -878,10 +881,18 @@ export class Engine {
     const axisLength = vec3.length(axis);
     const angle = 2 * Math.atan2(axisLength, Math.abs(delta[3]));
     const speed = Math.min(angle / elapsed, ORBIT_MAX_SPEED);
-    this.orbitVelocity =
+    const velocity: Vec3 =
       axisLength > 0 && !this.motionPaused()
         ? vec3.scale(axis, ((delta[3] < 0 ? -1 : 1) * speed) / axisLength)
         : [0, 0, 0];
+    // Smooth in time, not event count: a noisy final sample should not erase
+    // a flick, and high-refresh input should carry the same momentum.
+    const blend =
+      this.orbitSampled && elapsed < ORBIT_RELEASE_WINDOW
+        ? 1 - Math.exp(-elapsed / ORBIT_VELOCITY_SMOOTHING)
+        : 1;
+    this.orbitVelocity = vec3.lerp(this.orbitVelocity, velocity, blend);
+    this.orbitSampled = true;
   }
 
   private onZoom(factor: number): void {
