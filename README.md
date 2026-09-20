@@ -1,14 +1,16 @@
-# Cameron Micka — Portfolio
+# Cameron Micka — Portfolio 🌌
 
 A personal portfolio built as a real-time 3D experience: the landing page is a
-WebGPU-rendered "Time Machine" of my career, where each **planet** is a place
-I've worked and each glowing **point of interest** opens a story. The UI is
-React; the rendering is a hand-written engine with a **WebGL2 fallback**.
+GPU-rendered "Time Machine" of my career, where each **planet** is a place I've
+worked and each glowing **point of interest** opens a story. The UI is React;
+the rendering is a hand-written engine with matching **WebGPU** and **WebGL2**
+backends. About, Writing, Photography, not-found, and fallback résumé views are
+statically rendered for fast loading and graceful degradation.
 
 **Stack:** TypeScript · React 18 · Vite · WebGPU (WGSL) + WebGL2 (GLSL ES 3.0)
 · `vite-react-ssg` for static pages · zod-validated content.
 
-## Develop
+## 🛠️ Develop
 
 ```bash
 npm install
@@ -26,22 +28,23 @@ dispatch) deploys to GitHub Pages: pull-request runs never receive the
 `pages`/`id-token` scopes and cannot publish.
 Deployment jobs are serialized separately from pull-request builds.
 
-## Architecture
+## 🧭 Architecture
 
 ```
 src/
   engine/         Renderer-agnostic 3D engine
     math/         vec3 / mat4 / quat / easing / rng / raycast
     shaders/      WGSL (WebGPU) shaders, imported with ?raw
-    WebGPURenderer.ts   Primary: HDR scene pass + composite (bloom/tonemap/CA)
+    WebGPURenderer.ts   WebGPU HDR scene pass + composite (bloom/tonemap/CA)
     WebGL2Renderer.ts   Matching HDR/composite path with an RGBA8 fallback
     Scene.ts      Procedural planet models (radius from tenure, seeded POIs)
+    Moons.ts      Orbiting and launched-moon simulation
     Camera.ts     Single-axis dolly camera + fly-in cinematic
     InputController.ts  wheel / pointer / touch / keyboard -> intents
     QualityManager.ts   Quality presets + Auto quality ramp
     Engine.ts     Owns state + RAF loop; exposes a useSyncExternalStore store
   content/        Company + photo data (TS) validated by a zod schema
-  ui/             React overlay: nav, ruler, ribbon, POI modal, settings, HUD
+  ui/             React overlay: nav, ruler, ribbon, dialogs, settings, HUD
   routes/         SSG pages + a lazy-loaded, client-only landing canvas
 ```
 
@@ -65,14 +68,21 @@ router never races its inline hydration data or build-manifest identifier.
 
 ### Finding the work
 
-The landing introduction explains the experience and provides an explicit
-**Explore the work** action. The lower readout also shows the current chapter's
-story count. A native project picker in the story dialog exposes every project
-without requiring a precise click on a 3D marker.
+On roomy viewports, the landing introduction explains the experience and
+provides an explicit **Explore the work** action. Narrow screens (720px and
+below) and short landscape windows hide that introduction so the canvas and
+controls have room; the lower readout remains the primary chapter and story
+entry point.
 
-The timeline reads newest to oldest: scroll down or press **Down** for earlier
-work; scroll up or press **Up** to return toward the present. **Home / Page Up**
-go to the current role, and **End / Page Down** go to the earliest chapter.
+The POI dialog is a scrollable, snap-aligned feed of every story across the
+career timeline. Its native project picker opens any story without requiring a
+precise click on a 3D marker. The picker's visible "Jump to a story" label is
+hidden at narrow widths, while its accessible name remains available.
+
+The timeline reads newest to oldest: scroll down or press **Down** to move
+toward older work; scroll up or press **Up** to return toward the present.
+**Home / Page Up** go to the current role, and **End / Page Down** go to the
+earliest chapter.
 These shortcuts do not intercept links, form controls, editable content, or
 dialogs. On touch screens, use the ribbon arrows or a two-finger drag to travel.
 
@@ -81,8 +91,9 @@ button activation, or story opening. It stays dismissed across client-side
 navigation until the page is reloaded.
 
 The About page provides a conventional, newest-first career summary and direct
-links to every story. Sound effects are opt-in in Settings and never start
-before a user gesture.
+links to every story. Writing is currently a coming-soon page, and Photography
+provides separate Nature and Automotive galleries with a native lightbox.
+Sound effects are opt-in in Settings and never start before a user gesture.
 
 ### Free camera
 
@@ -120,7 +131,7 @@ This works in both timeline and free-camera modes. Detached moons no longer
 follow their parent planet or its visibility; reload the page to restore them.
 Paused motion and open POI dialogs also pause moon flight.
 
-### Backends & quality
+### ⚙️ Backends & quality
 
 Auto renderer uses WebGL2 on iOS/iPadOS and macOS. On other platforms, WebGPU is
 used when available (two-step adapter+device probe); otherwise the app falls
@@ -130,8 +141,9 @@ On both backends, Auto quality starts at `med`, ramps up to `high` after 3+
 seconds of stable frames at or below 18 ms, and steps down when average frame
 time reaches 20 ms over a 1.5-second window. It does not retry an unsustainable
 tier until Auto restarts. Desktop and mobile/coarse-pointer devices use the same
-performance-based adjustment. Explicit quality choices are never overridden;
-preferences persist in `localStorage`.
+performance-based adjustment. Explicit quality choices are never overridden.
+Quality, renderer, motion, sound, CRT, and debug preferences persist in
+`localStorage`; wireframe, flight path, and free-camera mode reset each session.
 The initial output size uses the chosen tier immediately, rather than allocating
 a High-DPR canvas and resizing it down at startup.
 Render targets are allocated once the first frame's dimensions and quality are
@@ -220,7 +232,7 @@ lighting, sun, rings, portrait layout, CRT, modal blur, and flight paths. The
 0-255 scale when both backends used packed HDR. Native MSAA line coverage still
 differs slightly in debug wireframe mode; disabling MSAA closely matches it.
 
-### Accessibility & SEO
+### ♿ Accessibility & SEO
 
 - The landing page prerenders a readable, semantic résumé from the same
   company data. It remains usable without JavaScript or a working GPU. A GPU
@@ -231,14 +243,17 @@ differs slightly in debug wireframe mode; disabling MSAA closely matches it.
   Printing hides the canvas and controls and exposes the complete résumé.
 - Every route has a main landmark and a visible-on-focus skip link. Route
   changes reset scroll/focus unless navigating to a section anchor.
-- Settings controls have 44px hit targets. Short touch-landscape layouts use
-  the larger ribbon controls rather than squeezing in the side ruler.
+- Settings controls have 44px hit targets. Narrow layouts hide the side ruler
+  and landing introduction. Short landscape layouts also move Pause and Free
+  Camera to the upper left; touch layouts retain the larger ribbon controls.
 - `prefers-reduced-motion` and Paused motion freeze idle scene animation, skip
   the fly-in, and disable dialog entrance effects. Direct interaction remains
   available. Important company labels no longer animate or glitch.
 - Story and photo viewers use native modal dialogs for background inertness,
   focus containment, and focus restoration. Esc / backdrop / Close dismiss
-  them; the lightbox adds ← / → paging and native touch swiping.
+  them; the story selector remains accessibly named when its visible narrow-
+  screen label is hidden, and the lightbox adds ← / → paging and native touch
+  swiping.
 - All current photos have image-specific descriptions. The lightbox displays
   the caption, or the description when no separate caption is authored. Gallery
   tiles are real image links, so opening the original in a new tab or viewing it
@@ -284,7 +299,7 @@ A local 1440×900 WebGL2 check counted 7,950 indexed draw calls over two seconds
 with motion paused before on-demand rendering, and zero after. This measures
 eliminated idle submissions, not an improvement to the cost of an animated frame.
 
-## Photography assets
+## 📷 Photography assets
 
 The `/photography` gallery reads `src/content/photos.ts`, a zod-validated
 manifest. Image files are committed to this repo and served straight from
