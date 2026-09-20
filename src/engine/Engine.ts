@@ -1004,7 +1004,7 @@ export class Engine {
     }
 
     // A clicked POI marker (in front of the planet) wins over the planet body.
-    if (bestPoi >= 0 && bestT < moonT) {
+    if (bestPoi >= 0 && bestT < moonT && (sunT < 0 || bestT < sunT)) {
       const model = this.models[focused]!;
       const poi = model.poiDirs[bestPoi]!;
       this.scrubTarget = focused;
@@ -1017,8 +1017,7 @@ export class Engine {
       return;
     }
     if (pickBody()) return;
-    if (body && body !== this.sun && hitIndex >= 0)
-      this.jumpToPlanet(hitIndex);
+    if (body && body !== this.sun && hitIndex >= 0) this.jumpToPlanet(hitIndex);
   }
 
   private bodyPointerRay(ndcX: number, ndcY: number) {

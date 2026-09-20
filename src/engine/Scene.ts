@@ -211,8 +211,8 @@ export function regenerateSun(
   sun: FrameState['sun'],
   rand: () => number = Math.random,
 ): void {
-  const colors = SUN_COLORS.filter(
-    (color) => color.some((value, i) => value !== sun.color[i]),
+  const colors = SUN_COLORS.filter((color) =>
+    color.some((value, i) => value !== sun.color[i]),
   );
   sun.color = [...colors[Math.floor(rand() * colors.length)]!];
   sun.radius = sun.radius >= 20 ? 12 + rand() * 6 : 22 + rand() * 6;
