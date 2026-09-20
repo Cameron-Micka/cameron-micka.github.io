@@ -2620,12 +2620,16 @@ main:focus {
 }
 
 @media (pointer: coarse) and (max-height: 500px) and (orientation: landscape) {
-  .ruler,
+  .ribbon,
   .intro-actions {
     display: none;
   }
-  .ribbon {
-    display: grid;
+  .ruler {
+    display: flex;
+  }
+  .ruler button,
+  .ruler .ruler-nav {
+    height: 24px;
   }
 }
 
