@@ -173,10 +173,10 @@ export class WebGPURenderer implements SceneRenderer {
 
   private objScratch = new Float32Array(OBJ_FLOATS * MAX_OBJECTS);
   // 64 base floats (viewProj 16 + cameraPos 4 + keyLightDir 4 + misc 4 +
-  // shadowCasters 32 + shadowMisc 4) + 16 floats for invViewProj appended for
+  // shadowCasters 32 + shadowMisc 4) + sunColor 4 + invViewProj 16 for
   // the nebula backdrop's world-direction unprojection. Shaders that don't
   // need invViewProj simply declare a shorter Frame struct.
-  private frameScratch = new Float32Array(80);
+  private frameScratch = new Float32Array(84);
   private postScratch = new Float32Array(16);
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
@@ -1234,10 +1234,14 @@ export class WebGPURenderer implements SceneRenderer {
     f[61] = frame.quality.tier === 'low' ? 2 : frame.quality.tier === 'med' ? 1 : 0;
     f[62] = 0;
     f[63] = 0;
+    // Use the sun's actual RGB as incident light, not its emissive shader's
+    // palette-relative tint (which would turn the default orange sun white).
+    f.set(frame.sun.color, 64);
+    f[67] = 0;
     // invViewProj for the nebula backdrop (and any other fullscreen pass that
     // needs to recover a world-space ray from a screen-space pixel).
-    f.set(frame.invViewProj, 64);
-    d.queue.writeBuffer(this.frameUBO, 0, f, 0, 80);
+    f.set(frame.invViewProj, 68);
+    d.queue.writeBuffer(this.frameUBO, 0, f, 0, f.length);
 
     // Build per-object uniforms + collect POI billboards.
     const objects: { kind: number; index: number; lod: number }[] = [];

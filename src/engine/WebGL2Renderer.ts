@@ -120,6 +120,7 @@ precision highp float;
 in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
+uniform vec3 uSunColor;
 uniform float uHdr;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform float uSeed;uniform float uFocus;uniform float uOceans;
@@ -501,8 +502,8 @@ void main(){
     float glitterMask=openWaterMask*glitterLod*glitterDisc*glitterFlash;
     glitter=vec3(1.0,0.9,0.72)*glitterEnergy*glitterMask*NdL;
   }
-  // Pre-multiply sun radiance by PI so diffuse simplifies to kD*albedo*NdL.
-  vec3 sunRadiance=vec3(PI);
+  // Pre-multiply sun radiance by PI so diffuse is kD*albedo*uSunColor*NdL.
+  vec3 sunRadiance=uSunColor*PI;
   float shadow=shadowFactor(vWorld,L);
   // Cloud shadow uses the same noise + rotation as CLOUDS_FRAG so the
   // shadow lands directly under the rendered puff (gated by uCloudShadow,
@@ -511,7 +512,7 @@ void main(){
   vec3 direct=(kD*albedo/PI+specular)*sunRadiance*NdL*shadow*cloudShadowMul;
   float ambientShadowMul=0.10+0.90*cloudShadowMul;
   vec3 ambient=albedo*0.004*ambientShadowMul;
-  vec3 col=ambient+direct+glitter*shadow*cloudShadowMul;
+  vec3 col=ambient+direct+glitter*uSunColor*shadow*cloudShadowMul;
   // Night-side settlements: regional clusters, urban cores, and fine lights
   // with varied brightness. Mirrors planet.wgsl.
   if(uCityLights>0.5){
@@ -578,7 +579,7 @@ void main(){
       }
     }
   }
-  col+=uHigh*rim*NdL*0.55*shadow;
+  col+=uHigh*uSunColor*rim*NdL*0.55*shadow;
   col*=(0.85+0.3*uFocus);
   col=mix(col,FOG_COLOR,fogFactor(vWorld,uCamera));
   frag=vec4(uHdr>0.5?col:aces(col),1.0);
@@ -950,6 +951,7 @@ in vec3 vWorld;
 out vec4 frag;
 uniform mat4 uModel;
 uniform vec3 uCamera;uniform vec3 uLight;
+uniform vec3 uSunColor;
 uniform float uSeed;uniform float uThin;uniform float uFocus;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
@@ -1043,7 +1045,7 @@ void main(){
   float reflected=0.85*(0.75+0.25*muL);
   float lighting=reflected+0.35*fwd*(1.0-density);
   float shadow=shadowFactor(vWorld,L);
-  vec3 col=baseCol*(0.035+shadow*lighting);
+  vec3 col=baseCol*(vec3(0.035)+uSunColor*shadow*lighting);
   float dCam=distance(vWorld,uCamera);
   float sf=dCam*0.018;
   float fade=exp(-sf*sf);
@@ -1228,6 +1230,7 @@ precision highp float;
 in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
+uniform vec3 uSunColor;
 uniform float uHdr;
 uniform vec3 uColor;uniform vec3 uCenter;
 uniform float uInner;uniform float uOuter;uniform float uFocus;uniform float uIntensity;
@@ -1324,7 +1327,7 @@ void main(){
     viewDepth+=segmentDepth*0.5;
   }
   float intensity=uIntensity*(0.85+0.3*uFocus);
-  col*=5.0*intensity;
+  col*=uSunColor*(5.0*intensity);
   // Distance fog (additive shell -> attenuate).
   float dist=distance(vWorld,ro);float fs=dist*0.018;
   col*=exp(-fs*fs);
@@ -1341,6 +1344,7 @@ uniform float uTier;
 in vec3 vNrm;in vec3 vLocal;in vec3 vWorld;
 out vec4 frag;
 uniform vec3 uCamera;uniform vec3 uLight;
+uniform vec3 uSunColor;
 uniform vec3 uTint;uniform vec3 uCenter;
 uniform mat4 uModel;
 uniform float uTime;uniform float uSeed;uniform float uVisibility;
@@ -1446,7 +1450,7 @@ void main(){
   vec3 directSunColor=mix(vec3(1.0),vec3(1.0,0.62,0.34),horizonWarmth*0.72);
   vec3 atmosphereFill=mix(vec3(0.18,0.30,0.52),uTint,0.12);
   float fillStrength=0.018+0.045*(1.0-NdL);
-  vec3 col=directSunColor*NdL*selfShadow+atmosphereFill*fillStrength;
+  vec3 col=directSunColor*uSunColor*NdL*selfShadow+atmosphereFill*fillStrength;
   // Other-planet shadows (no self-exclude: parent surface is along L past
   // the cloud fragment).
   float s=1.0;
@@ -1899,7 +1903,7 @@ export class WebGL2Renderer implements SceneRenderer {
     this.nebula = this.makeProgram(NEBULA_VERT, NEBULA_FRAG, ['uTime', 'uInvViewProj', 'uTier']);
     this.backdrop = this.makeProgram(PRESENT_VERT, BLIT_FRAG, ['uScene']);
     this.planet = this.makeProgram(PLANET_VERT, PLANET_FRAG, [
-      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
+      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uSunColor', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uFocus', 'uOceans', 'uCityLights', 'uFlow', 'uCraters', 'uIceCaps',
       'uTime', 'uCloudShadow', 'uHdr', 'uTier',
       'uShadowCount', 'uShadowSpheres[0]',
@@ -1913,12 +1917,12 @@ export class WebGL2Renderer implements SceneRenderer {
     ]);
     this.wire = this.makeProgram(PLANET_VERT, WIRE_FRAG, ['uViewProj', 'uModel']);
     this.atmosphere = this.makeProgram(PLANET_VERT, ATMOSPHERE_FRAG, [
-      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uColor', 'uCenter',
+      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uSunColor', 'uColor', 'uCenter',
       'uInner', 'uOuter', 'uFocus', 'uIntensity', 'uHdr', 'uTier', 'uOpticalDepth',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.clouds = this.makeProgram(PLANET_VERT, CLOUDS_FRAG, [
-      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uTint', 'uCenter',
+      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uSunColor', 'uTint', 'uCenter',
       'uTime', 'uSeed', 'uVisibility', 'uTier',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
@@ -1927,7 +1931,7 @@ export class WebGL2Renderer implements SceneRenderer {
       'uInner', 'uOuter', 'uFocus', 'uIntensity', 'uTime',
     ]);
     this.ring = this.makeProgram(RING_VERT, RING_FRAG, [
-      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uLow', 'uMid', 'uHigh',
+      'uViewProj', 'uModel', 'uCamera', 'uLight', 'uSunColor', 'uLow', 'uMid', 'uHigh',
       'uSeed', 'uThin', 'uFocus',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
@@ -2551,6 +2555,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
+    gl.uniform3fv(this.planet.uniforms.uSunColor!, frame.sun.color);
     this.bindShadowUniforms(this.planet, frame);
     for (const p of frame.planets) {
       const vis = p.visibility;
@@ -2671,6 +2676,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniformMatrix4fv(this.clouds.uniforms.uViewProj!, false, frame.viewProj);
       gl.uniform3fv(this.clouds.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.clouds.uniforms.uLight!, frame.keyLightDir);
+      gl.uniform3fv(this.clouds.uniforms.uSunColor!, frame.sun.color);
       this.bindShadowUniforms(this.clouds, frame);
       for (const p of frame.planets) {
         if (!p.clouds) continue;
@@ -2718,6 +2724,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.uniformMatrix4fv(this.atmosphere.uniforms.uViewProj!, false, frame.viewProj);
     gl.uniform3fv(this.atmosphere.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.atmosphere.uniforms.uLight!, frame.keyLightDir);
+    gl.uniform3fv(this.atmosphere.uniforms.uSunColor!, frame.sun.color);
     this.bindShadowUniforms(this.atmosphere, frame);
     for (const p of frame.planets) {
       const vis = p.visibility;
@@ -2839,6 +2846,7 @@ export class WebGL2Renderer implements SceneRenderer {
       if (!frame.wireframe) {
         gl.uniform3fv(this.ring.uniforms.uCamera!, frame.cameraPos);
         gl.uniform3fv(this.ring.uniforms.uLight!, frame.keyLightDir);
+        gl.uniform3fv(this.ring.uniforms.uSunColor!, frame.sun.color);
         this.bindShadowUniforms(this.ring, frame);
       }
       gl.bindVertexArray(frame.wireframe ? this.ringWireVao : this.ringVao);
