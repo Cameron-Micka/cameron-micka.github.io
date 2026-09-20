@@ -1,4 +1,6 @@
 export const ATMOSPHERE_SHELL_SCALE = 1.02;
+// Must match the cloud-shell radii in the planet and cloud shaders.
+export const CLOUD_SHELL_SCALE = 1.006;
 export const ATMOSPHERE_LUT_WIDTH = 128;
 export const ATMOSPHERE_LUT_HEIGHT = 64;
 

@@ -103,13 +103,6 @@ export function saveSettings(s: PersistedSettings): void {
   }
 }
 
-export function resolveReducedMotion(pref: ReducedMotionPref): boolean {
-  if (pref === 'on') return true;
-  if (pref === 'off') return false;
-  if (typeof matchMedia === 'undefined') return false;
-  return matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 // The CRT scanline/grain overlay lives on <body> pseudo-elements, so it is
 // toggled with a class on <html> rather than through React.
 export function applyCrt(on: boolean): void {

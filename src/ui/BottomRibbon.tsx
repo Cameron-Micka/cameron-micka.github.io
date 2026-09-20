@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpRight } from 'lucide-react';
-import { tenureLabel, type Company } from '@/content/schema';
+import { assetUrl, tenureLabel, type Company } from '@/content/schema';
 import { useEngine, useEngineValue } from './EngineContext';
 import { UI } from './strings';
 
@@ -25,9 +25,7 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
   const company = companies[focusedIndex];
   if (!company) return null;
   const firstPoi = company.pois[0];
-  const logoSrc = company.logo
-    ? `${import.meta.env.BASE_URL}${company.logo.replace(/^\/+/, '')}`
-    : null;
+  const logoSrc = company.logo ? assetUrl(company.logo) : null;
   return (
     <div className="ribbon" aria-live="polite">
       <div className="ribbon-channel" aria-hidden="true">

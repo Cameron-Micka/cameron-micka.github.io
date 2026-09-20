@@ -30,3 +30,15 @@ yarn-error.log*
 /public/photos/*/*.[tT][iI][fF][fF]
 /public/photos/*/*.[hH][eE][iI][cC]
 /public/photos/*/*.[hH][eE][iI][fF]
+
+# local GPU/browser debug scratch, root only. A headless Chrome check once
+# committed ~27 MB of profile state here; these keep it from recurring.
+/.sun-browser-check.mjs
+/.sun-browser-profile/
+/.sun-chrome-profile/
+/.sun-webgl2.png
+/.sun-webgpu.png
+/com.google.Chrome.*/
+
+# vite-react-ssg build scratch (not covered by the `.vite` entry above)
+/.vite-react-ssg-temp/

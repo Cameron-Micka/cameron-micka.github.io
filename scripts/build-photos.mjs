@@ -1,12 +1,15 @@
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import sharp from 'sharp';
 
 const DEFAULT_ROOT = 'public/photos';
 const DEFAULT_MANIFEST = 'src/content/photos.generated.ts';
 const DEFAULT_WATERMARK = 'Cameron Micka';
 const CATEGORIES = ['nature', 'automotive'];
+const DERIVATIVE_EXTENSION = '.webp';
+const ID_PATTERN = /^[a-z0-9-]+$/;
 const SOURCE_EXTENSIONS = new Set([
   '.heic',
   '.heif',
@@ -34,6 +37,8 @@ Options:
 
 Source images belong directly in <root>/nature and <root>/automotive.
 Full WebP files are written beside them; thumbnails go in thumbs/.
+--manifest-only reads the committed WebP derivatives instead, so it works in a
+fresh checkout where the ignored originals are not present.
 Runs against the default root also refresh ${DEFAULT_MANIFEST}.`);
 }
 
@@ -124,14 +129,48 @@ function watermarkSvg(width, height, text) {
   `);
 }
 
+// Manifest paths are /public-relative and double as the canonical sort key, so
+// a full conversion and a --manifest-only refresh always emit the same order.
+function manifestPaths(entry) {
+  return {
+    src: `photos/${entry.category}/${entry.id}${DERIVATIVE_EXTENSION}`,
+    thumb: `photos/${entry.category}/thumbs/${entry.id}${DERIVATIVE_EXTENSION}`,
+  };
+}
+
+async function readCategory(root, category) {
+  try {
+    return await readdir(path.join(root, category), { withFileTypes: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+function finalize(entries) {
+  entries.sort((left, right) =>
+    manifestPaths(left).src.localeCompare(manifestPaths(right).src),
+  );
+  const ids = new Map();
+  for (const entry of entries) {
+    const previous = ids.get(entry.id);
+    if (previous) {
+      throw new Error(
+        `Duplicate generated id "${entry.id}": ${previous} and ${entry.input}`,
+      );
+    }
+    ids.set(entry.id, entry.input);
+  }
+  return entries;
+}
+
 async function findSources(root) {
   const sources = [];
 
   for (const category of CATEGORIES) {
     const categoryDirectory = path.join(root, category);
-    const entries = await readdir(categoryDirectory, { withFileTypes: true });
 
-    for (const entry of entries) {
+    for (const entry of await readCategory(root, category)) {
       const extension = path.extname(entry.name).toLowerCase();
       if (!entry.isFile() || !SOURCE_EXTENSIONS.has(extension)) continue;
 
@@ -147,20 +186,39 @@ async function findSources(root) {
     }
   }
 
-  sources.sort((left, right) => left.input.localeCompare(right.input));
+  return finalize(sources);
+}
 
-  const ids = new Map();
-  for (const source of sources) {
-    const previous = ids.get(source.id);
-    if (previous) {
-      throw new Error(
-        `Duplicate generated id "${source.id}": ${previous} and ${source.input}`,
-      );
+// Manifest-only reads committed derivatives, not the ignored originals.
+async function findDerivatives(root) {
+  const derivatives = [];
+
+  for (const category of CATEGORIES) {
+    const categoryDirectory = path.join(root, category);
+
+    for (const entry of await readCategory(root, category)) {
+      if (!entry.isFile()) continue;
+      if (path.extname(entry.name).toLowerCase() !== DERIVATIVE_EXTENSION) {
+        continue;
+      }
+
+      const id = path.parse(entry.name).name;
+      if (!ID_PATTERN.test(id)) {
+        throw new Error(
+          `Derivative "${path.join(categoryDirectory, entry.name)}" is not named with a url-safe id (a-z, 0-9, -).`,
+        );
+      }
+
+      derivatives.push({
+        category,
+        id,
+        input: path.join(categoryDirectory, entry.name),
+        sourceName: entry.name,
+      });
     }
-    ids.set(source.id, source.input);
   }
 
-  return sources;
+  return finalize(derivatives);
 }
 
 function outputPath(root, source, derivative) {
@@ -206,10 +264,25 @@ async function renderDerivative(input, output, derivative, watermark) {
 }
 
 async function inspectDerivative(output, derivative) {
-  const [metadata, file] = await Promise.all([
-    sharp(output).metadata(),
-    stat(output),
-  ]);
+  let file;
+  try {
+    file = await stat(output);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      throw new Error(
+        `Missing ${derivative.name} derivative: ${output}. Run "npm run photos:build" with the original image present to regenerate it.`,
+      );
+    }
+    throw error;
+  }
+
+  let metadata;
+  try {
+    metadata = await sharp(output).metadata();
+  } catch (error) {
+    throw new Error(`Could not read ${output}: ${error.message}`);
+  }
+
   const width = metadata.width;
   const height = metadata.height;
 
@@ -257,6 +330,52 @@ function formatBytes(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 }
 
+// Shared by conversion and --manifest-only: either renders both derivatives or
+// just measures the committed ones, then records their manifest entries.
+async function collectManifest(root, entries, options) {
+  const log = options.log ?? console.log;
+  const manifest = [];
+  let sourceBytes = 0;
+  let outputBytes = 0;
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const results = await Promise.all(
+      DERIVATIVES.map(async (derivative) => {
+        const output = outputPath(root, entry, derivative);
+        if (options.manifestOnly) return inspectDerivative(output, derivative);
+
+        await mkdir(path.dirname(output), { recursive: true });
+        return renderDerivative(
+          entry.input,
+          output,
+          derivative,
+          options.watermark,
+        );
+      }),
+    );
+
+    if (!options.manifestOnly) sourceBytes += (await stat(entry.input)).size;
+
+    outputBytes += results.reduce((total, result) => total + result.size, 0);
+    manifest.push({
+      id: entry.id,
+      category: entry.category,
+      ...manifestPaths(entry),
+      width: results[0].width,
+      height: results[0].height,
+    });
+    const dimensions = results
+      .map((result) => `${result.width}x${result.height}`)
+      .join(' + ');
+    log(
+      `[${index + 1}/${entries.length}] ${entry.category}/${entry.sourceName} -> ${entry.id}.webp (${dimensions})`,
+    );
+  }
+
+  return { manifest, sourceBytes, outputBytes };
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -266,9 +385,15 @@ async function main() {
 
   const root = path.resolve(options.root);
   const writesDefaultManifest = root === path.resolve(DEFAULT_ROOT);
-  const sources = await findSources(root);
+  const sources = options.manifestOnly
+    ? await findDerivatives(root)
+    : await findSources(root);
   if (sources.length === 0) {
-    throw new Error(`No source images found in ${root}.`);
+    throw new Error(
+      options.manifestOnly
+        ? `No WebP derivatives found in ${root}.`
+        : `No source images found in ${root}.`,
+    );
   }
 
   if (options.dryRun) {
@@ -291,45 +416,11 @@ async function main() {
     return;
   }
 
-  const manifest = [];
-  let sourceBytes = 0;
-  let outputBytes = 0;
-
-  for (let index = 0; index < sources.length; index += 1) {
-    const source = sources[index];
-    const results = await Promise.all(
-      DERIVATIVES.map(async (derivative) => {
-        const output = outputPath(root, source, derivative);
-        if (options.manifestOnly) return inspectDerivative(output, derivative);
-
-        await mkdir(path.dirname(output), { recursive: true });
-        return renderDerivative(
-          source.input,
-          output,
-          derivative,
-          options.watermark,
-        );
-      }),
-    );
-
-    if (!options.manifestOnly) sourceBytes += (await stat(source.input)).size;
-
-    outputBytes += results.reduce((total, result) => total + result.size, 0);
-    manifest.push({
-      id: source.id,
-      category: source.category,
-      src: `photos/${source.category}/${source.id}.webp`,
-      thumb: `photos/${source.category}/thumbs/${source.id}.webp`,
-      width: results[0].width,
-      height: results[0].height,
-    });
-    const dimensions = results
-      .map((result) => `${result.width}x${result.height}`)
-      .join(' + ');
-    console.log(
-      `[${index + 1}/${sources.length}] ${source.category}/${source.sourceName} -> ${source.id}.webp (${dimensions})`,
-    );
-  }
+  const { manifest, sourceBytes, outputBytes } = await collectManifest(
+    root,
+    sources,
+    options,
+  );
 
   if (writesDefaultManifest) {
     const output = await writeGeneratedManifest(manifest);
@@ -348,7 +439,20 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+export {
+  collectManifest,
+  findDerivatives,
+  findSources,
+  generatedManifestSource,
+};
+
+// Only run as a CLI; importing this module (e.g. from tests) must not execute.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

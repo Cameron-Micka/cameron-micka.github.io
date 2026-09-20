@@ -639,61 +639,65 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // round mirror with a random tangent slope. A grain flashes only when its
   // normal nearly matches H, the normal that reflects L directly toward V.
   // The radial mask keeps the cell itself from becoming a square sparkle.
-  let glitterScale = 120.0;
-  let glitterCoord = localPos * glitterScale
-    + vec3<f32>(seed * 0.013, seed * 0.017, seed * 0.011);
-  let glitterFootprint3 = fwidth(glitterCoord);
-  let glitterFootprint = max(glitterFootprint3.x, max(glitterFootprint3.y, glitterFootprint3.z));
-  let glitterLod = 1.0 - smoothstep(0.40, 0.80, glitterFootprint);
-  let glitterCell = floor(glitterCoord);
-  let glitterSub = fract(glitterCoord);
-  let glitterCenterRandom = vec3<f32>(
-    hash3(glitterCell + vec3<f32>(31.0, 79.0, 47.0)),
-    hash3(glitterCell + vec3<f32>(67.0, 11.0, 97.0)),
-    hash3(glitterCell + vec3<f32>(5.0, 43.0, 113.0)),
-  );
-  let glitterCenter = mix(vec3<f32>(0.43), vec3<f32>(0.57), glitterCenterRandom);
-  let glitterDelta = glitterSub - glitterCenter;
-  let glitterDx = dpdx(glitterCoord);
-  let glitterDy = dpdy(glitterCoord);
-  let glitterXX = dot(glitterDx, glitterDx);
-  let glitterXY = dot(glitterDx, glitterDy);
-  let glitterYY = dot(glitterDy, glitterDy);
-  let glitterDet = max(glitterXX * glitterYY - glitterXY * glitterXY, 1e-6);
-  let glitterRhsX = dot(glitterDelta, glitterDx);
-  let glitterRhsY = dot(glitterDelta, glitterDy);
-  let glitterOffsetPx = vec2<f32>(
-    (glitterRhsX * glitterYY - glitterRhsY * glitterXY) / glitterDet,
-    (glitterRhsY * glitterXX - glitterRhsX * glitterXY) / glitterDet,
-  );
-  let glitterRadiusPx = mix(0.48, 0.64, glitterCenterRandom.x);
-  let glitterDisc = 1.0 - smoothstep(
-    glitterRadiusPx - 0.38,
-    glitterRadiusPx + 0.38,
-    length(glitterOffsetPx),
-  );
-  let glitterRandom = vec3<f32>(
-    hash3(glitterCell + vec3<f32>(17.0, 53.0, 101.0)),
-    hash3(glitterCell + vec3<f32>(59.0, 23.0, 7.0)),
-    hash3(glitterCell + vec3<f32>(13.0, 83.0, 41.0)),
-  ) * 2.0 - vec3<f32>(1.0);
-  var glitterSlope = glitterRandom - localPos * dot(glitterRandom, localPos);
-  glitterSlope = glitterSlope * 1.0;
-  let glitterNormalLocal = normalize(localPos + glitterSlope);
-  let glitterNormal = normalize(
-    r0 * glitterNormalLocal.x
-      + r1 * glitterNormalLocal.y
-      + r2 * glitterNormalLocal.z
-  );
-  let glitterAlignment = clamp(dot(glitterNormal, H), 0.0, 1.0);
-  let glitterFlash = smoothstep(0.9900, 0.9985, glitterAlignment);
-  let glitterRandomEnergy = hash3(glitterCell + vec3<f32>(109.0, 37.0, 71.0));
-  let glitterEnergy2 = glitterRandomEnergy * glitterRandomEnergy;
-  let glitterEnergy = 0.24 + 1.76 * glitterEnergy2 * glitterEnergy2;
-  let openWaterMask = smoothstep(0.75, 0.98, waterMask)
-    * (1.0 - smoothstep(0.03, 0.25, iceMask));
-  let glitterMask = openWaterMask * glitterLod * glitterDisc * glitterFlash;
-  let glitter = vec3<f32>(1.0, 0.9, 0.72) * glitterEnergy * glitterMask * NdL;
+  var glitter = vec3<f32>(0.0);
+  // Keep the gate uniform because glitter uses screen-space derivatives.
+  if (oceans > 0.5) {
+    let glitterScale = 120.0;
+    let glitterCoord = localPos * glitterScale
+      + vec3<f32>(seed * 0.013, seed * 0.017, seed * 0.011);
+    let glitterFootprint3 = fwidth(glitterCoord);
+    let glitterFootprint = max(glitterFootprint3.x, max(glitterFootprint3.y, glitterFootprint3.z));
+    let glitterLod = 1.0 - smoothstep(0.40, 0.80, glitterFootprint);
+    let glitterCell = floor(glitterCoord);
+    let glitterSub = fract(glitterCoord);
+    let glitterCenterRandom = vec3<f32>(
+      hash3(glitterCell + vec3<f32>(31.0, 79.0, 47.0)),
+      hash3(glitterCell + vec3<f32>(67.0, 11.0, 97.0)),
+      hash3(glitterCell + vec3<f32>(5.0, 43.0, 113.0)),
+    );
+    let glitterCenter = mix(vec3<f32>(0.43), vec3<f32>(0.57), glitterCenterRandom);
+    let glitterDelta = glitterSub - glitterCenter;
+    let glitterDx = dpdx(glitterCoord);
+    let glitterDy = dpdy(glitterCoord);
+    let glitterXX = dot(glitterDx, glitterDx);
+    let glitterXY = dot(glitterDx, glitterDy);
+    let glitterYY = dot(glitterDy, glitterDy);
+    let glitterDet = max(glitterXX * glitterYY - glitterXY * glitterXY, 1e-6);
+    let glitterRhsX = dot(glitterDelta, glitterDx);
+    let glitterRhsY = dot(glitterDelta, glitterDy);
+    let glitterOffsetPx = vec2<f32>(
+      (glitterRhsX * glitterYY - glitterRhsY * glitterXY) / glitterDet,
+      (glitterRhsY * glitterXX - glitterRhsX * glitterXY) / glitterDet,
+    );
+    let glitterRadiusPx = mix(0.48, 0.64, glitterCenterRandom.x);
+    let glitterDisc = 1.0 - smoothstep(
+      glitterRadiusPx - 0.38,
+      glitterRadiusPx + 0.38,
+      length(glitterOffsetPx),
+    );
+    let glitterRandom = vec3<f32>(
+      hash3(glitterCell + vec3<f32>(17.0, 53.0, 101.0)),
+      hash3(glitterCell + vec3<f32>(59.0, 23.0, 7.0)),
+      hash3(glitterCell + vec3<f32>(13.0, 83.0, 41.0)),
+    ) * 2.0 - vec3<f32>(1.0);
+    var glitterSlope = glitterRandom - localPos * dot(glitterRandom, localPos);
+    glitterSlope = glitterSlope * 1.0;
+    let glitterNormalLocal = normalize(localPos + glitterSlope);
+    let glitterNormal = normalize(
+      r0 * glitterNormalLocal.x
+        + r1 * glitterNormalLocal.y
+        + r2 * glitterNormalLocal.z
+    );
+    let glitterAlignment = clamp(dot(glitterNormal, H), 0.0, 1.0);
+    let glitterFlash = smoothstep(0.9900, 0.9985, glitterAlignment);
+    let glitterRandomEnergy = hash3(glitterCell + vec3<f32>(109.0, 37.0, 71.0));
+    let glitterEnergy2 = glitterRandomEnergy * glitterRandomEnergy;
+    let glitterEnergy = 0.24 + 1.76 * glitterEnergy2 * glitterEnergy2;
+    let openWaterMask = smoothstep(0.75, 0.98, waterMask)
+      * (1.0 - smoothstep(0.03, 0.25, iceMask));
+    let glitterMask = openWaterMask * glitterLod * glitterDisc * glitterFlash;
+    glitter = vec3<f32>(1.0, 0.9, 0.72) * glitterEnergy * glitterMask * NdL;
+  }
 
   // Sun radiance pre-multiplied by PI so that diffuse simplifies to
   // kD * albedo * NdL (matches the look of the previous Lambert-ish shader

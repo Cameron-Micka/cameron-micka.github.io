@@ -2,6 +2,7 @@ import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { TopNav } from '@/ui/TopNav';
 import { SOCIAL, UI } from '@/ui/strings';
+import { assetUrl } from '@/content/schema';
 
 export default function Blog() {
   return (
@@ -32,7 +33,7 @@ export default function Blog() {
         </div>
         <img
           className="golden-record"
-          src="/golden-record-blog.svg"
+          src={assetUrl('golden-record-blog.svg')}
           alt=""
           width={660}
           height={220}

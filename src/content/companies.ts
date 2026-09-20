@@ -424,12 +424,3 @@ const raw: CompanyInput[] = [
 // i.e. Microsoft (the current role) is the last planet in the sequence. The
 // engine still opens focused on the current role — see Engine's initial index.
 export const companies: Company[] = companiesSchema.parse(raw).reverse();
-
-export function findCompany(slug: string): Company | undefined {
-  return companies.find((c) => c.slug === slug);
-}
-
-export function findPoi(companySlug: string, poiSlug: string) {
-  const company = findCompany(companySlug);
-  return company?.pois.find((p) => p.slug === poiSlug);
-}

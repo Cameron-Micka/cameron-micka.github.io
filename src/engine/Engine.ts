@@ -8,6 +8,7 @@ import type {
   QualitySettings,
   QualityTier,
 } from './types';
+import { WebGPUCanvasError } from './types';
 import { Camera } from './Camera';
 import { selectionOutline } from './selectionOutline';
 import {
@@ -169,8 +170,8 @@ export class Engine {
   // shares the global clock and would keep drifting through a "stopped" planet.
   private cloudTimes: number[];
   private cloudPace: number[];
-  // Cached spacecraft trajectory; rebuilt when a planet is moved.
-  private flightPath: Float32Array;
+  private flightPath: Float32Array = EMPTY_FLIGHT_PATH;
+  private flightPathDirty = true;
   private scrubCurrent = 0;
   private scrubTarget = 0;
   private zoomTarget = 1;
@@ -202,6 +203,7 @@ export class Engine {
 
   private running = false;
   private destroyed = false;
+  private startupAbort = new AbortController();
   private renderDirty = true;
   private lastRenderedViewProj = new Float32Array(16);
   private motionQuery: MediaQueryList | null = null;
@@ -219,7 +221,6 @@ export class Engine {
 
   private fps = 0;
   private fpsFrames = 0;
-  private fpsAccum = 0;
   private lastStatsTs = 0;
   private qualitySampleTime = 0;
 
@@ -227,7 +228,11 @@ export class Engine {
   private listeners = new Set<() => void>();
   private snapshot: EngineSnapshot;
 
-  constructor(canvas: HTMLCanvasElement, companies: Company[]) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    companies: Company[],
+    private readonly backendOverride?: RendererBackend,
+  ) {
     this.canvas = canvas;
     this.models = buildPlanetModels(companies);
     this.orientations = this.models.map((_, i) =>
@@ -235,7 +240,6 @@ export class Engine {
     );
     this.cloudTimes = this.models.map(() => 0);
     this.cloudPace = this.models.map(() => 1);
-    this.flightPath = buildFlightPath(this.models);
     // Initial sun: far along the key light from the middle of the planet line.
     const lineCenterZ =
       this.models.length > 0
@@ -313,6 +317,32 @@ export class Engine {
         this.loadState = { frac: next, label, ready: false };
         this.events.emit('loadProgress', this.loadState);
       });
+
+      if (this.destroyed) {
+        this.renderer.destroy();
+        this.renderer = null;
+        return;
+      }
+
+      this.motionQuery?.addEventListener('change', this.syncMotionPreference);
+      this.syncMotionPreference();
+      this.resize();
+      this.camera.setZoom(this.zoomCurrent);
+      this.camera.setExtraDistance(this.cinematicActive ? FLY_IN_DISTANCE : 0);
+      this.camera.update(this.scrubCurrent);
+      if (this.settings.freeCamera) {
+        this.enterFreeCamera();
+        this.camera.updateFree(this.freePos, this.freeYaw, this.freePitch);
+      }
+      this.blurCurrent = this.openPoi ? 1 : 0;
+
+      // Validate the first submission before reporting ready or attaching input.
+      const initialFrame = this.renderFrame(0, true);
+      this.lastRenderedViewProj.set(this.camera.viewProj);
+      this.renderDirty = false;
+      this.modalFrameRendered = this.openPoi !== null;
+      await initialFrame;
+      if (this.destroyed) return;
     } catch (err) {
       if (this.destroyed) return;
       this.failed = err instanceof Error ? err.message : 'Renderer init failed';
@@ -320,22 +350,11 @@ export class Engine {
       throw err;
     }
 
-    // Route changes can unmount the canvas while shader compilation is pending.
-    if (this.destroyed) {
-      this.renderer.destroy();
-      this.renderer = null;
-      return;
-    }
-
     this.renderer.onDeviceLost(() => {
       // Per spec: a lost device is unrecoverable here — hard reload.
       if (!this.destroyed && typeof location !== 'undefined') location.reload();
     });
 
-    this.motionQuery?.addEventListener('change', this.syncMotionPreference);
-    this.syncMotionPreference();
-
-    this.resize();
     this.input.attach(this.canvas);
 
     if (typeof ResizeObserver !== 'undefined') {
@@ -349,20 +368,22 @@ export class Engine {
       });
     }
 
-    // Honor a persisted free-camera preference: seed the fly-cam state and
-    // switch input routing before the RAF loop begins.
-    if (this.settings.freeCamera) {
-      this.enterFreeCamera();
-    }
-
     this.running = true;
     this.lastTs = performance.now();
     this.lastStatsTs = this.lastTs;
     this.rafId = requestAnimationFrame(this.loop);
+
+    this.ready = true;
+    this.loadState = { frac: 1, label: this.loadState.label, ready: true };
+    this.events.emit('loadProgress', this.loadState);
+    this.events.emit('ready', null);
+    this.commit();
   }
 
   destroy(): void {
+    if (this.destroyed) return;
     this.destroyed = true;
+    this.startupAbort.abort();
     this.running = false;
     cancelAnimationFrame(this.rafId);
     this.input.detach();
@@ -378,7 +399,7 @@ export class Engine {
   private async createRenderer(
     onProgress?: LoadProgressFn,
   ): Promise<SceneRenderer> {
-    const force = this.settings.forceBackend;
+    const force = this.backendOverride ?? this.settings.forceBackend;
     const preferWebGL =
       force === 'auto' &&
       typeof navigator !== 'undefined' &&
@@ -394,12 +415,13 @@ export class Engine {
         const { WebGPURenderer } = await import('./WebGPURenderer');
         if (this.destroyed)
           throw new DOMException('Timeline unmounted', 'AbortError');
-        candidate = new WebGPURenderer();
-        await candidate.init(this.canvas, onProgress);
+        candidate = new WebGPURenderer(this.activeQuality.msaa);
+        await candidate.init(this.canvas, onProgress, this.startupAbort.signal);
         return candidate;
       } catch (err) {
         candidate?.destroy();
         if (this.destroyed) throw err;
+        if (err instanceof WebGPUCanvasError) throw err;
         console.warn('WebGPU unavailable, falling back to WebGL2:', err);
       }
     }
@@ -408,7 +430,7 @@ export class Engine {
       throw new DOMException('Timeline unmounted', 'AbortError');
     const r2 = new WebGL2Renderer();
     try {
-      await r2.init(this.canvas, onProgress);
+      await r2.init(this.canvas, onProgress, this.startupAbort.signal);
       return r2;
     } catch (error) {
       r2.destroy();
@@ -435,7 +457,6 @@ export class Engine {
     if (modalOpen) {
       this.fps = 0;
       this.fpsFrames = 0;
-      this.fpsAccum = 0;
       this.lastStatsTs = ts;
       // Keep the presented canvas instead of redrawing an unchanged scene.
       // Resize invalidates this frame; POI scrolling does not.
@@ -498,20 +519,12 @@ export class Engine {
       return;
     }
     if (!modalOpen) {
-      this.trackFps(ts, frameMs);
+      this.trackFps(ts);
     }
     this.renderFrame(!modalOpen && !paused ? dt : 0);
     this.lastRenderedViewProj.set(this.camera.viewProj);
     this.renderDirty = false;
     this.modalFrameRendered = modalOpen;
-
-    if (!this.ready) {
-      this.ready = true;
-      this.loadState = { frac: 1, label: this.loadState.label, ready: true };
-      this.events.emit('loadProgress', this.loadState);
-      this.events.emit('ready', null);
-      this.commit();
-    }
   };
 
   // Free-fly camera: integrate input axes into velocity (damped → momentum),
@@ -607,9 +620,8 @@ export class Engine {
       this.camera.position[1],
       this.camera.position[2],
     ];
-    const focusZ = this.scrubCurrent * PLANET_SPACING;
-    const center: Vec3 = [0, 0, focusZ - 1.5];
-    const fwd = vec3.normalize(vec3.sub(center, eye));
+    const view = this.camera.view;
+    const fwd = vec3.normalize([-view[2]!, -view[6]!, -view[10]!]);
     this.freePos = eye;
     this.freeYaw = Math.atan2(fwd[0], -fwd[2]);
     this.freePitch = Math.asin(clamp(fwd[1], -1, 1));
@@ -685,7 +697,7 @@ export class Engine {
     }
   }
 
-  private renderFrame(dt: number): void {
+  private renderFrame(dt: number, initial = false): void | Promise<void> {
     const r = this.renderer;
     if (!r) return;
     const planets = this.models.map((m, i) => {
@@ -713,6 +725,10 @@ export class Engine {
     const visiblePlanets = planets.filter((p) =>
       frustum.intersectsSphere(p.center, this.planetSystemRadius(p)),
     );
+    if (this.settings.flightPath && this.flightPathDirty) {
+      this.flightPath = buildFlightPath(this.models);
+      this.flightPathDirty = false;
+    }
     const frame: FrameState = {
       time: this.time,
       moonTime: this.moonTime,
@@ -747,7 +763,10 @@ export class Engine {
         ? this.flightPath
         : EMPTY_FLIGHT_PATH,
     };
-    r.render(frame);
+    const submission =
+      initial && r.renderInitialFrame
+        ? r.renderInitialFrame(frame)
+        : r.render(frame);
     if (this.bodyDrag) {
       this.events.emit(
         'bodySelectionChanged',
@@ -762,15 +781,14 @@ export class Engine {
           : null,
       );
     }
+    return submission;
   }
 
-  private trackFps(ts: number, frameMs: number): void {
+  private trackFps(ts: number): void {
     this.fpsFrames++;
-    this.fpsAccum += frameMs;
     if (ts - this.lastStatsTs >= 250) {
       this.fps = this.fpsFrames / ((ts - this.lastStatsTs) / 1000);
       this.fpsFrames = 0;
-      this.fpsAccum = 0;
       this.lastStatsTs = ts;
       if (this.settings.debugHud) this.commit();
     }
@@ -1018,7 +1036,7 @@ export class Engine {
     if (t < 0 || !Number.isFinite(t)) return;
     drag.body.center = vec3.add(rayPointAt(ray, t), drag.offset);
     this.renderDirty = true;
-    if (drag.body !== this.sun) this.flightPath = buildFlightPath(this.models);
+    if (drag.body !== this.sun) this.flightPathDirty = true;
   }
 
   // ---- public API for React / routing ----
@@ -1152,7 +1170,7 @@ export class Engine {
       // Free-camera rearrangements must not break the fixed timeline framing.
       for (const model of this.models) model.center = [0, 0, model.z];
       this.sun.center = [...this.initialSunCenter];
-      this.flightPath = buildFlightPath(this.models);
+      this.flightPathDirty = true;
     }
     this.commit();
   }
@@ -1211,6 +1229,8 @@ export class Engine {
     this.activeQuality = q;
     this.activeTier = q.tier;
     this.resize();
+    this.renderDirty = true;
+    this.modalFrameRendered = false;
     this.events.emit('qualityChanged', q.tier);
     this.commit();
   }
@@ -1226,10 +1246,8 @@ export class Engine {
     );
     const w = Math.max(1, Math.round(cssW * dpr));
     const h = Math.max(1, Math.round(cssH * dpr));
-    this.canvas.width = w;
-    this.canvas.height = h;
+    if (!r.resize(w, h, dpr)) return;
     this.camera.setAspect(w / h);
-    r.resize(w, h, dpr);
     this.modalFrameRendered = false;
     this.renderDirty = true;
   }

@@ -986,21 +986,6 @@ main:focus {
 .transport-keys .icon-btn {
   border-radius: 50%;
 }
-.flight-console {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  width: 340px;
-  min-height: 76px;
-}
-.flight-status,
-.return-timeline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  text-transform: uppercase;
-}
 
 /* ---- Terminal modal ---- */
 .modal-scrim {
@@ -2127,15 +2112,6 @@ main:focus {
   top: max(16px, env(safe-area-inset-top));
   right: max(16px, env(safe-area-inset-right));
 }
-.poi-nav {
-  display: flex;
-  flex-shrink: 0;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 16px;
-  margin-top: 16px;
-  border-top: 1px solid var(--glass-border);
-}
 
 /* ---- Error boundary ---- */
 .error-screen {
@@ -2176,19 +2152,6 @@ main:focus {
   white-space: pre-wrap;
 }
 
-/* ---- Visually hidden (SEO / screen-reader / print payload) ---- */
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -2226,76 +2189,29 @@ main:focus {
     opacity: 0;
   }
 }
-/* ---- Reusable glitch effect ----
-   Add `.glitch` to any element (or apply `animation: glitch-jitter ...` to a
-   pseudo-element) for an occasional chromatic-aberration stutter. Tune with
-   --glitch-duration, --glitch-a, --glitch-b and --glitch-rest-shadow. */
-.glitch {
-  display: inline-block;
-  animation: glitch-jitter var(--glitch-duration, 3.6s) steps(1, end) infinite;
+
+/* Manual "Paused" motion preference. The engine toggles `.motion-paused` on
+   <html> when the visitor chooses Pause, which is independent of the OS
+   setting — so these overrides must live outside the media query below.
+   The query repeats the same suppression for `prefers-reduced-motion`, which
+   also covers the static routes where the engine never runs. */
+.motion-paused .modal-scrim,
+.motion-paused .modal,
+.motion-paused .settings,
+.motion-paused .loading-title::after,
+.motion-paused body::before {
+  animation: none;
 }
-.company-glitch {
-  --glitch-duration: 6s;
-  --glitch-rest-shadow: var(--text-glow);
+.motion-paused .loading-screen,
+.motion-paused .loading-fill {
+  transition: none;
 }
-@keyframes glitch-jitter {
-  0%,
-  86%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    text-shadow: var(--glitch-rest-shadow, none);
-    clip-path: none;
-  }
-  87% {
-    transform: translate3d(-1px, 1px, 0);
-    text-shadow:
-      1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8)),
-      -1px 0 var(--glitch-b, rgba(0, 224, 255, 0.8));
-  }
-  89% {
-    transform: translate3d(1px, -1px, 0);
-    text-shadow:
-      -1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8)),
-      1px 0 var(--glitch-b, rgba(0, 224, 255, 0.8));
-    clip-path: inset(20% 0 30% 0);
-  }
-  91% {
-    transform: translate3d(-2px, 0, 0);
-    text-shadow:
-      2px 0 var(--glitch-b, rgba(0, 224, 255, 0.8)),
-      -1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8));
-    clip-path: inset(55% 0 10% 0);
-  }
-  93% {
-    transform: translate3d(1px, 1px, 0);
-    clip-path: none;
-    text-shadow:
-      -1px 0 var(--glitch-b, rgba(0, 224, 255, 0.8)),
-      1px 0 var(--glitch-a, rgba(255, 0, 64, 0.8));
-  }
-  95% {
-    transform: translate3d(0, 0, 0);
-    text-shadow: var(--glitch-rest-shadow, none);
-    clip-path: none;
-  }
+.motion-paused .modal .modal-content {
+  scroll-snap-type: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .modal .modal-content {
-    scroll-snap-type: none;
-  }
-  .motion-paused .modal-scrim,
-  .motion-paused .modal,
-  .motion-paused .settings,
-  .motion-paused .loading-title::after,
-  .motion-paused body::before {
-    animation: none;
-  }
-  .motion-paused .loading-screen,
-  .motion-paused .loading-fill {
-    transition: none;
-  }
-  .motion-paused .modal .modal-content {
     scroll-snap-type: none;
   }
   .modal,
@@ -2314,7 +2230,6 @@ main:focus {
   .loading-title::after {
     animation: none;
   }
-  .glitch,
   .page h1::before {
     animation: none;
   }
@@ -2495,9 +2410,6 @@ main:focus {
   .freecam {
     right: calc(max(16px, env(safe-area-inset-right)) + 3px);
   }
-  .flight-console {
-    display: none;
-  }
   .settings {
     right: max(16px, env(safe-area-inset-right));
   }
@@ -2591,7 +2503,7 @@ main:focus {
   .ribbon-identity {
     gap: 8px;
   }
-  .ribbon:not(.flight-console) {
+  .ribbon {
     min-height: 140px;
   }
   .ribbon .company-logo {
@@ -2665,7 +2577,7 @@ main:focus {
   .intro-actions {
     display: none;
   }
-  .ribbon:not(.flight-console) {
+  .ribbon {
     width: min(460px, calc(100% - 100px));
     min-height: 100px;
     grid-template-columns: minmax(0, 1fr) 98px;
@@ -2776,14 +2688,6 @@ main:focus {
   body::before,
   body::after {
     display: none !important;
-  }
-  .visually-hidden {
-    position: static;
-    width: auto;
-    height: auto;
-    clip: auto;
-    overflow: visible;
-    white-space: normal;
   }
   body {
     background: #fff;

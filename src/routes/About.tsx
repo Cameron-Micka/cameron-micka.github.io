@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { TopNav } from '@/ui/TopNav';
 import { SITE, SOCIAL } from '@/ui/strings';
 import { companies } from '@/content/companies';
-import { tenureLabel } from '@/content/schema';
+import { tenureLabel, assetUrl } from '@/content/schema';
 
 const CONTACT_LINKS = [
   { label: 'GitHub', href: SOCIAL.github, sub: 'Cameron-Micka' },
@@ -138,7 +138,7 @@ export default function About() {
         </section>
         <img
           className="golden-record"
-          src="/golden-record-about.svg"
+          src={assetUrl('golden-record-about.svg')}
           alt=""
           width={660}
           height={220}

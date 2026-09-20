@@ -3,6 +3,7 @@ import { ArrowRight, Pause, Play, Video } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Company } from '@/content/schema';
 import { Engine } from '@/engine/Engine';
+import { WebGPUCanvasError } from '@/engine/types';
 import { EngineContext, useEngine, useEngineValue } from './EngineContext';
 import { SoundManager } from './SoundManager';
 import { TopNav } from './TopNav';
@@ -139,26 +140,37 @@ export function Experience({ companies }: { companies: Company[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [engine, setEngine] = useState<Engine | null>(null);
   const [startError, setStartError] = useState<Error | null>(null);
+  const [retryWithWebGL, setRetryWithWebGL] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const eng = new Engine(canvas, companies);
+    const eng = new Engine(
+      canvas,
+      companies,
+      retryWithWebGL ? 'webgl2' : undefined,
+    );
     let active = true;
     setEngine(eng);
     eng.start().catch((err: unknown) => {
       if (!active) return;
+      eng.destroy();
+      if (err instanceof WebGPUCanvasError && !retryWithWebGL) {
+        console.warn('Retrying WebGL2 with a fresh canvas:', err.cause);
+        setEngine(null);
+        setRetryWithWebGL(true);
+        return;
+      }
       console.error('The 3D timeline could not start:', err);
       setStartError(err instanceof Error ? err : new Error(String(err)));
-      eng.destroy();
     });
     return () => {
       active = false;
       eng.destroy();
     };
-  }, [companies]);
+  }, [companies, retryWithWebGL]);
 
   if (startError) {
     return <PortfolioFallback companies={companies} error={startError} />;
@@ -167,7 +179,12 @@ export function Experience({ companies }: { companies: Company[] }) {
   return (
     <>
       <ResumeContent companies={companies} printOnly />
-      <canvas ref={canvasRef} className="scene-canvas" aria-hidden="true" />
+      <canvas
+        key={retryWithWebGL ? 'webgl2' : 'initial'}
+        ref={canvasRef}
+        className="scene-canvas"
+        aria-hidden="true"
+      />
       {engine && (
         <EngineContext.Provider value={engine}>
           <LoadingBar />

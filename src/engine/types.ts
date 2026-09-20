@@ -11,7 +11,6 @@ export interface QualitySettings {
   tier: QualityTier;
   dprCap: number;
   starCount: number;
-  ssao: boolean;
   chromaticAberration: boolean;
   bloomMips: number;
   msaa: number; // MSAA sample count: 1 = off, 2, or 4
@@ -156,10 +155,22 @@ export interface RenderStats {
 // so the UI can show a loading bar while geometry is built and shaders compile.
 export type LoadProgressFn = (frac: number, label: string) => void;
 
+export class WebGPUCanvasError extends Error {
+  constructor(cause: unknown) {
+    super('WebGPU failed after acquiring the canvas.', { cause });
+    this.name = 'WebGPUCanvasError';
+  }
+}
+
 export interface SceneRenderer {
   readonly backend: RendererBackend;
-  init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn): Promise<void>;
-  resize(width: number, height: number, dpr: number): void;
+  init(
+    canvas: HTMLCanvasElement,
+    onProgress?: LoadProgressFn,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  resize(width: number, height: number, dpr: number): boolean;
+  renderInitialFrame?(frame: FrameState): Promise<void>;
   render(frame: FrameState): void;
   getStats(): RenderStats;
   // Called when modal opens: keep rendering a frozen, progressively blurred

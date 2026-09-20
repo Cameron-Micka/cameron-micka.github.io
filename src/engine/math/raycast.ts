@@ -1,4 +1,4 @@
-import { mat4, type Mat4 } from './mat4';
+import type { Mat4 } from './mat4';
 import { vec3, type Vec3 } from './vec3';
 
 export interface Ray {
@@ -42,5 +42,3 @@ export function raySphere(ray: Ray, center: Vec3, radius: number): number {
 export function rayPointAt(ray: Ray, t: number): Vec3 {
   return vec3.add(ray.origin, vec3.scale(ray.dir, t));
 }
-
-export { mat4 };

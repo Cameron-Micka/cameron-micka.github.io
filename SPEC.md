@@ -1,10 +1,20 @@
 # Cameron Micka — Portfolio Site Spec
 
+> **Historical document.** This is the original design spec, kept for intent
+> and rationale. It is **not** a description of the shipped site and is not
+> maintained. Several choices below were never adopted — content is typed
+> TypeScript validated by zod rather than MDX in `/content`, shaders are
+> hand-authored in both WGSL and GLSL rather than transpiled with Naga, there
+> is no `vite-imagetools` pipeline, deployment uses the Pages artifact rather
+> than a `gh-pages` branch, the referenced `timemachine.png` is not in the
+> repo, and the photo pipeline now has regression tests (`npm test`).
+> **[README.md](./README.md) is the source of truth for how the site works.**
+
 A personal portfolio for **Cameron Micka** (Principal Software Engineer @ Microsoft — Mesh / MRTK / HoloLens; previously Fun Bits Interactive, LucasArts Entertainment; DigiPen alumnus).
 
 The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of Cameron's career, with procedurally generated planets representing each company / school. Clickable points of interest (POIs) on each planet open 2D React modals with descriptions, images, and videos. Conventional `/about` and `/blog` (stub) routes ship as prerendered static HTML.
 
-> Inspiration: Apple's Time Machine UI — cosmic backdrop with a receding Z-axis stack, a side time ruler, and a bottom ribbon. See `timemachine.png` in the repo root.
+> Inspiration: Apple's Time Machine UI — cosmic backdrop with a receding Z-axis stack, a side time ruler, and a bottom ribbon.
 
 ---
 
@@ -661,7 +671,7 @@ PRs run steps 1–6 (no deploy). Branch protection: green CI required.
 ├── LICENSE             ← MIT
 ├── README.md
 ├── SPEC.md             ← this file
-└── timemachine.png     ← reference image (kept for design history)
+└── timemachine.png     ← reference image (proposed; never committed)
 ```
 
 ---

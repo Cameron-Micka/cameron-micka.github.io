@@ -5,6 +5,7 @@ import type {
   RenderStats,
   SceneRenderer,
 } from './types';
+import { WebGPUCanvasError } from './types';
 import {
   createSphere,
   createRingGeometry,
@@ -24,6 +25,7 @@ import { paintYield } from './paintYield';
 import { QUALITY_PRESETS } from './QualityManager';
 import {
   ATMOSPHERE_SHELL_SCALE,
+  CLOUD_SHELL_SCALE,
   ATMOSPHERE_LUT_WIDTH,
   ATMOSPHERE_LUT_HEIGHT,
   createAtmosphereOpticalDepthLut,
@@ -49,10 +51,6 @@ const OBJ_STRIDE = 256; // bytes; >= minUniformBufferOffsetAlignment
 const OBJ_FLOATS = OBJ_STRIDE / 4;
 const MAX_OBJECTS = 64;
 const HDR_FALLBACK_FORMAT: GPUTextureFormat = 'rgba16float';
-// Must match CLOUD_SHELL_SCALE in clouds.wgsl and planet.wgsl: surface-point
-// projection in the planet shader assumes the cloud shell sits at this radius
-// (in unit-sphere local space) so the shadow lands exactly under the puff.
-const CLOUD_SHELL_SCALE = 1.006;
 // Per-planet satellite sprites cap. 6 planets * 7 sats = 42 worst case;
 // rounded up for headroom. Buffer is sized once and reused across frames.
 const MAX_SATELLITES = 64;
@@ -183,14 +181,21 @@ export class WebGPURenderer implements SceneRenderer {
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
+  private deviceLostError: Error | null = null;
 
-  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn): Promise<void> {
+  constructor(initialSamples = 1) {
+    this.sampleCount = initialSamples === 4 ? 4 : 1;
+  }
+
+  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn, signal?: AbortSignal): Promise<void> {
     const report = async (frac: number, label: string): Promise<void> => {
+      signal?.throwIfAborted();
       if (!onProgress) return;
       onProgress(frac, label);
       // Let the loading bar paint before the next synchronous, main-thread
       // blocking stage (geometry build / shader compilation).
       await paintYield();
+      signal?.throwIfAborted();
     };
 
     await report(0.08, 'Initializing WebGPU…');
@@ -209,26 +214,74 @@ export class WebGPURenderer implements SceneRenderer {
       ? 'rg11b10ufloat'
       : HDR_FALLBACK_FORMAT;
     this.canvas = canvas;
+    this.format = navigator.gpu.getPreferredCanvasFormat();
 
     device.lost.then((info) => {
-      if (info.reason !== 'destroyed') this.deviceLostCb?.();
+      if (info.reason !== 'destroyed') {
+        this.deviceLostError = new Error(`WebGPU device lost: ${info.message}`);
+        this.deviceLostCb?.();
+      }
     });
 
-    const ctx = canvas.getContext('webgpu');
-    if (!ctx) throw new Error('No WebGPU canvas context');
-    this.context = ctx;
-    this.format = navigator.gpu.getPreferredCanvasFormat();
-    ctx.configure({ device, format: this.format, alphaMode: 'opaque' });
+    await this.validateInitialization(async () => {
+      await report(0.35, 'Building scene geometry…');
+      this.createGeometry();
+      await report(0.5, 'Allocating buffers…');
+      this.createUniforms();
+      await report(0.6, 'Compiling shaders…');
+      this.createPipelines(this.sampleCount);
+      await report(0.9, 'Generating starfield…');
+      this.buildStars(QUALITY_PRESETS.high.starCount);
+    });
 
-    await report(0.35, 'Building scene geometry…');
-    this.createGeometry();
-    await report(0.5, 'Allocating buffers…');
-    this.createUniforms();
-    await report(0.6, 'Compiling shaders…');
-    this.createPipelines(this.sampleCount);
-    await report(0.9, 'Generating starfield…');
-    this.buildStars(QUALITY_PRESETS.high.starCount);
     await report(1, 'Entering the timeline…');
+    signal?.throwIfAborted();
+    try {
+      await this.validateInitialization(() => {
+        const ctx = canvas.getContext('webgpu');
+        if (!ctx) throw new Error('No WebGPU canvas context');
+        this.context = ctx;
+        ctx.configure({ device, format: this.format, alphaMode: 'opaque' });
+      });
+      signal?.throwIfAborted();
+    } catch (error) {
+      if (this.context) throw new WebGPUCanvasError(error);
+      throw error;
+    }
+  }
+
+  private async validateInitialization(operation: () => void | Promise<void>): Promise<void> {
+    const device = this.device;
+    device.pushErrorScope('internal');
+    device.pushErrorScope('out-of-memory');
+    device.pushErrorScope('validation');
+    let failed = false;
+    let failure: unknown;
+    try {
+      await operation();
+    } catch (error) {
+      failed = true;
+      failure = error;
+    }
+    const errors = await Promise.all([
+      device.popErrorScope(),
+      device.popErrorScope(),
+      device.popErrorScope(),
+    ]);
+    if (failed) throw failure;
+    const messages = errors.flatMap((error) => error ? [error.message] : []);
+    if (messages.length > 0) {
+      throw new Error(`WebGPU initialization failed: ${messages.join('; ')}`);
+    }
+    if (this.deviceLostError) throw this.deviceLostError;
+  }
+
+  async renderInitialFrame(frame: FrameState): Promise<void> {
+    try {
+      await this.validateInitialization(() => this.render(frame));
+    } catch (error) {
+      throw new WebGPUCanvasError(error);
+    }
   }
 
   private createGeometry(): void {
@@ -886,17 +939,20 @@ export class WebGPURenderer implements SceneRenderer {
     this.starCount = count;
   }
 
-  resize(width: number, height: number, dpr = 1): void {
+  resize(width: number, height: number, dpr = 1): boolean {
     width = Math.max(1, Math.floor(width));
     height = Math.max(1, Math.floor(height));
+    dpr = dpr > 0 ? dpr : 1;
+    if (
+      width === this.width && height === this.height && dpr === this.dpr &&
+      this.canvas.width === width && this.canvas.height === height
+    ) return false;
     this.width = width;
     this.height = height;
-    this.dpr = dpr > 0 ? dpr : 1;
-    this.canvas.width = width;
-    this.canvas.height = height;
-
-    this.resizeSceneTargets();
-    this.ensureAuxTargets(true);
+    this.dpr = dpr;
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
+    return true;
   }
 
   private resizeSceneTargets(): void {
@@ -1052,14 +1108,16 @@ export class WebGPURenderer implements SceneRenderer {
     const n = count === 4 ? 4 : 1;
     const scale = Math.max(0.5, Math.min(1, sceneScale));
     const sampleCountChanged = n !== this.sampleCount;
-    const sceneScaleChanged = scale !== this.sceneScale;
-    if (!sampleCountChanged && !sceneScaleChanged) return false;
+    const sizeChanged =
+      this.sceneWidth !== Math.max(1, Math.round(this.width * scale)) ||
+      this.sceneHeight !== Math.max(1, Math.round(this.height * scale));
+    this.sceneScale = scale;
+    if (this.hdrTex && !sampleCountChanged && !sizeChanged) return false;
 
     if (sampleCountChanged) {
       this.sampleCount = n;
       this.createPipelines(n);
     }
-    this.sceneScale = scale;
     this.resizeSceneTargets();
     return true;
   }
@@ -1959,9 +2017,12 @@ export class WebGPURenderer implements SceneRenderer {
 
   onDeviceLost(cb: () => void): void {
     this.deviceLostCb = cb;
+    if (this.deviceLostError) cb();
   }
 
   destroy(): void {
+    this.deviceLostCb = null;
+    this.context?.unconfigure();
     this.hdrTex?.destroy();
     this.msaaTex?.destroy();
     this.depthTex?.destroy();

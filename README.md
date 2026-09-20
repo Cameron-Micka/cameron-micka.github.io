@@ -15,11 +15,16 @@ npm install
 npm run dev        # local dev server
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint, zero warnings
+npm test           # node --test: photo pipeline regression checks
 npm run build      # static site -> dist/ (SSG)
 npm run preview    # preview the production build
 ```
 
-Deploys to GitHub Pages via `.github/workflows/deploy.yml` on push to `main`.
+`.github/workflows/deploy.yml` runs typecheck, lint, tests, and the production
+build on every pull request and on pushes to `main`. Only `main` (and a manual
+dispatch) deploys to GitHub Pages: pull-request runs never receive the
+`pages`/`id-token` scopes and cannot publish.
+Deployment jobs are serialized separately from pull-request builds.
 
 ## Architecture
 
@@ -51,6 +56,10 @@ away during asynchronous initialization disposes the completed renderer
 without attaching input handlers or starting a stray animation loop. Failed
 renderer candidates are also disposed before fallback or error recovery.
 Intentional teardown must not trigger the hardware-loss reload path.
+WebGPU startup observes GPU validation, allocation, and internal errors before
+claiming the canvas and validates the first rendered frame before reporting
+ready. If startup fails after WebGPU has claimed the canvas, React replaces
+it and retries WebGL2 once without changing the saved renderer preference.
 Production bootstrapping is deferred until the document is parsed, so the SSG
 router never races its inline hydration data or build-manifest identifier.
 
@@ -80,11 +89,16 @@ before a user gesture.
 Use the camera button to enter free camera. On desktop, WASD flies, Shift
 boosts, and Space slows movement. Click and drag a planet or the sun to move
 it across the view; drag empty space (or right-drag anywhere) to look around.
+Entering free camera preserves the current viewing direction and position,
+including portrait layouts and zoomed views.
 Planet moons, satellites, and the flight path follow the moved planet.
 Leaving free camera restores the original scene layout for timeline navigation.
 On touch screens, drag a planet or the sun to move it. Drag empty space on
 the left half to fly or the right half to look; these two camera gestures can
 run simultaneously.
+
+Planet drags mark the flight path dirty; its geometry is rebuilt at most once
+per rendered frame, and only when the flight-path setting is enabled.
 
 Body-selection outlines reuse 128 cached circle samples and scalar projection,
 avoiding 512 temporary vectors and 256 trigonometric calls per computed outline
@@ -120,6 +134,11 @@ mobile/coarse-pointer devices use the same performance-based ramp. Explicit
 quality choices are never overridden; preferences persist in `localStorage`.
 The initial output size uses the chosen tier immediately, rather than allocating
 a High-DPR canvas and resizing it down at startup.
+Render targets are allocated once the first frame's dimensions and quality are
+known. At 1440x900 Low, WebGL2 startup uses 3 textures, 1 renderbuffer, and 3
+framebuffers (previously 5, 5, and 7); WebGPU uses 6 textures (previously 16).
+These counts include the atmosphere lookup texture. Identical resize
+notifications neither reset the canvas nor reallocate targets.
 
 Paused motion renders on demand: once the camera settles, an unchanged scene
 does not rebuild instances or submit GPU work. Dragging, travel, resizing,
@@ -171,6 +190,9 @@ surface/background or model multiple scattering.
 Both surface shaders also skip polar-ice noise outside the mathematically
 possible ice region, avoiding work on large equatorial areas without changing
 terrain detail or render resolution.
+Dry planets and moons skip ocean-glitter calculations behind a uniform ocean
+flag, keeping screen-space derivatives valid. Ordinary specular lighting and
+the wet-surface calculations are unchanged.
 
 Local performance check (2026-09-18, Apple M1, Chromium/ANGLE Metal, DPR 1):
 
@@ -295,8 +317,14 @@ into URL-safe ids (`IMG_298_No_Wires.jpeg` becomes
 `src/content/photos.generated.ts` with the paths and full-size intrinsic
 dimensions used by the gallery. Source JPEG, PNG, TIFF, and HEIF files in
 those folders are ignored by git. To use different watermark text, pass
-`--name "Your Name"`; to rebuild only the manifest from existing derivatives,
-pass `--manifest-only`.
+`--name "Your Name"`; to rebuild only the manifest, pass `--manifest-only`.
+
+`--manifest-only` reads the committed WebP derivatives rather than the ignored
+originals, so it works in a fresh checkout. It verifies that each full-size
+file has a matching thumbnail and that both are readable WebPs within their
+size limits, then rewrites the manifest. Both modes order the manifest by the
+generated `photos/<category>/<id>.webp` path, so a full conversion and a
+manifest-only refresh always produce the same file. `npm test` covers this.
 
 New generated entries receive a category-based fallback description. Add an
 image-specific description to `photoDetails` in `src/content/photos.ts` before
@@ -304,9 +332,12 @@ publishing new photos; captions and locations are optional. These authored
 details survive future batch conversions.
 
 Keep the site comfortably under GitHub Pages' ~1 GB soft limit. If the gallery
-ever outgrows that, move the files to an external object store/CDN and change
-the manifest paths to absolute URLs — nothing else needs to change. Do not use
-Git LFS: Pages does not resolve LFS pointers, so the images would 404.
+ever outgrows that, the files can move to an external object store/CDN, but the
+manifest paths are not currently portable: `assetUrl()` in
+`src/content/schema.ts` joins them onto `BASE_URL`, so it would need to pass
+absolute URLs through untouched, and `scripts/build-photos.mjs` would need to
+emit them. Do not use Git LFS: Pages does not resolve LFS pointers, so the
+images would 404.
 
 ## Notable implementation decisions
 

@@ -9,6 +9,7 @@ import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
 import {
   ATMOSPHERE_SHELL_SCALE,
+  CLOUD_SHELL_SCALE,
   ATMOSPHERE_LUT_WIDTH,
   ATMOSPHERE_LUT_HEIGHT,
   createAtmosphereOpticalDepthLut,
@@ -21,11 +22,6 @@ type PostTarget = {
 };
 
 // WebGL mirror of the WebGPU experience, with an HDR scene target when supported.
-// Must match CLOUD_SHELL_SCALE in clouds.wgsl / planet.wgsl / PLANET_FRAG /
-// CLOUDS_FRAG: cloud-shadow projection in the planet shader assumes the
-// shell sits exactly here in unit-sphere local space.
-const CLOUD_SHELL_SCALE_WEBGL2 = 1.006;
-
 const NEBULA_VERT = `#version 300 es
 out vec2 vUv;
 void main() {
@@ -467,40 +463,44 @@ void main(){
   vec3 kS=F;
   vec3 kD=(vec3(1.0)-kS)*(1.0-metallic);
   // Each cell contains a round mirror; the radial mask prevents square glints.
-  float glitterScale=120.0;
-  vec3 glitterCoord=localPos*glitterScale+vec3(uSeed*0.013,uSeed*0.017,uSeed*0.011);
-  vec3 glitterFootprint3=fwidth(glitterCoord);
-  float glitterFootprint=max(glitterFootprint3.x,max(glitterFootprint3.y,glitterFootprint3.z));
-  float glitterLod=1.0-smoothstep(0.40,0.80,glitterFootprint);
-  vec3 glitterCell=floor(glitterCoord);
-  vec3 glitterSub=fract(glitterCoord);
-  vec3 glitterCenterRandom=vec3(hash3(glitterCell+vec3(31.0,79.0,47.0)),hash3(glitterCell+vec3(67.0,11.0,97.0)),hash3(glitterCell+vec3(5.0,43.0,113.0)));
-  vec3 glitterCenter=mix(vec3(0.43),vec3(0.57),glitterCenterRandom);
-  vec3 glitterDelta=glitterSub-glitterCenter;
-  vec3 glitterDx=dFdx(glitterCoord);
-  vec3 glitterDy=dFdy(glitterCoord);
-  float glitterXX=dot(glitterDx,glitterDx);
-  float glitterXY=dot(glitterDx,glitterDy);
-  float glitterYY=dot(glitterDy,glitterDy);
-  float glitterDet=max(glitterXX*glitterYY-glitterXY*glitterXY,1e-6);
-  float glitterRhsX=dot(glitterDelta,glitterDx);
-  float glitterRhsY=dot(glitterDelta,glitterDy);
-  vec2 glitterOffsetPx=vec2((glitterRhsX*glitterYY-glitterRhsY*glitterXY)/glitterDet,(glitterRhsY*glitterXX-glitterRhsX*glitterXY)/glitterDet);
-  float glitterRadiusPx=mix(0.48,0.64,glitterCenterRandom.x);
-  float glitterDisc=1.0-smoothstep(glitterRadiusPx-0.38,glitterRadiusPx+0.38,length(glitterOffsetPx));
-  vec3 glitterRandom=vec3(hash3(glitterCell+vec3(17.0,53.0,101.0)),hash3(glitterCell+vec3(59.0,23.0,7.0)),hash3(glitterCell+vec3(13.0,83.0,41.0)))*2.0-vec3(1.0);
-  vec3 glitterSlope=glitterRandom-localPos*dot(glitterRandom,localPos);
-  glitterSlope*=1.0;
-  vec3 glitterNormalLocal=normalize(localPos+glitterSlope);
-  vec3 glitterNormal=normalize(r0*glitterNormalLocal.x+r1*glitterNormalLocal.y+r2*glitterNormalLocal.z);
-  float glitterAlignment=clamp(dot(glitterNormal,H),0.0,1.0);
-  float glitterFlash=smoothstep(0.9900,0.9985,glitterAlignment);
-  float glitterRandomEnergy=hash3(glitterCell+vec3(109.0,37.0,71.0));
-  float glitterEnergy2=glitterRandomEnergy*glitterRandomEnergy;
-  float glitterEnergy=0.24+1.76*glitterEnergy2*glitterEnergy2;
-  float openWaterMask=smoothstep(0.75,0.98,waterMask)*(1.0-smoothstep(0.03,0.25,iceMask));
-  float glitterMask=openWaterMask*glitterLod*glitterDisc*glitterFlash;
-  vec3 glitter=vec3(1.0,0.9,0.72)*glitterEnergy*glitterMask*NdL;
+  vec3 glitter=vec3(0.0);
+  // Keep the gate uniform because glitter uses screen-space derivatives.
+  if(uOceans>0.5){
+    float glitterScale=120.0;
+    vec3 glitterCoord=localPos*glitterScale+vec3(uSeed*0.013,uSeed*0.017,uSeed*0.011);
+    vec3 glitterFootprint3=fwidth(glitterCoord);
+    float glitterFootprint=max(glitterFootprint3.x,max(glitterFootprint3.y,glitterFootprint3.z));
+    float glitterLod=1.0-smoothstep(0.40,0.80,glitterFootprint);
+    vec3 glitterCell=floor(glitterCoord);
+    vec3 glitterSub=fract(glitterCoord);
+    vec3 glitterCenterRandom=vec3(hash3(glitterCell+vec3(31.0,79.0,47.0)),hash3(glitterCell+vec3(67.0,11.0,97.0)),hash3(glitterCell+vec3(5.0,43.0,113.0)));
+    vec3 glitterCenter=mix(vec3(0.43),vec3(0.57),glitterCenterRandom);
+    vec3 glitterDelta=glitterSub-glitterCenter;
+    vec3 glitterDx=dFdx(glitterCoord);
+    vec3 glitterDy=dFdy(glitterCoord);
+    float glitterXX=dot(glitterDx,glitterDx);
+    float glitterXY=dot(glitterDx,glitterDy);
+    float glitterYY=dot(glitterDy,glitterDy);
+    float glitterDet=max(glitterXX*glitterYY-glitterXY*glitterXY,1e-6);
+    float glitterRhsX=dot(glitterDelta,glitterDx);
+    float glitterRhsY=dot(glitterDelta,glitterDy);
+    vec2 glitterOffsetPx=vec2((glitterRhsX*glitterYY-glitterRhsY*glitterXY)/glitterDet,(glitterRhsY*glitterXX-glitterRhsX*glitterXY)/glitterDet);
+    float glitterRadiusPx=mix(0.48,0.64,glitterCenterRandom.x);
+    float glitterDisc=1.0-smoothstep(glitterRadiusPx-0.38,glitterRadiusPx+0.38,length(glitterOffsetPx));
+    vec3 glitterRandom=vec3(hash3(glitterCell+vec3(17.0,53.0,101.0)),hash3(glitterCell+vec3(59.0,23.0,7.0)),hash3(glitterCell+vec3(13.0,83.0,41.0)))*2.0-vec3(1.0);
+    vec3 glitterSlope=glitterRandom-localPos*dot(glitterRandom,localPos);
+    glitterSlope*=1.0;
+    vec3 glitterNormalLocal=normalize(localPos+glitterSlope);
+    vec3 glitterNormal=normalize(r0*glitterNormalLocal.x+r1*glitterNormalLocal.y+r2*glitterNormalLocal.z);
+    float glitterAlignment=clamp(dot(glitterNormal,H),0.0,1.0);
+    float glitterFlash=smoothstep(0.9900,0.9985,glitterAlignment);
+    float glitterRandomEnergy=hash3(glitterCell+vec3(109.0,37.0,71.0));
+    float glitterEnergy2=glitterRandomEnergy*glitterRandomEnergy;
+    float glitterEnergy=0.24+1.76*glitterEnergy2*glitterEnergy2;
+    float openWaterMask=smoothstep(0.75,0.98,waterMask)*(1.0-smoothstep(0.03,0.25,iceMask));
+    float glitterMask=openWaterMask*glitterLod*glitterDisc*glitterFlash;
+    glitter=vec3(1.0,0.9,0.72)*glitterEnergy*glitterMask*NdL;
+  }
   // Pre-multiply sun radiance by PI so diffuse simplifies to kD*albedo*NdL.
   vec3 sunRadiance=vec3(PI);
   float shadow=shadowFactor(vWorld,L);
@@ -1869,11 +1869,13 @@ export class WebGL2Renderer implements SceneRenderer {
   // Scratch for uShadowSpheres[8] uploads (8 vec4 = 32 floats).
   private shadowScratch = new Float32Array(32);
 
-  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn): Promise<void> {
+  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn, signal?: AbortSignal): Promise<void> {
     const report = async (frac: number, label: string): Promise<void> => {
+      signal?.throwIfAborted();
       if (!onProgress) return;
       onProgress(frac, label);
       await paintYield();
+      signal?.throwIfAborted();
     };
 
     await report(0.1, 'Initializing WebGL…');
@@ -2241,18 +2243,24 @@ export class WebGL2Renderer implements SceneRenderer {
     return n;
   }
 
-  resize(width: number, height: number, dpr = 1): void {
-    this.width = Math.max(1, Math.floor(width));
-    this.height = Math.max(1, Math.floor(height));
-    this.dpr = dpr > 0 ? dpr : 1;
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
-    this.gl.viewport(0, 0, this.width, this.height);
-    this.ensureSceneTargets();
+  resize(width: number, height: number, dpr = 1): boolean {
+    width = Math.max(1, Math.floor(width));
+    height = Math.max(1, Math.floor(height));
+    dpr = dpr > 0 ? dpr : 1;
+    if (
+      width === this.width && height === this.height && dpr === this.dpr &&
+      this.canvas.width === width && this.canvas.height === height
+    ) return false;
+    this.width = width;
+    this.height = height;
+    this.dpr = dpr;
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
+    return true;
   }
 
   // (Re)create the offscreen MSAA color/depth renderbuffers and the resolve
-  // texture at the active scene scale. Called on resize and quality changes.
+  // texture once the frame's output size and quality are both known.
   private ensureSceneTargets(): void {
     const gl = this.gl;
     const w = Math.max(1, Math.round(this.width * this.sceneScale));
@@ -2432,11 +2440,13 @@ export class WebGL2Renderer implements SceneRenderer {
     const gl = this.gl;
     this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
     const sceneScale = Math.max(0.5, Math.min(1, frame.quality.sceneScale));
-    if (!this.msaaFbo || this.requestedSamples !== frame.quality.msaa || this.sceneScale !== sceneScale) {
-      this.requestedSamples = frame.quality.msaa;
-      this.sceneScale = sceneScale;
-      this.ensureSceneTargets();
-    }
+    const targetsChanged =
+      !this.msaaFbo || this.requestedSamples !== frame.quality.msaa ||
+      this.sceneWidth !== Math.max(1, Math.round(this.width * sceneScale)) ||
+      this.sceneHeight !== Math.max(1, Math.round(this.height * sceneScale));
+    this.requestedSamples = frame.quality.msaa;
+    this.sceneScale = sceneScale;
+    if (targetsChanged) this.ensureSceneTargets();
     const tier = frame.quality.tier === 'high' ? 0 : frame.quality.tier === 'low' ? 2 : 1;
     this.ensureBackdropTarget(frame.quality.backdropScale);
     gl.disable(gl.DEPTH_TEST);
@@ -2663,7 +2673,7 @@ export class WebGL2Renderer implements SceneRenderer {
         const vis = p.visibility;
         if (vis <= 0.02) continue;
         const er = p.radius * vis;
-        const cloudR = er * CLOUD_SHELL_SCALE_WEBGL2;
+        const cloudR = er * CLOUD_SHELL_SCALE;
         mat4.fromRotationTranslationScale(model, p.orientation, p.center, cloudR);
         gl.uniformMatrix4fv(this.clouds.uniforms.uModel!, false, model);
         gl.uniform3fv(this.clouds.uniforms.uTint!, p.paletteHigh);
