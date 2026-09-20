@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>13 — Outline</title>
+  <rect width="64" height="64" rx="12" fill="#18181b"/>
+  <path d="M24 12h10L20 52H10ZM46 12h10L42 52H32Z" fill="none" stroke="#ff7a18" stroke-width="3" stroke-linejoin="round"/>
+</svg>

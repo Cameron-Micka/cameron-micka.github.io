@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>16 — Offset</title>
+  <rect width="64" height="64" rx="12" fill="#18181b"/>
+  <path d="M27 12 15 44M49 20 37 52" fill="none" stroke="#ff7a18" stroke-width="8" stroke-linecap="round"/>
+</svg>

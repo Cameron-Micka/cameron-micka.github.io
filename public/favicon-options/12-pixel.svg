@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>12 — Pixel</title>
+  <rect width="64" height="64" rx="8" fill="#18181b"/>
+  <path d="M24 12h8v12h-4v12h-4v12h-4v4h-8V40h4V28h4V16h4Zm24 0h8v12h-4v12h-4v12h-4v4h-8V40h4V28h4V16h4Z" fill="#ff7a18"/>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>14 — Stencil</title>
+  <rect width="64" height="64" rx="12" fill="#18181b"/>
+  <path d="M24 12h10l-6 17H18Zm-8 23h10l-6 17H10Zm30-23h10l-6 17H40Zm-8 23h10l-6 17H32Z" fill="#ff7a18"/>
+</svg>

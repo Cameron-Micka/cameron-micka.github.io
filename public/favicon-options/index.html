@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>16 favicon options — Cameron Micka</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 40px 20px;
+        background: #18181b;
+        color: #f1f0f2;
+        font:
+          16px/1.6 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1120px;
+        margin: auto;
+      }
+      h1 {
+        margin: 8px 0;
+        font-size: clamp(28px, 5vw, 44px);
+        line-height: 1.2;
+      }
+      h2 {
+        margin: 16px 0 4px;
+        font-size: 18px;
+      }
+      p {
+        max-width: 780px;
+        color: #c4c4cd;
+      }
+      a {
+        color: #ffab6b;
+        text-underline-offset: 4px;
+      }
+      a:focus-visible {
+        outline: 3px solid #ffab6b;
+        outline-offset: 5px;
+      }
+      .eyebrow {
+        color: #ffab6b;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-size: 12px;
+      }
+      .notice {
+        padding: 12px 16px;
+        border-left: 3px solid #ff7a18;
+        background: #252529;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 28px;
+      }
+      article {
+        border: 1px solid #46464e;
+        border-radius: 16px;
+        padding: 20px;
+        background: #222226;
+      }
+      article p {
+        font-size: 13px;
+        min-height: 42px;
+        margin: 4px 0 16px;
+      }
+      .hero {
+        display: grid;
+        place-items: center;
+        height: 104px;
+      }
+      .hero img {
+        width: 64px;
+        height: 64px;
+      }
+      .samples {
+        display: flex;
+        margin: 16px 0;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .samples span {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: center;
+        width: 50%;
+        height: 56px;
+      }
+      .dark {
+        background: #101014;
+      }
+      .light {
+        background: #f3f0e9;
+      }
+      .download {
+        font-size: 13px;
+      }
+      footer {
+        margin-top: 32px;
+      }
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 480px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="eyebrow">Cameron Micka / favicon studies</div>
+        <h1>One old mark. Sixteen new takes.</h1>
+        <p>
+          Based on the orange <strong>//</strong> formerly beside the name in
+          the top-left header, introduced in
+          <a
+            href="https://github.com/Cameron-Micka/cameron-micka.github.io/commit/4744d4ae5f270df288326becb88076c0cf925481"
+            >commit 4744d4a</a
+          >. The glitch-inspired options freeze the old animation into a static
+          icon.
+        </p>
+        <p class="notice">
+          <strong>Nothing has been replaced.</strong> Reply with a number
+          <strong>01–16</strong> to choose the website’s next favicon. Downloads
+          below are candidates only.
+        </p>
+        <p>
+          Each design is shown at 64 px, then at actual 16 px and 32 px sizes on
+          dark and light backgrounds.
+          <a href="contact-sheet.png">View all 16 in one image</a>.
+        </p>
+      </header>
+      <section class="grid" aria-label="16 favicon candidates">
+        <article>
+          <div class="hero">
+            <img
+              src="01-classic.svg"
+              alt="Two fine orange slashes on a dark rounded square"
+            />
+          </div>
+          <h2>01 / Classic</h2>
+          <p>Closest to the original double slash.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="01-classic.svg" width="16" height="16" alt="" /><img
+                src="01-classic.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="01-classic.svg" width="16" height="16" alt="" /><img
+                src="01-classic.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="01-classic.svg" download>Download 01 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="02-bold.svg"
+              alt="Two broad orange slashes on a dark rounded square"
+            />
+          </div>
+          <h2>02 / Bold</h2>
+          <p>Heavier strokes for tiny browser tabs.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="02-bold.svg" width="16" height="16" alt="" /><img
+                src="02-bold.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="02-bold.svg" width="16" height="16" alt="" /><img
+                src="02-bold.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="02-bold.svg" download>Download 02 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="03-rounded.svg"
+              alt="Two orange slashes with rounded ends"
+            />
+          </div>
+          <h2>03 / Rounded</h2>
+          <p>Softer strokes and a more rounded tile.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="03-rounded.svg" width="16" height="16" alt="" /><img
+                src="03-rounded.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="03-rounded.svg" width="16" height="16" alt="" /><img
+                src="03-rounded.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="03-rounded.svg" download>Download 03 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="04-lean.svg"
+              alt="Two orange slashes with a wider diagonal lean"
+            />
+          </div>
+          <h2>04 / Lean</h2>
+          <p>A faster, wider diagonal silhouette.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="04-lean.svg" width="16" height="16" alt="" /><img
+                src="04-lean.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="04-lean.svg" width="16" height="16" alt="" /><img
+                src="04-lean.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="04-lean.svg" download>Download 04 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="05-disc.svg"
+              alt="Two orange slashes inside a dark circular badge"
+            />
+          </div>
+          <h2>05 / Disc</h2>
+          <p>The original mark inside a round badge.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="05-disc.svg" width="16" height="16" alt="" /><img
+                src="05-disc.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="05-disc.svg" width="16" height="16" alt="" /><img
+                src="05-disc.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="05-disc.svg" download>Download 05 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="06-keycap.svg"
+              alt="Orange double slash with a thin orange keycap border"
+            />
+          </div>
+          <h2>06 / Keycap</h2>
+          <p>A fine border with a keyboard-key feel.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="06-keycap.svg" width="16" height="16" alt="" /><img
+                src="06-keycap.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="06-keycap.svg" width="16" height="16" alt="" /><img
+                src="06-keycap.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="06-keycap.svg" download>Download 06 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="07-orange.svg"
+              alt="Dark double slash cut into a bright orange tile"
+            />
+          </div>
+          <h2>07 / Orange</h2>
+          <p>Inverted palette, maximum orange.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="07-orange.svg" width="16" height="16" alt="" /><img
+                src="07-orange.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="07-orange.svg" width="16" height="16" alt="" /><img
+                src="07-orange.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="07-orange.svg" download>Download 07 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="08-paper.svg"
+              alt="Burnt-orange double slash on a warm cream tile"
+            />
+          </div>
+          <h2>08 / Paper</h2>
+          <p>Warm cream from the current site panels.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="08-paper.svg" width="16" height="16" alt="" /><img
+                src="08-paper.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="08-paper.svg" width="16" height="16" alt="" /><img
+                src="08-paper.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="08-paper.svg" download>Download 08 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="09-split.svg"
+              alt="One orange slash and one cream slash on a dark tile"
+            />
+          </div>
+          <h2>09 / Split</h2>
+          <p>Orange and cream in equal measure.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="09-split.svg" width="16" height="16" alt="" /><img
+                src="09-split.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="09-split.svg" width="16" height="16" alt="" /><img
+                src="09-split.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="09-split.svg" download>Download 09 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="10-ember.svg"
+              alt="Double slash fading from pale amber to vivid orange"
+            />
+          </div>
+          <h2>10 / Ember</h2>
+          <p>A warm vertical gradient, no glow blur.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="10-ember.svg" width="16" height="16" alt="" /><img
+                src="10-ember.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="10-ember.svg" width="16" height="16" alt="" /><img
+                src="10-ember.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="10-ember.svg" download>Download 10 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="11-glitch.svg"
+              alt="Orange slashes interrupted by offset cream glitch slices"
+            />
+          </div>
+          <h2>11 / Glitch</h2>
+          <p>A still frame of the old glitch treatment.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="11-glitch.svg" width="16" height="16" alt="" /><img
+                src="11-glitch.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="11-glitch.svg" width="16" height="16" alt="" /><img
+                src="11-glitch.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="11-glitch.svg" download>Download 11 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="12-pixel.svg"
+              alt="Two orange slashes built from stair-stepped pixels"
+            />
+          </div>
+          <h2>12 / Pixel</h2>
+          <p>Stepped edges on a 16-pixel grid.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="12-pixel.svg" width="16" height="16" alt="" /><img
+                src="12-pixel.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="12-pixel.svg" width="16" height="16" alt="" /><img
+                src="12-pixel.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="12-pixel.svg" download>Download 12 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="13-outline.svg"
+              alt="Two hollow orange outlined slashes"
+            />
+          </div>
+          <h2>13 / Outline</h2>
+          <p>Hollow strokes for a technical look.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="13-outline.svg" width="16" height="16" alt="" /><img
+                src="13-outline.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="13-outline.svg" width="16" height="16" alt="" /><img
+                src="13-outline.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="13-outline.svg" download>Download 13 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="14-stencil.svg"
+              alt="Two bold orange slashes with a horizontal stencil break"
+            />
+          </div>
+          <h2>14 / Stencil</h2>
+          <p>A clean break across both strokes.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="14-stencil.svg" width="16" height="16" alt="" /><img
+                src="14-stencil.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="14-stencil.svg" width="16" height="16" alt="" /><img
+                src="14-stencil.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="14-stencil.svg" download>Download 14 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="15-bare.svg"
+              alt="Two burnt-orange rounded slashes with no background tile"
+            />
+          </div>
+          <h2>15 / Bare</h2>
+          <p>Transparent, with a deeper orange ink.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="15-bare.svg" width="16" height="16" alt="" /><img
+                src="15-bare.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="15-bare.svg" width="16" height="16" alt="" /><img
+                src="15-bare.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="15-bare.svg" download>Download 15 SVG</a>
+        </article>
+        <article>
+          <div class="hero">
+            <img
+              src="16-offset.svg"
+              alt="Two rounded orange slashes staggered vertically"
+            />
+          </div>
+          <h2>16 / Offset</h2>
+          <p>A staggered pair with a little movement.</p>
+          <div class="samples" aria-hidden="true">
+            <span class="dark"
+              ><img src="16-offset.svg" width="16" height="16" alt="" /><img
+                src="16-offset.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+            <span class="light"
+              ><img src="16-offset.svg" width="16" height="16" alt="" /><img
+                src="16-offset.svg"
+                width="32"
+                height="32"
+                alt=""
+            /></span>
+          </div>
+          <a class="download" href="16-offset.svg" download>Download 16 SVG</a>
+        </article>
+      </section>
+      <footer>
+        <p>
+          Pick by number in the conversation. The selected design can then
+          replace the website favicon; this gallery does not apply changes.
+        </p>
+        <a href="../">Back to the website</a>
+      </footer>
+    </main>
+  </body>
+</html>

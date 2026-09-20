@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>08 — Paper</title>
+  <rect width="64" height="64" rx="12" fill="#ecdfc5"/>
+  <path d="M27 14 15 50M49 14 37 50" fill="none" stroke="#b9470b" stroke-width="8"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>11 — Glitch</title>
+  <rect width="64" height="64" rx="12" fill="#18181b"/>
+  <path d="m24 12-6 17h8l6-17Zm22 0-6 17h8l6-17ZM17 35l-6 17h8l6-17Zm22 0-6 17h8l6-17Z" fill="#ff7a18"/>
+  <path d="M19 29h9l-2 6h-9Zm22 0h9l-2 6h-9Z" fill="#ecdfc5"/>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>03 — Rounded</title>
+  <rect width="64" height="64" rx="16" fill="#18181b"/>
+  <path d="M27 16 15 48M49 16 37 48" fill="none" stroke="#ff7a18" stroke-width="8" stroke-linecap="round"/>
+</svg>

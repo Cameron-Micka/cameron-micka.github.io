@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>10 — Ember</title>
+  <defs>
+    <linearGradient id="ember" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#ffd596"/>
+      <stop offset="1" stop-color="#ff510b"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="#18181b"/>
+  <path d="M24 12h9L20 52h-9ZM46 12h9L42 52h-9Z" fill="url(#ember)"/>
+</svg>
