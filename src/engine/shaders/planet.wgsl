@@ -602,8 +602,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // and the matte response come purely from the material parameters.
   //
   // Water roughness floor (0.35) is chosen so the GGX highlight FWHM stays
-  // wider than a UV-sphere triangle face at the equator (~5.6° arc on a
-  // 48x64 mesh; see geometry.ts). Below ~0.30 the highlight gets sharp
+  // wider than a full-detail icosphere triangle face (see geometry.ts).
+  // Below ~0.30 the highlight gets sharp
   // enough that its sub-triangle peak snaps to mesh seams, producing a
   // visible polygonal/chevron kink right in the brightest pixels.
   let albedo = base2;
