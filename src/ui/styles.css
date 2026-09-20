@@ -2545,6 +2545,9 @@ main:focus {
     gap: 4px;
     padding: 6px 4px;
   }
+  .ruler .ruler-nav {
+    display: none;
+  }
   .ruler button,
   .ruler .ruler-nav {
     height: 24px;
@@ -2626,6 +2629,9 @@ main:focus {
   }
   .ruler {
     display: flex;
+  }
+  .ruler .ruler-nav {
+    display: none;
   }
   .ruler button,
   .ruler .ruler-nav {
