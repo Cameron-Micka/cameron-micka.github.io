@@ -7,8 +7,8 @@ export function SideRuler({ companies }: { companies: Company[] }) {
   const engine = useEngine();
   const focusedIndex = useEngineValue((s) => s.focusedIndex);
   const freeCamera = useEngineValue((s) => s.freeCamera);
-  const canGoUp = focusedIndex < companies.length - 1;
-  const canGoDown = focusedIndex > 0;
+  const canGoUp = focusedIndex > 0;
+  const canGoDown = focusedIndex < companies.length - 1;
   // The scrubber drives the timeline camera, which free-fly mode overrides.
   if (freeCamera) return null;
   return (
@@ -16,35 +16,33 @@ export function SideRuler({ companies }: { companies: Company[] }) {
       <button
         type="button"
         className="ruler-nav"
-        aria-label={UI.later}
-        title={UI.later}
-        onClick={() => engine.jumpToPlanet(focusedIndex + 1)}
+        aria-label={UI.earlier}
+        title={UI.earlier}
+        onClick={() => engine.jumpToPlanet(focusedIndex - 1)}
         disabled={!canGoUp}
       >
         <ChevronUp size={17} aria-hidden="true" />
       </button>
-      {companies
-        .map((c, i) => (
-          <button
-            key={c.slug}
-            type="button"
-            aria-current={i === focusedIndex ? 'step' : undefined}
-            className={i === focusedIndex ? 'active' : ''}
-            onClick={() => engine.jumpToPlanet(i)}
-          >
-            <span className="label">
-              {c.name} · {tenureLabel(c.start, c.end)}
-            </span>
-            <span className="tick" aria-hidden="true" />
-          </button>
-        ))
-        .reverse()}
+      {companies.map((c, i) => (
+        <button
+          key={c.slug}
+          type="button"
+          aria-current={i === focusedIndex ? 'step' : undefined}
+          className={i === focusedIndex ? 'active' : ''}
+          onClick={() => engine.jumpToPlanet(i)}
+        >
+          <span className="label">
+            {c.name} · {tenureLabel(c.start, c.end)}
+          </span>
+          <span className="tick" aria-hidden="true" />
+        </button>
+      ))}
       <button
         type="button"
         className="ruler-nav"
-        aria-label={UI.earlier}
-        title={UI.earlier}
-        onClick={() => engine.jumpToPlanet(focusedIndex - 1)}
+        aria-label={UI.later}
+        title={UI.later}
+        onClick={() => engine.jumpToPlanet(focusedIndex + 1)}
         disabled={!canGoDown}
       >
         <ChevronDown size={17} aria-hidden="true" />
