@@ -66,7 +66,7 @@ export const UI = {
   details: 'Technical details',
   settings: 'Settings',
   freeCamera: 'Free camera',
-  blogSoon: 'Notes from the workbench.',
+  blogSoon: 'Notes from the pixel mines.',
 };
 
 export const PHOTOGRAPHY = {

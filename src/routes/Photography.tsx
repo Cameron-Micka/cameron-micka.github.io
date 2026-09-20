@@ -86,10 +86,7 @@ export default function Photography() {
         </nav>
         {SECTIONS.map((section) => (
           <section key={section.id} id={section.id}>
-            <h2 className="gallery-heading">
-              {section.title}
-              <span>{photosByCategory(section.id).length} frames</span>
-            </h2>
+            <h2>{section.title}</h2>
             <PhotoGrid
               photos={photosByCategory(section.id)}
               category={section.id}

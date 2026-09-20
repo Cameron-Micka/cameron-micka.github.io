@@ -80,7 +80,6 @@ export default function RootLayout() {
       <Outlet />
       {path !== '/' && (
         <footer className="site-footer">
-          <span>Designed &amp; built by {SITE.name}</span>
           <div>
             <Link to="/about#contact">Get in touch</Link>
             <a

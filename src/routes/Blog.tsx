@@ -15,7 +15,7 @@ export default function Blog() {
         <p>
           A space for the things learned while building: real-time graphics,
           creative tools, and closing the gap between a design and a shipped
-          experience. The first essays are still taking shape.
+          experience. The first posts are still taking shape.
         </p>
         <p>In the meantime, please checkout my timeline.</p>
         <div className="page-actions">

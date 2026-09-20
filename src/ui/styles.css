@@ -1326,9 +1326,10 @@ main:focus {
 .modal.poi-modal .modal-content {
   padding: 0 var(--modal-pad);
   border: 1px solid var(--screen-edge);
-  border-block-width: 12px;
-  border-block-color: var(--bg);
+  border-bottom-width: 12px;
+  border-bottom-color: var(--bg);
   border-radius: calc(var(--radius-window) - var(--poi-bezel));
+  clip-path: inset(0 round calc(var(--radius-window) - var(--poi-bezel)));
   box-shadow:
     inset 0 2px 5px #0008,
     0 1px 0 #fff9;
@@ -1997,18 +1998,6 @@ main:focus {
   font-size: 12px;
   letter-spacing: 0;
 }
-.gallery-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-.gallery-heading > span {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 400;
-  text-transform: none;
-}
 
 /* ---- Photo lightbox ---- */
 .modal-scrim.lightbox-scrim {
@@ -2256,6 +2245,9 @@ main:focus {
     position: static;
     transform: none;
   }
+  .timeline-controls:has(> .ruler) > .freecam {
+    gap: 10px;
+  }
 }
 
 @media (max-width: 980px) {
@@ -2299,9 +2291,7 @@ main:focus {
 
 @media (max-width: 720px) {
   .scene-intro {
-    top: calc(var(--nav-height) + 20px);
-    left: max(20px, env(safe-area-inset-left));
-    width: calc(100% - 96px);
+    display: none;
   }
   .scene-intro h1 {
     max-width: 20ch;
@@ -2335,8 +2325,7 @@ main:focus {
     display: block;
   }
   .project-jump label {
-    display: block;
-    margin-bottom: 6px;
+    display: none;
   }
   .project-jump select,
   .settings select {
@@ -2530,18 +2519,7 @@ main:focus {
     --nav-height: calc(60px + env(safe-area-inset-top, 0px));
   }
   .scene-intro {
-    top: calc(var(--nav-height) + 16px);
-    width: 250px;
-  }
-  .scene-intro h1 {
-    font-size: 24px;
-  }
-  .intro-body,
-  .scene-hint {
     display: none;
-  }
-  .intro-actions {
-    margin-top: 14px;
   }
   .topnav {
     flex-direction: row;
@@ -2570,6 +2548,24 @@ main:focus {
   .ruler button,
   .ruler .ruler-nav {
     height: 24px;
+  }
+  .timeline-controls:has(> .ruler) {
+    display: contents;
+  }
+  .timeline-controls:has(> .ruler) > .ruler {
+    position: fixed;
+    top: calc(50% + var(--nav-height) / 2);
+    right: max(24px, env(safe-area-inset-right));
+    width: auto;
+    transform: translateY(-50%);
+  }
+  .timeline-controls:has(> .ruler) > .freecam {
+    position: fixed;
+    top: calc(var(--nav-height) + 16px);
+    right: auto;
+    left: max(16px, env(safe-area-inset-left));
+    flex-direction: row;
+    gap: 20px;
   }
 }
 
@@ -2627,15 +2623,6 @@ main:focus {
   .ruler,
   .intro-actions {
     display: none;
-  }
-  .timeline-controls:has(> .ruler) {
-    display: contents;
-  }
-  .timeline-controls:has(> .ruler) > .freecam {
-    position: fixed;
-    top: calc(var(--nav-height) + 16px);
-    right: max(16px, env(safe-area-inset-right));
-    flex-direction: row;
   }
   .ribbon {
     display: grid;

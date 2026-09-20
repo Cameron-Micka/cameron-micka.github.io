@@ -126,12 +126,12 @@ Auto renderer uses WebGL2 on iOS/iPadOS and macOS. On other platforms, WebGPU is
 used when available (two-step adapter+device probe); otherwise the app falls
 back to WebGL2. Users can explicitly select WebGPU or WebGL in settings on any
 platform. WebGL runs without a compatibility notice.
-On both backends, Auto quality starts at `low` and ramps up one tier at a time
-(`low` -> `med` -> `high`) after 3+ seconds of stable frames at or below 18 ms.
-It steps down when average frame time reaches 20 ms over a 1.5-second window,
-and does not retry an unsustainable tier until Auto restarts. Desktop and
-mobile/coarse-pointer devices use the same performance-based ramp. Explicit
-quality choices are never overridden; preferences persist in `localStorage`.
+On both backends, Auto quality starts at `med`, ramps up to `high` after 3+
+seconds of stable frames at or below 18 ms, and steps down when average frame
+time reaches 20 ms over a 1.5-second window. It does not retry an unsustainable
+tier until Auto restarts. Desktop and mobile/coarse-pointer devices use the same
+performance-based adjustment. Explicit quality choices are never overridden;
+preferences persist in `localStorage`.
 The initial output size uses the chosen tier immediately, rather than allocating
 a High-DPR canvas and resizing it down at startup.
 Render targets are allocated once the first frame's dimensions and quality are
@@ -152,11 +152,11 @@ Motion is controlled with the pause/resume button beside the camera control,
 not in Settings. By default, motion follows OS reduced-motion preferences and
 responds to changes without a reload.
 
-| Tier | DPR cap | Stars | Scene resolution | MSAA | Sky resolution |
-| ---- | ------- | ----- | ---------------- | ---- | -------------- |
-| High | 2 | 10,000 | 100% | 4x | 40% of CSS pixels |
-| Medium | 1.25 | 2,000 | 100% | 4x | 35% of CSS pixels |
-| Low | 1 | 800 | 85% | Off | 30% of CSS pixels |
+| Tier   | DPR cap | Stars  | Scene resolution | MSAA | Sky resolution    |
+| ------ | ------- | ------ | ---------------- | ---- | ----------------- |
+| High   | 2       | 10,000 | 100%             | 4x   | 40% of CSS pixels |
+| Medium | 1.25    | 2,000  | 100%             | 4x   | 35% of CSS pixels |
+| Low    | 1       | 800    | 85%              | Off  | 30% of CSS pixels |
 
 Presentation stays at the output resolution. Both backends share sphere LODs,
 star/satellite billboards, cloud detail, and atmosphere sampling. Low retains
@@ -200,11 +200,11 @@ the wet-surface calculations are unchanged.
 
 Local performance check (2026-09-18, Apple M1, Chromium/ANGLE Metal, DPR 1):
 
-| Frozen scene | Original fixed WebGL | WebGL Low | WebGPU Low |
-| ------------ | -------------------- | --------- | ---------- |
-| 1440x900 timeline | 17.1 ms | 6.1 ms | 4.3 ms |
-| 3840x2160 timeline | 75.0 ms | ~23 ms | 17.0 ms |
-| 3840x2160 close-up | 109.7 ms | 37.2 ms | 27.2 ms |
+| Frozen scene       | Original fixed WebGL | WebGL Low | WebGPU Low |
+| ------------------ | -------------------- | --------- | ---------- |
+| 1440x900 timeline  | 17.1 ms              | 6.1 ms    | 4.3 ms     |
+| 3840x2160 timeline | 75.0 ms              | ~23 ms    | 17.0 ms    |
+| 3840x2160 close-up | 109.7 ms             | 37.2 ms   | 27.2 ms    |
 
 Means include submission and a one-pixel GPU readback, with 30 measured frames
 after 8 warm-up frames. Camera and scene state are identical across backends;
@@ -276,7 +276,7 @@ In addition to typecheck, lint, and the production build, exercise:
   rendering backends. A settled paused scene should submit **zero GPU draws**.
 - Auto quality can reach Medium/High on both fine- and coarse-pointer devices
   when frame times permit; manual tiers stay selected, and switching back to
-  Auto restarts the ramp at Low.
+  Auto restarts adaptive quality at Medium.
 - Navigation away while shaders initialize; renderer failure and JavaScript
   disabled; prerendered metadata and printing.
 
@@ -356,8 +356,8 @@ before extending it:
 2. **Content as typed TS validated by zod** (`src/content/`) rather than MDX
    frontmatter. The MDX Vite plugin is still wired up for future long-form pages.
 3. **GPU shaders require browser validation.** Typecheck/build do not compile
-  embedded GLSL or WGSL. Runtime rendering requires a real GPU and has not been
-  exercised in CI; test in a browser when iterating on the render graph.
+   embedded GLSL or WGSL. Runtime rendering requires a real GPU and has not been
+   exercised in CI; test in a browser when iterating on the render graph.
 
 ## ⚠️ Placeholder content
 

@@ -526,12 +526,12 @@ export class InputController {
       case 'ArrowDown':
         e.preventDefault();
         this.h.onUserInteract();
-        this.h.onKeyStep(-1);
+        this.h.onKeyStep(1);
         break;
       case 'ArrowUp':
         e.preventDefault();
         this.h.onUserInteract();
-        this.h.onKeyStep(1);
+        this.h.onKeyStep(-1);
         break;
       case 'Home':
       case 'PageUp':

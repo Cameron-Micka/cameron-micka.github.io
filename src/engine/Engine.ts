@@ -20,6 +20,7 @@ import {
   type PlanetModel,
 } from './Scene';
 import {
+  AUTO_START_TIER,
   QualityManager,
   QUALITY_PRESETS,
   type QualityPreference,
@@ -274,7 +275,9 @@ export class Engine {
       this.settings.reducedMotion === 'on' ||
       (this.settings.reducedMotion === 'auto' && !!this.motionQuery?.matches);
     this.activeTier =
-      this.settings.quality === 'auto' ? 'low' : this.settings.quality;
+      this.settings.quality === 'auto'
+        ? AUTO_START_TIER
+        : this.settings.quality;
     this.activeQuality = QUALITY_PRESETS[this.activeTier];
     this.coarsePointer =
       typeof matchMedia !== 'undefined' &&
@@ -363,7 +366,7 @@ export class Engine {
     }
 
     if (this.settings.quality === 'auto') {
-      this.quality.start('low', (tier) => {
+      this.quality.start(AUTO_START_TIER, (tier) => {
         this.applyTier(QUALITY_PRESETS[tier]);
       });
     }
@@ -1096,8 +1099,8 @@ export class Engine {
     this.settings.quality = pref;
     saveSettings(this.settings);
     if (pref === 'auto') {
-      this.applyTier(QUALITY_PRESETS.low);
-      this.quality.start('low', (tier) =>
+      this.applyTier(QUALITY_PRESETS[AUTO_START_TIER]);
+      this.quality.start(AUTO_START_TIER, (tier) =>
         this.applyTier(QUALITY_PRESETS[tier]),
       );
     } else {

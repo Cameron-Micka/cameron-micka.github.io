@@ -20,35 +20,35 @@ The site's landing experience is a WebGPU-rendered 3D "Time Machine" timeline of
 
 ## 1. Tech Stack
 
-| Layer                | Choice                                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Language             | TypeScript (`strict` mode, `noUncheckedIndexedAccess`)                                                          |
-| Build / dev server   | Vite                                                                                                            |
-| UI framework         | React 18+                                                                                                       |
-| Router               | React Router v6+ (revisit if it feels heavy)                                                                    |
-| State                | Plain React (Context + reducer for UI state); engine owns its own state outside React                           |
-| Content              | MDX files in `/content`, loaded via `@mdx-js/rollup` (Vite plugin)                                              |
-| 3D — primary         | Hand-rolled mini-engine on **raw WebGPU + WGSL**                                                                |
-| 3D — fallback        | Same mini-engine on **WebGL2 + GLSL ES 3.0** (mirrors experience at lower fidelity)                             |
-| Shader authoring     | Author shaders in **GLSL ES 3.0**; transpile to WGSL at build time (Naga via WASM, or `naga-cli` in CI)         |
-| Image pipeline       | `vite-imagetools` (AVIF/WebP/responsive `srcset`)                                                               |
-| Static generation    | `vite-ssg` (or equivalent) for `/about`, `/blog`; landing route stays client-rendered                           |
-| Hosting              | GitHub Pages (`cameron-micka.github.io`) with `CNAME` file support for a future custom domain                   |
-| CI/CD                | Single GitHub Actions workflow: install → typecheck → lint → build → deploy to `gh-pages` branch                |
-| Lint / format        | ESLint (typescript-eslint) + Prettier                                                                           |
-| Tests                | `tsc --noEmit` typecheck + ESLint only. No unit/e2e tests. (Explicit tradeoff.)                                 |
-| Analytics            | **None.** No cookies, no consent banner.                                                                        |
-| License              | MIT (`LICENSE` at repo root)                                                                                    |
+| Layer              | Choice                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| Language           | TypeScript (`strict` mode, `noUncheckedIndexedAccess`)                                                  |
+| Build / dev server | Vite                                                                                                    |
+| UI framework       | React 18+                                                                                               |
+| Router             | React Router v6+ (revisit if it feels heavy)                                                            |
+| State              | Plain React (Context + reducer for UI state); engine owns its own state outside React                   |
+| Content            | MDX files in `/content`, loaded via `@mdx-js/rollup` (Vite plugin)                                      |
+| 3D — primary       | Hand-rolled mini-engine on **raw WebGPU + WGSL**                                                        |
+| 3D — fallback      | Same mini-engine on **WebGL2 + GLSL ES 3.0** (mirrors experience at lower fidelity)                     |
+| Shader authoring   | Author shaders in **GLSL ES 3.0**; transpile to WGSL at build time (Naga via WASM, or `naga-cli` in CI) |
+| Image pipeline     | `vite-imagetools` (AVIF/WebP/responsive `srcset`)                                                       |
+| Static generation  | `vite-ssg` (or equivalent) for `/about`, `/blog`; landing route stays client-rendered                   |
+| Hosting            | GitHub Pages (`cameron-micka.github.io`) with `CNAME` file support for a future custom domain           |
+| CI/CD              | Single GitHub Actions workflow: install → typecheck → lint → build → deploy to `gh-pages` branch        |
+| Lint / format      | ESLint (typescript-eslint) + Prettier                                                                   |
+| Tests              | `tsc --noEmit` typecheck + ESLint only. No unit/e2e tests. (Explicit tradeoff.)                         |
+| Analytics          | **None.** No cookies, no consent banner.                                                                |
+| License            | MIT (`LICENSE` at repo root)                                                                            |
 
 ### Browser support matrix
 
-| Browser         | Min. version  | Render path |
-| --------------- | ------------- | ----------- |
-| Chrome / Edge   | 113+ desktop, 121+ Android | WebGPU |
-| Safari (macOS)  | 18+           | WebGPU      |
-| Safari (iOS)    | 18+           | WebGPU      |
-| Firefox         | Latest stable | WebGL2 fallback (until WebGPU ships unflagged) |
-| Older / locked-down | last 2 versions of evergreens | WebGL2 fallback |
+| Browser             | Min. version                  | Render path                                    |
+| ------------------- | ----------------------------- | ---------------------------------------------- |
+| Chrome / Edge       | 113+ desktop, 121+ Android    | WebGPU                                         |
+| Safari (macOS)      | 18+                           | WebGPU                                         |
+| Safari (iOS)        | 18+                           | WebGPU                                         |
+| Firefox             | Latest stable                 | WebGL2 fallback (until WebGPU ships unflagged) |
+| Older / locked-down | last 2 versions of evergreens | WebGL2 fallback                                |
 
 ---
 
@@ -93,12 +93,12 @@ A vertical Z-axis stack of planets receding into a cosmic distance. A single bri
 
 Four planets, ordered closest → farthest from the camera ("Now" → "Past"):
 
-| Planet         | Real-world entity        | Approx. dates  | Tenure (yrs) → relative radius |
-| -------------- | ------------------------ | -------------- | ------------------------------ |
-| Microsoft      | Microsoft (Mesh/MRTK/HoloLens) | 2016 – present | Largest |
-| Fun Bits       | Fun Bits Interactive     | TBD            | Medium  |
-| LucasArts      | LucasArts Entertainment  | TBD            | Medium-small |
-| DigiPen        | DigiPen Institute of Tech (alumnus) | TBD     | Smallest |
+| Planet    | Real-world entity                   | Approx. dates  | Tenure (yrs) → relative radius |
+| --------- | ----------------------------------- | -------------- | ------------------------------ |
+| Microsoft | Microsoft (Mesh/MRTK/HoloLens)      | 2016 – present | Largest                        |
+| Fun Bits  | Fun Bits Interactive                | TBD            | Medium                         |
+| LucasArts | LucasArts Entertainment             | TBD            | Medium-small                   |
+| DigiPen   | DigiPen Institute of Tech (alumnus) | TBD            | Smallest                       |
 
 > Exact dates per planet come from the MDX content frontmatter (see §6); the engine reads them and labels the ruler.
 
@@ -285,32 +285,31 @@ All site content authored as MDX in `/content`:
 
 ```yaml
 ---
-slug: microsoft               # URL slug
-name: Microsoft               # Display name
+slug: microsoft # URL slug
+name: Microsoft # Display name
 role: Principal Software Engineer
-start: 2016-01                # YYYY-MM
-end: null                     # null = present
-seed: microsoft-mesh-mrtk     # deterministic procedural seed
-palette: ms-cyan              # references /assets/palettes/ms-cyan.png
+start: 2016-01 # YYYY-MM
+end: null # null = present
+seed: microsoft-mesh-mrtk # deterministic procedural seed
+palette: ms-cyan # references /assets/palettes/ms-cyan.png
 features:
   rings: false
   moons: 2
 pois:
   - slug: mrtk-graphics-tools
-    title: "MRTK Graphics Tools for Unity"
-    accent: "#3aa0ff"
+    title: 'MRTK Graphics Tools for Unity'
+    accent: '#3aa0ff'
     media:
       - type: image
         src: ./media/mrtk-hero.png
-        alt: "MRTK Graphics Tools sample scene"
+        alt: 'MRTK Graphics Tools sample scene'
       - type: video
         src: ./media/mrtk-demo.mp4
         poster: ./media/mrtk-demo-poster.jpg
   - slug: shader-foundations-talk
-    title: "MR Speaker Series: Shader Foundations"
-    accent: "#7ad6ff"
+    title: 'MR Speaker Series: Shader Foundations'
+    accent: '#7ad6ff'
 ---
-
 Body MDX here — long-form description of the role, narrative, etc.
 Each POI's *long* description lives inside `## {{poi.slug}}` sections
 below the frontmatter, allowing rich MDX (embedded React, code, etc.).
@@ -418,17 +417,17 @@ Because backside POIs are visible (just dimmed), users may try to click them. **
 
 ### 7.7 Quality presets
 
-| Preset    | DPR cap | Stars | SSAO | Clouds | CA  | Bloom mips | MSAA | Notes              |
-| --------- | ------- | ----- | ---- | ------ | --- | ---------- | ---- | ------------------ |
-| High      | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Top of the Auto ramp |
-| Med       | 1.25    | 2k    | off  | on     | on  | 2          | 4x   |                    |
-| Low       | 1.0     | 800   | off  | on     | off | 0          | off  | Auto starting tier; 85% scene resolution |
+| Preset | DPR cap | Stars | SSAO | Clouds | CA  | Bloom mips | MSAA | Notes                |
+| ------ | ------- | ----- | ---- | ------ | --- | ---------- | ---- | -------------------- |
+| High   | 2.0     | 10k   | on   | on     | on  | 3          | 4x   | Top of the Auto ramp |
+| Med    | 1.25    | 2k    | off  | on     | on  | 2          | 4x   | Auto starting tier   |
+| Low    | 1.0     | 800   | off  | on     | off | 0          | off  | 85% scene resolution |
 
 These presets apply to both WebGPU and WebGL2. WebGL2 is a renderer choice, not a quality tier. A legacy persisted `webgl2` quality preference resets to Auto.
 
 > WebGPU guarantees sample counts of 1 and 4, so MSAA is either off (1x) or 4x. On Medium/High, WebGL2 selects a common supported color/depth sample count up to 4, including single-sample rendering when float MSAA is unavailable. Low disables MSAA on both backends.
 
-**Selection:** Under Auto on either backend, the engine starts at `Low` and ramps **up** one tier at a time (`Low` -> `Med` -> `High`). It steps up only after frame time stays at or below 18 ms and stable for 3+ continuous seconds; a janky frame resets the stability window. It keeps monitoring at High and steps **down** when average frame time reaches 20 ms over a 1.5-second window (section 7.8). The same performance-based ramp applies to desktop and mobile (coarse-pointer) devices.
+**Selection:** Under Auto on either backend, the engine starts at `Med`. It steps up to `High` only after frame time stays at or below 18 ms and stable for 3+ continuous seconds; a janky frame resets the stability window. It steps **down** when average frame time reaches 20 ms over a 1.5-second window (section 7.8), including from `Med` to `Low` when necessary. The same performance-based adjustment applies to desktop and mobile (coarse-pointer) devices.
 
 User can override via the settings panel; the override is persisted to `localStorage` and stops the Auto ramp on future loads.
 
@@ -445,14 +444,14 @@ Explicit (non-Auto) tier choices are never overridden.
 
 ### 7.8a Per-tier shader cost
 
-The dominant cost when a large planet fills the viewport is **fragment work**, not draw calls or geometry: the planet, cloud and nebula shaders are fully procedural and evaluate dozens of value-noise fBm octaves per pixel. Quality tiers therefore scale shader *work*, not just resolution. The active tier index reaches WGSL through `Frame.shadowMisc.y` and GLSL through `uTier` (`0 = high, 1 = med, 2 = low`); every gate on it is uniform across the draw, so the branches are coherent and divergence-free.
+The dominant cost when a large planet fills the viewport is **fragment work**, not draw calls or geometry: the planet, cloud and nebula shaders are fully procedural and evaluate dozens of value-noise fBm octaves per pixel. Quality tiers therefore scale shader _work_, not just resolution. The active tier index reaches WGSL through `Frame.shadowMisc.y` and GLSL through `uTier` (`0 = high, 1 = med, 2 = low`); every gate on it is uniform across the draw, so the branches are coherent and divergence-free.
 
-| Shader and GLSL mirror | High | Medium | Low |
-| ---------------------- | ---- | ------ | --- |
-| Planet | Two advected `surfaceMarble` samples on flow-field planets | One static sample | One static sample; 3 normalized cloud-shadow octaves |
-| Clouds | Three self-shadow taps plus grain | One self-shadow tap | Reuse density for self-shadow; 3 normalized octaves; no lightning |
-| Nebula | 28 steps, 4 octaves | 20 steps, 3 octaves | 14 steps, 3 octaves; stationary-camera updates at 30 Hz |
-| Atmosphere | 16 view / 8 sunlight samples | 16 view / 8 sunlight samples | 8 view samples and shared 128x64 RG32F sunlight optical-depth LUT |
+| Shader and GLSL mirror | High                                                       | Medium                       | Low                                                               |
+| ---------------------- | ---------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------- |
+| Planet                 | Two advected `surfaceMarble` samples on flow-field planets | One static sample            | One static sample; 3 normalized cloud-shadow octaves              |
+| Clouds                 | Three self-shadow taps plus grain                          | One self-shadow tap          | Reuse density for self-shadow; 3 normalized octaves; no lightning |
+| Nebula                 | 28 steps, 4 octaves                                        | 20 steps, 3 octaves          | 14 steps, 3 octaves; stationary-camera updates at 30 Hz           |
+| Atmosphere             | 16 view / 8 sunlight samples                               | 16 view / 8 sunlight samples | 8 view samples and shared 128x64 RG32F sunlight optical-depth LUT |
 
 Independent of tier, the planet shader skips its entire polar ice-cap block (8 fBm) on worlds whose `oceans` feature is off — every ice term is multiplied by the `oceans` flag, so on a dry world that work was previously computed only to be scaled to zero. The WebGL2 mirror carries the same gate.
 
@@ -480,18 +479,18 @@ Boot sequence:
 2. `const adapter = await navigator.gpu.requestAdapter(); if (!adapter) → WebGL2.`
 3. `const device = await adapter.requestDevice(); if (error) → WebGL2.`
 4. Cache the chosen backend in `sessionStorage` (`renderer: 'webgpu' | 'webgl2'`) to skip the probe on internal route changes.
-5. On *any* WebGPU pipeline-creation failure within 2 seconds of init, treat it as a startup failure and reload into WebGL2 mode (URL flag or sessionStorage flag).
+5. On _any_ WebGPU pipeline-creation failure within 2 seconds of init, treat it as a startup failure and reload into WebGL2 mode (URL flag or sessionStorage flag).
 
 ---
 
 ## 8. Accessibility
 
-- **`prefers-reduced-motion: reduce`** (or manually pausing with the pause/resume button): freezes the scene clock, so all *idle* motion stops exactly where it stands — auto-rotation, cloud drift, moon orbits, star twinkle, solar/aurora animation, intro cinematic, modal mount/unmount easing. User-initiated motion (scrubbing, dragging to orbit, free camera) still happens.
+- **`prefers-reduced-motion: reduce`** (or manually pausing with the pause/resume button): freezes the scene clock, so all _idle_ motion stops exactly where it stands — auto-rotation, cloud drift, moon orbits, star twinkle, solar/aurora animation, intro cinematic, modal mount/unmount easing. User-initiated motion (scrubbing, dragging to orbit, free camera) still happens.
 - Settled paused frames are retained without rebuilding instances or submitting GPU commands. Visual input and resize invalidate the frame; the Auto quality ramp does not sample idle frames. System preference changes are observed live.
 - **Keyboard nav (chrome / modal / nav only):**
   - A skip link reaches the main landmark. All visible actions have keyboard equivalents; form controls retain their native keys.
   - Native modal dialogs make the background inert and contain focus. Escape closes and restores focus to the triggering control.
-  - Up/Down on the timeline move toward newer/earlier chapters respectively.
+  - Up/Down on the timeline move toward earlier/newer chapters respectively.
 - **Screen readers:**
   - The canvas itself is `aria-hidden`.
   - The introduction, live chapter readout, and project picker expose scene content without requiring spatial interaction.
@@ -521,13 +520,13 @@ Boot sequence:
 
 Triggered by the gear icon top-right. Modal-style panel (smaller than POI modal, top-right anchored on desktop, bottom sheet on mobile).
 
-| Setting          | Options                                                | Default        |
-| ---------------- | ------------------------------------------------------ | -------------- |
-| Quality          | Auto (ramp), High, Med, Low                            | Auto           |
-| Renderer         | Auto, WebGPU, WebGL                                    | Auto           |
-| Sound            | On / Off                                               | Off            |
-| Debug HUD        | On / Off                                               | Off            |
-| Wireframe        | On / Off (debug: renders scene meshes as wireframe)   | Off            |
+| Setting   | Options                                             | Default |
+| --------- | --------------------------------------------------- | ------- |
+| Quality   | Auto (ramp), High, Med, Low                         | Auto    |
+| Renderer  | Auto, WebGPU, WebGL                                 | Auto    |
+| Sound     | On / Off                                            | Off     |
+| Debug HUD | On / Off                                            | Off     |
+| Wireframe | On / Off (debug: renders scene meshes as wireframe) | Off     |
 
 All settings persist to `localStorage` under the key `cm-portfolio-settings`.
 
@@ -539,7 +538,7 @@ All settings persist to `localStorage` under the key `cm-portfolio-settings`.
 
 ### 10.2 Debug HUD
 
-- Toggleable via settings *or* the backtick (`` ` ``) hotkey.
+- Toggleable via settings _or_ the backtick (`` ` ``) hotkey.
 - Hidden by default. When on, shows in the bottom-left:
   - FPS (60-frame rolling avg + min/max)
   - 1-line FPS sparkline graph
@@ -565,7 +564,10 @@ The site is the resume — recruiters print from the browser. The interactive la
     <p>Role: Principal Software Engineer (Mesh, MRTK, HoloLens)</p>
     <p>{narrative}</p>
     <ul>
-      <li><h3>MRTK Graphics Tools for Unity</h3><p>{poi body}</p></li>
+      <li>
+        <h3>MRTK Graphics Tools for Unity</h3>
+        <p>{poi body}</p>
+      </li>
       ...
     </ul>
   </section>
@@ -700,7 +702,7 @@ Explicitly **not** included in the first release:
 2. **No runtime tests.** Trades safety net for development velocity. Mitigated by strict TS, zod validation of content, and the error boundary catching live failures with full stack traces.
 3. **Hard reload on GPU device loss.** Trades graceful recovery for simplicity. Acceptable because device loss is rare on modern hardware.
 4. **No screen-reader mirror of 3D scrubbing.** Trades full a11y for engineering scope. Hidden print-resume DOM provides full content access; documented as a known limitation.
-5. **Ratcheted adaptive quality.** Auto starts at Low and ramps up when performance is good and stable for 3+ seconds, and steps back down after 1.5s of sustained bad frames. A tier that fails is never retried, so the ramp settles after at most one downgrade per tier rather than oscillating. Trades a single visible quality drop for not stranding the user below the FPS floor. Override via settings panel for users who disagree.
+5. **Ratcheted adaptive quality.** Auto starts at Medium, ramps up when performance is good and stable for 3+ seconds, and steps down after 1.5s of sustained bad frames. A tier that fails is never retried, so the ramp settles after at most one downgrade per tier rather than oscillating. Trades a single visible quality drop for not stranding the user below the FPS floor. Override via settings panel for users who disagree.
 6. **Bundled videos in the repo.** Trades repo size for asset reliability. Re-evaluate if the repo crosses ~500MB.
 7. **Pause-and-snapshot blur instead of real-time backdrop blur.** Trades the "living" backdrop behind modals for guaranteed cross-browser correctness and lower GPU load while the modal is open.
 8. **No mid-scene WebGPU↔WebGL2 swap.** The backend is chosen once at boot and stuck with for the session.

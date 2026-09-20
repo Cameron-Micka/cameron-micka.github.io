@@ -41,7 +41,9 @@ export const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
 
 export type QualityPreference = 'auto' | QualityTier;
 
-// Ascending Auto-ramp order: start at the cheapest tier and step up.
+export const AUTO_START_TIER: QualityTier = 'med';
+
+// Ascending Auto-quality order.
 const RAMP_ORDER: QualityTier[] = ['low', 'med', 'high'];
 
 // A frame at or below this time (~55 FPS) counts as "good".
@@ -63,10 +65,10 @@ const DOWNGRADE_WINDOW_MS = 1500;
 // that say nothing about the new tier's steady-state cost.
 const SETTLE_MS = 1000;
 
-// Auto quality ramp: begins at Low and steps up one tier at a time whenever
-// performance stays good (frame time at or under GOOD_FRAME_MS) and stable for
-// STABLE_MS continuously. A janky frame resets the stability window, so the
-// ramp only climbs when the device comfortably sustains the current tier.
+// Auto quality begins at Medium and steps up whenever performance stays good
+// (frame time at or under GOOD_FRAME_MS) and stable for STABLE_MS continuously.
+// A janky frame resets the stability window, so the ramp only climbs when the
+// device comfortably sustains the current tier.
 //
 // The ramp also steps back down when average frame time is too high across a
 // full DOWNGRADE_WINDOW_MS. The step-up decision can only measure whatever
@@ -77,7 +79,7 @@ const SETTLE_MS = 1000;
 // the ramp settles instead of oscillating between two tiers.
 export class QualityManager {
   private active = false;
-  private currentTier: QualityTier = 'low';
+  private currentTier: QualityTier = AUTO_START_TIER;
   // Highest tier the ramp is still allowed to reach. Lowered whenever a tier
   // proves unsustainable, so a failed tier is never retried this session.
   private ceilingIndex = RAMP_ORDER.length - 1;

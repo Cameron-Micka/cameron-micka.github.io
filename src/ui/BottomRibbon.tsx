@@ -90,20 +90,20 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
           <button
             type="button"
             className="icon-btn"
-            aria-label={UI.later}
-            title={UI.later}
-            disabled={focusedIndex === companies.length - 1}
-            onClick={() => engine.jumpToPlanet(focusedIndex + 1)}
+            aria-label={UI.earlier}
+            title={UI.earlier}
+            disabled={focusedIndex === 0}
+            onClick={() => engine.jumpToPlanet(focusedIndex - 1)}
           >
             <ArrowUp size={19} aria-hidden="true" />
           </button>
           <button
             type="button"
             className="icon-btn"
-            aria-label={UI.earlier}
-            title={UI.earlier}
-            disabled={focusedIndex === 0}
-            onClick={() => engine.jumpToPlanet(focusedIndex - 1)}
+            aria-label={UI.later}
+            title={UI.later}
+            disabled={focusedIndex === companies.length - 1}
+            onClick={() => engine.jumpToPlanet(focusedIndex + 1)}
           >
             <ArrowDown size={19} aria-hidden="true" />
           </button>

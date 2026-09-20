@@ -289,6 +289,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
             <div className="project-jump-control">
               <select
                 id="project-jump"
+                aria-label={UI.projectJump}
                 value={openKey}
                 onChange={(event) => {
                   const entry = entries.find(
