@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Console — CM on a miniature hardware display</title>
+  <rect width="64" height="64" rx="12" fill="#d2bea0"/>
+  <rect x="6" y="7" width="52" height="42" rx="8" fill="#24211c"/>
+  <path d="M26 19H16v18h10m9 0V19l7 10 7-10v18" fill="none" stroke="#f5eddd" stroke-width="4" stroke-linecap="square" stroke-linejoin="round"/>
+  <path d="M12 56h20" stroke="#514331" stroke-width="4"/>
+  <circle cx="50" cy="56" r="4" fill="#ff510b"/>
+</svg>

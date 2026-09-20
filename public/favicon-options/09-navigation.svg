@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Navigation — a spacecraft heading into the timeline</title>
+  <rect width="64" height="64" rx="14" fill="#24211c"/>
+  <path d="M12 23V12h11m18 0h11v11M12 41v11h11m18 0h11V41" fill="none" stroke="#d2bea0" stroke-width="3"/>
+  <path d="m32 13 16 33-16-7-16 7Z" fill="#ecdfc5"/>
+  <path d="M32 13v26l16 7Z" fill="#ff510b"/>
+  <path d="M32 45v8" stroke="#ff510b" stroke-width="4"/>
+</svg>

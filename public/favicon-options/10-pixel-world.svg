@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Pixel world — a retro-computing planet tile</title>
+  <rect width="64" height="64" rx="12" fill="#ff510b"/>
+  <path d="M24 12h16v4h8v8h4v16h-4v8h-8v4H24v-4h-8v-8h-4V24h4v-8h8Z" fill="#24211c"/>
+  <path d="M24 16h12v8h-8v8H16v-8h8Zm12 20h12v4h-4v8h-8Z" fill="#ecdfc5"/>
+  <path d="M8 8h4v4H8Zm44 44h4v4h-4Z" fill="#ecdfc5"/>
+</svg>

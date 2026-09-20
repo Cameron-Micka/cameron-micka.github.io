@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Pulsar — a cosmic-address beacon</title>
+  <rect width="64" height="64" rx="14" fill="#24211c"/>
+  <path d="m32 7 5 18 17-10-10 17 13 5-17 4 7 15-15-12-16 10 7-17-16-5 17-5-9-15 13 10Z" fill="#ecdfc5"/>
+  <circle cx="32" cy="32" r="9" fill="#24211c"/>
+  <circle cx="32" cy="32" r="5" fill="#ff510b"/>
+</svg>

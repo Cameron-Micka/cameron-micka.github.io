@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Flight path — three chapters connected through space</title>
+  <rect width="64" height="64" rx="14" fill="#24211c"/>
+  <path d="M13 48c36 4 40-13 20-16S13 11 50 15" fill="none" stroke="#ecdfc5" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="13" cy="48" r="7" fill="#ff510b"/>
+  <circle cx="33" cy="32" r="5" fill="#d2bea0" stroke="#24211c" stroke-width="2"/>
+  <path d="m46 7 11 8-11 8Z" fill="#ff510b"/>
+</svg>
