@@ -151,22 +151,36 @@ test('ring center and orientation follow parent translations and rotations', () 
   assert.deepEqual(c.orientation, quat.multiply(rotation, a.orientation));
 });
 
-test('ring plane stays perpendicular to the planet surface', () => {
-  const p = planet({ center: [3, -2, 5] });
-  for (const time of [0, 4, 12, 35]) {
-    const [instance] = ring.buildRingWorlds([p], time);
-    const radial = instance.center.map(
-      (value, index) => (value - p.center[index]) / p.radius,
-    );
-    const normal = quat.rotateVec3(instance.orientation, [0, 0, 1]);
-    near(
-      radial.reduce((dot, value, index) => dot + value * normal[index], 0),
+test('ring face stays perpendicular to the planet surface after the other-axis quarter-turn', () => {
+  for (const orientation of [
+    quat.identity(),
+    quat.multiply(
+      quat.fromAxisAngle([1, 0, 0], 0.7),
+      quat.fromAxisAngle([0, 1, 0], -1.2),
+    ),
+  ]) {
+    const p = planet({ center: [3, -2, 5], orientation });
+    const expectedNormal = quat.rotateVec3(orientation, [
       0,
-    );
+      -Math.cos(0.75),
+      Math.sin(0.75),
+    ]);
+    for (const time of [0, 4, 12, 35, 100]) {
+      const [instance] = ring.buildRingWorlds([p], time);
+      const radial = instance.center.map(
+        (value, index) => (value - p.center[index]) / p.radius,
+      );
+      const normal = quat.rotateVec3(instance.orientation, [0, 0, 1]);
+      near(
+        radial.reduce((dot, value, index) => dot + value * normal[index], 0),
+        0,
+      );
+      normal.forEach((value, index) => near(value, expectedNormal[index]));
+    }
   }
 });
 
-test('ring has a 90 degree in-plane rotation', () => {
+test('ring has a 90 degree radial-axis rotation rather than an in-plane rotation', () => {
   const p = planet();
   const time = 4;
   const [instance] = ring.buildRingWorlds([p], time);
@@ -182,8 +196,8 @@ test('ring has a 90 degree in-plane rotation', () => {
     quat.fromAxisAngle([0, 1, 0], -angle),
   );
   const expected = quat.multiply(
-    orbitOrientation,
-    quat.fromAxisAngle([0, 0, 1], 0.65 + Math.PI / 2 + time * 0.045),
+    quat.multiply(orbitOrientation, quat.fromAxisAngle([1, 0, 0], Math.PI / 2)),
+    quat.fromAxisAngle([0, 0, 1], 0.65 + time * 0.045),
   );
   instance.orientation.forEach((value, index) => near(value, expected[index]));
 });
