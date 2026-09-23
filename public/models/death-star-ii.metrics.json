@@ -15,7 +15,7 @@
       "mimeType": "image/jpeg",
       "width": 2048,
       "height": 1024,
-      "bytes": 583487
+      "bytes": 595669
     },
     {
       "name": "Panel relief (linear)",
@@ -29,14 +29,14 @@
       "mimeType": "image/png",
       "width": 1024,
       "height": 512,
-      "bytes": 250282
+      "bytes": 231174
     },
     {
-      "name": "Maintenance lights (sRGB)",
+      "name": "Unlit emission (sRGB)",
       "mimeType": "image/png",
       "width": 1024,
       "height": 512,
-      "bytes": 7443
+      "bytes": 1625
     }
   ],
   "textureBytesWithMipmaps": 19573420,
@@ -47,7 +47,7 @@
     "fileBytes": 3145728,
     "textureBytesWithMipmaps": 20971520
   },
-  "fileBytes": 2490260,
+  "fileBytes": 2477504,
   "validation": {
     "errors": 0,
     "warnings": 0
