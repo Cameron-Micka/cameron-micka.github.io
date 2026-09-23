@@ -46,7 +46,7 @@ export function buildRingWorlds(
   for (const planet of planets) {
     if (!planet.ringWorld || planet.visibility <= 0.02) continue;
     const radius = planet.radius * 0.5;
-    const orbitRadius = companionOrbitRadius(planet, radius);
+    const orbitRadius = planet.radius + radius + planet.radius * 0.08;
     const phase = mulberry32(planet.seed ^ 0x72696e67)() * Math.PI * 2 - 0.35;
     const angle = phase - moonTime * 0.12;
     const orbit = orbitRadius * planet.visibility;
@@ -55,8 +55,12 @@ export function buildRingWorlds(
       Math.sin(angle) * Math.sin(0.75) * orbit,
       Math.sin(angle) * Math.cos(0.75) * orbit,
     ]);
+    const orbitOrientation = quat.multiply(
+      quat.fromAxisAngle([1, 0, 0], -0.75),
+      quat.fromAxisAngle([0, 1, 0], -angle),
+    );
     const tilt = quat.multiply(
-      quat.fromAxisAngle([0, 1, 0], 0.7),
+      orbitOrientation,
       quat.fromAxisAngle([0, 0, 1], 0.65 + moonTime * 0.045),
     );
     instances.push({

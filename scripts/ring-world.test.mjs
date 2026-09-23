@@ -117,7 +117,7 @@ test('enabling the ring does not perturb existing moon, satellite, terrain or PO
   );
 });
 
-test('each enabled planet gets one deterministic decorative orbit outside its moons', () => {
+test('each enabled planet gets one deterministic decorative orbit close to its surface', () => {
   const p = planet();
   assert.deepEqual(ring.buildRingWorlds([planet({ ringWorld: false })], 0), []);
   const [instance] = ring.buildRingWorlds([p], 4);
@@ -128,12 +128,8 @@ test('each enabled planet gets one deterministic decorative orbit outside its mo
   const distance = Math.hypot(
     ...instance.center.map((x, i) => x - p.center[i]),
   );
-  assert.ok(distance > p.radius + instance.radius);
-  assert.ok(
-    p.moons.every(
-      (moon) => distance > moon.orbitRadius + moon.size + instance.radius,
-    ),
-  );
+  near(distance, p.radius + instance.radius + p.radius * 0.08);
+  assert.ok(distance < p.moons[0].orbitRadius);
   near(Math.hypot(...instance.orientation), 1);
   assert.notDeepEqual(ring.buildRingWorlds([p], 5)[0].center, instance.center);
   assert.equal(
@@ -153,6 +149,21 @@ test('ring center and orientation follow parent translations and rotations', () 
   const expected = quat.rotateVec3(rotation, a.center);
   c.center.forEach((value, i) => near(value, expected[i]));
   assert.deepEqual(c.orientation, quat.multiply(rotation, a.orientation));
+});
+
+test('ring plane stays perpendicular to the planet surface', () => {
+  const p = planet({ center: [3, -2, 5] });
+  for (const time of [0, 4, 12, 35]) {
+    const [instance] = ring.buildRingWorlds([p], time);
+    const radial = instance.center.map(
+      (value, index) => (value - p.center[index]) / p.radius,
+    );
+    const normal = quat.rotateVec3(instance.orientation, [0, 0, 1]);
+    near(
+      radial.reduce((dot, value, index) => dot + value * normal[index], 0),
+      0,
+    );
+  }
 });
 
 test('visibility scales the orbit and body like moons, then removes the hidden ring', () => {
