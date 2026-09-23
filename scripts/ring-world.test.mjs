@@ -166,6 +166,28 @@ test('ring plane stays perpendicular to the planet surface', () => {
   }
 });
 
+test('ring has a 90 degree in-plane rotation', () => {
+  const p = planet();
+  const time = 4;
+  const [instance] = ring.buildRingWorlds([p], time);
+  const relativeCenter = instance.center.map(
+    (value, index) => value - p.center[index],
+  );
+  const angle = Math.atan2(
+    relativeCenter[1] / Math.sin(0.75),
+    relativeCenter[0],
+  );
+  const orbitOrientation = quat.multiply(
+    quat.fromAxisAngle([1, 0, 0], -0.75),
+    quat.fromAxisAngle([0, 1, 0], -angle),
+  );
+  const expected = quat.multiply(
+    orbitOrientation,
+    quat.fromAxisAngle([0, 0, 1], 0.65 + Math.PI / 2 + time * 0.045),
+  );
+  instance.orientation.forEach((value, index) => near(value, expected[index]));
+});
+
 test('visibility scales the orbit and body like moons, then removes the hidden ring', () => {
   const [full] = ring.buildRingWorlds([planet()], 2);
   const [half] = ring.buildRingWorlds([planet({ visibility: 0.5 })], 2);
