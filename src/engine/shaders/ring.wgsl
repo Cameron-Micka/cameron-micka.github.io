@@ -8,6 +8,7 @@ struct Frame {
   misc : vec4<f32>,
   shadowSpheres : array<vec4<f32>, 8>,
   shadowMisc : vec4<f32>,
+  sunColor : vec4<f32>,
 };
 struct Obj {
   model : mat4x4<f32>,
@@ -190,7 +191,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let reflected = 0.85 * (0.75 + 0.25 * muL);
   let lighting = reflected + 0.35 * fwd * (1.0 - density);
   let shadow = shadowFactor(in.worldPos, L);
-  let col = baseCol * (0.035 + shadow * lighting);
+  let col = baseCol * (vec3<f32>(0.035) + frame.sunColor.rgb * shadow * lighting);
   // Distance fog: attenuate both colour and alpha so distant rings fade into
   // the nebula instead of stamping silhouettes over far-off planets.
   let d = distance(in.worldPos, frame.cameraPos.xyz);

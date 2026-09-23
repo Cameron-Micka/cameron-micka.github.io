@@ -284,13 +284,14 @@ test('ring bounds include debris, LDR output is linear-tonemapped, and bad paren
 test('engine includes orbiting rings even when the parent planet system is culled', () => {
   const engine = Object.create(Engine.prototype);
   engine.models = scene.buildPlanetModels([company()]);
+  engine.regenerationTimes = new Map();
   engine.moons = new Moons();
   engine.moonTime = 2;
   engine.time = 2;
   engine.cloudTimes = [2];
   engine.orientations = [quat.identity()];
   engine.scrubCurrent = 0;
-  engine.sun = { center: [40, 90, -30], radius: 5 };
+  engine.sun = { center: [40, 90, -30], radius: 5, color: [1, 1, 1] };
   engine.settings = {
     freeCamera: false,
     flightPath: false,

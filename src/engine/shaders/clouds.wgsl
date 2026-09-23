@@ -16,6 +16,7 @@ struct Frame {
   misc : vec4<f32>, // x=time, y=unused, z=qualityScale, w=aspect
   shadowSpheres : array<vec4<f32>, 8>,
   shadowMisc : vec4<f32>,
+  sunColor : vec4<f32>,
 };
 
 struct Obj {
@@ -266,7 +267,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   );
   let atmosphereFill = mix(vec3<f32>(0.18, 0.30, 0.52), obj.palHigh.rgb, 0.12);
   let fillStrength = 0.018 + 0.045 * (1.0 - NdL);
-  var col = directSunColor * NdL * selfShadow + atmosphereFill * fillStrength;
+  var col = directSunColor * frame.sunColor.rgb * NdL * selfShadow + atmosphereFill * fillStrength;
 
   // Per-planet analytic shadow from other planets (no self-exclude needed:
   // the parent planet's surface is behind every cloud fragment along L).

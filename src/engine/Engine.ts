@@ -16,6 +16,8 @@ import {
   buildPlanetModels,
   buildFlightPath,
   instanceFromModel,
+  regeneratePlanet,
+  regenerateSun,
   poiMarkerDistance,
   PLANET_SPACING,
   type PlanetModel,
@@ -101,6 +103,7 @@ export type EngineEvents = {
   flyInDone: null;
   loadProgress: LoadState;
   bodySelectionChanged: string | null;
+  bodyRegenerated: null;
 };
 
 // Startup progress surfaced to the loading bar. `frac` is monotonic 0..1 and
@@ -121,6 +124,7 @@ const KEY_LIGHT: Vec3 = vec3.normalize([0.4, 0.85, -0.45]);
 // far plane (200); radius makes it read as a grand, distant star.
 const SUN_DISTANCE = 72;
 const SUN_RADIUS = 20;
+const REGENERATION_SECONDS = 0.5;
 
 // Free-fly camera tuning. FLY_SPEED is in world units/sec; PLANET_SPACING=9
 // puts a single hop between planets at roughly one second of held W.
@@ -129,8 +133,9 @@ const FLY_VELOCITY_DAMP = 5; // half-life ~0.14s → noticeable but snappy momen
 const LOOK_SENSITIVITY = 0.0025; // rad / px
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
 
-const ORBIT_DAMPING = 5; // short, gentle coast after release
-const ORBIT_MAX_SPEED = 4; // radians/sec
+const ORBIT_DAMPING = 3; // ease out without cutting a quick flick short
+const ORBIT_MAX_SPEED = 20; // radians/sec; leave room for fast swipes
+const ORBIT_VELOCITY_SMOOTHING = 0.04; // seconds of recent motion
 const ORBIT_RELEASE_WINDOW = 0.1; // holding still before release cancels the fling
 
 // Barrel distortion of the presented frame. Renormalized against the corner
@@ -153,7 +158,9 @@ export class Engine {
   private renderer: SceneRenderer | null = null;
   private camera = new Camera();
   private models: PlanetModel[];
-  private readonly sun: { center: Vec3; radius: number };
+  private readonly sun: FrameState['sun'];
+  private lastPickedBody: PlanetModel | FrameState['sun'] | null = null;
+  private regenerationTimes = new Map<{ radius: number }, number>();
   private readonly initialSunCenter: Vec3;
   private readonly sceneCenter: Vec3;
   private bodyDrag: {
@@ -197,6 +204,7 @@ export class Engine {
   private orbitDragging = false;
   private orbitVelocity: Vec3 = [0, 0, 0];
   private lastOrbitSample = 0;
+  private orbitSampled = false;
   private lastInteract = -10;
 
   private cinematicActive = true;
@@ -259,6 +267,7 @@ export class Engine {
         lineCenterZ + KEY_LIGHT[2] * SUN_DISTANCE,
       ],
       radius: SUN_RADIUS,
+      color: [1, 1, 1],
     };
     this.initialSunCenter = [...this.sun.center];
     this.sceneCenter = [0, 0, lineCenterZ];
@@ -296,7 +305,7 @@ export class Engine {
       onOrbit: (dx, dy) => this.onOrbit(dx, dy),
       onOrbitEnd: (cancelled) => this.onOrbitEnd(cancelled),
       onZoom: (f) => this.onZoom(f),
-      onPick: (x, y) => this.handlePick(x, y),
+      onPick: (x, y, doublePick) => this.handlePick(x, y, doublePick),
       onKeyStep: (dir) => this.jumpToPlanet(this.focusedIndex + dir),
       onKeyJump: (t) =>
         this.jumpToPlanet(t === 'start' ? this.models.length - 1 : 0),
@@ -739,7 +748,7 @@ export class Engine {
     if (!r) return;
     const planets = this.models.map((m, i) => {
       const focus = clamp(1 - Math.abs(i - this.scrubCurrent) * 0.6, 0, 1);
-      return instanceFromModel(
+      const planet = instanceFromModel(
         m,
         this.moonTime,
         this.cloudTimes[i] ?? 0,
@@ -747,8 +756,11 @@ export class Engine {
         focus,
         this.planetVisibility(i),
       );
+      planet.radius = this.bodyRadius(m);
+      return planet;
     });
-    this.moons.update(planets, this.moonTime, dt, this.sun);
+    const sun = { ...this.sun, radius: this.bodyRadius(this.sun) };
+    this.moons.update(planets, this.moonTime, dt, sun);
     // Free-fly mode is for exploring the scene, not the resume content, so hide
     // the POI markers + connector lines. Instances are rebuilt each frame, so
     // clearing here is safe and leaves picking (which uses this.models) intact.
@@ -778,7 +790,7 @@ export class Engine {
       keyLightDir: this.settings.freeCamera
         ? vec3.normalize(vec3.sub(this.sun.center, this.sceneCenter))
         : KEY_LIGHT,
-      sun: this.sun,
+      sun,
       planets: visiblePlanets,
       moons: this.moons.instances,
       ringWorlds: buildRingWorlds(planets, this.moonTime),
@@ -811,7 +823,10 @@ export class Engine {
         'bodySelectionChanged',
         this.settings.freeCamera && !this.openPoi
           ? selectionOutline(
-              this.bodyDrag.body,
+              {
+                center: this.bodyDrag.body.center,
+                radius: this.bodyRadius(this.bodyDrag.body),
+              },
               this.camera,
               this.canvas.clientWidth,
               this.canvas.clientHeight,
@@ -868,6 +883,7 @@ export class Engine {
 
   private onOrbitStart(): void {
     this.orbitVelocity = [0, 0, 0];
+    this.orbitSampled = false;
     this.orbitDragging =
       !this.openPoi && !this.settings.freeCamera && this.models.length > 0;
     this.lastOrbitSample = performance.now() / 1000;
@@ -898,7 +914,7 @@ export class Engine {
     const idx = clamp(Math.round(this.scrubCurrent), 0, this.models.length - 1);
     this.lastOrbitIndex = idx;
     const now = performance.now() / 1000;
-    const elapsed = Math.max(now - this.lastOrbitSample, 1 / 120);
+    const elapsed = Math.max(now - this.lastOrbitSample, 0.001);
     this.lastOrbitSample = now;
     this.lastInteract = now;
     // Trackball: premultiply by screen-relative axes so dragging rotates the
@@ -914,10 +930,18 @@ export class Engine {
     const axisLength = vec3.length(axis);
     const angle = 2 * Math.atan2(axisLength, Math.abs(delta[3]));
     const speed = Math.min(angle / elapsed, ORBIT_MAX_SPEED);
-    this.orbitVelocity =
+    const velocity: Vec3 =
       axisLength > 0 && !this.motionPaused()
         ? vec3.scale(axis, ((delta[3] < 0 ? -1 : 1) * speed) / axisLength)
         : [0, 0, 0];
+    // Smooth in time, not event count: a noisy final sample should not erase
+    // a flick, and high-refresh input should carry the same momentum.
+    const blend =
+      this.orbitSampled && elapsed < ORBIT_RELEASE_WINDOW
+        ? 1 - Math.exp(-elapsed / ORBIT_VELOCITY_SMOOTHING)
+        : 1;
+    this.orbitVelocity = vec3.lerp(this.orbitVelocity, velocity, blend);
+    this.orbitSampled = true;
   }
 
   private onZoom(factor: number): void {
@@ -935,7 +959,9 @@ export class Engine {
     this.commit();
   }
 
-  private handlePick(ndcX: number, ndcY: number): void {
+  private handlePick(ndcX: number, ndcY: number, doublePick = false): void {
+    const previousBody = this.lastPickedBody;
+    this.lastPickedBody = null;
     if (this.openPoi) return;
     const ray = this.bodyPointerRay(ndcX, ndcY);
 
@@ -947,14 +973,14 @@ export class Engine {
       const m = this.models[i]!;
       // Match the visual: the body is drawn at radius * visibility, so the
       // pick collider must shrink with the same factor as the planet fades.
-      const t = raySphere(ray, m.center, m.radius * vis);
+      const t = raySphere(ray, m.center, this.bodyRadius(m) * vis);
       if (t >= 0 && t < hitT) {
         hitT = t;
         hitIndex = i;
       }
     }
 
-    const sunT = raySphere(ray, this.sun.center, this.sun.radius);
+    const sunT = raySphere(ray, this.sun.center, this.bodyRadius(this.sun));
     let moon = this.moons.pick(
       ray,
       Math.min(hitT, sunT >= 0 ? sunT : Infinity),
@@ -965,9 +991,30 @@ export class Engine {
     if (!moon && hitIndex < 0 && sunT < 0) {
       moon = this.moons.pick(ray, Infinity, this.coarsePointer ? 2 : 1.5);
     }
+    const body =
+      sunT >= 0 && sunT < hitT
+        ? this.sun
+        : hitIndex >= 0
+          ? this.models[hitIndex]!
+          : null;
+    const pickBody = (): boolean => {
+      this.lastPickedBody = body;
+      if (!doublePick || !body || body !== previousBody) return false;
+      if (body === this.sun) regenerateSun(this.sun);
+      else {
+        regeneratePlanet(body as PlanetModel);
+        this.flightPathDirty = true;
+      }
+      this.lastPickedBody = null;
+      this.renderDirty = true;
+      if (!this.motionPaused()) this.regenerationTimes.set(body, this.time);
+      this.events.emit('bodyRegenerated', null);
+      return true;
+    };
     // Free camera allows moon taps, but never opens POIs or changes focus.
     if (this.settings.freeCamera) {
       if (moon) this.moons.launch(moon, ray.dir);
+      else pickBody();
       return;
     }
 
@@ -982,7 +1029,7 @@ export class Engine {
       const model = this.models[focused]!;
       const center = model.center;
       const rot = this.orientations[focused] ?? quat.identity();
-      const markerDist = poiMarkerDistance(model.radius);
+      const markerDist = poiMarkerDistance(this.bodyRadius(model));
       // Keep the original screen-space pick radius around the smaller pin
       // heads so they remain easy to click or tap. The world radius at camera
       // distance d is markerNdc * d / projY.
@@ -996,7 +1043,7 @@ export class Engine {
       const planetT = raySphere(
         ray,
         center,
-        model.radius * this.planetVisibility(focused),
+        this.bodyRadius(model) * this.planetVisibility(focused),
       );
       for (let i = 0; i < model.poiDirs.length; i++) {
         const poi = model.poiDirs[i]!;
@@ -1015,7 +1062,7 @@ export class Engine {
     }
 
     // A clicked POI marker (in front of the planet) wins over the planet body.
-    if (bestPoi >= 0 && bestT < moonT) {
+    if (bestPoi >= 0 && bestT < moonT && (sunT < 0 || bestT < sunT)) {
       const model = this.models[focused]!;
       const poi = model.poiDirs[bestPoi]!;
       this.scrubTarget = focused;
@@ -1027,7 +1074,7 @@ export class Engine {
       this.moons.launch(moon, ray.dir);
       return;
     }
-    if (hitIndex >= 0) this.jumpToPlanet(hitIndex);
+    if (body && body !== this.sun && hitIndex >= 0) this.jumpToPlanet(hitIndex);
   }
 
   private bodyPointerRay(ndcX: number, ndcY: number) {
@@ -1044,7 +1091,7 @@ export class Engine {
     let body: { center: Vec3; radius: number } | null = null;
     let distance = Infinity;
     for (const candidate of [...this.models, this.sun]) {
-      const t = raySphere(ray, candidate.center, candidate.radius);
+      const t = raySphere(ray, candidate.center, this.bodyRadius(candidate));
       if (t >= 0 && t < distance) {
         distance = t;
         body = candidate;
@@ -1158,6 +1205,7 @@ export class Engine {
       (this.settings.reducedMotion === 'auto' && !!this.motionQuery?.matches);
     document.documentElement.classList.toggle('motion-paused', this.paused);
     if (this.paused) {
+      this.regenerationTimes.clear();
       this.orbitVelocity = [0, 0, 0];
       this.cinematicActive = false;
       this.camera.setExtraDistance(0);
@@ -1237,6 +1285,20 @@ export class Engine {
   // explicitly or inherited from the OS `prefers-reduced-motion` setting).
   private motionPaused(): boolean {
     return this.paused;
+  }
+
+  private bodyRadius(body: { radius: number }): number {
+    const started = this.regenerationTimes.get(body);
+    if (started === undefined) return body.radius;
+    const t = clamp((this.time - started) / REGENERATION_SECONDS, 0, 1);
+    if (this.motionPaused() || t >= 1) {
+      this.regenerationTimes.delete(body);
+      return body.radius;
+    }
+    // Grow from a small core, overshoot slightly, then settle at the new size.
+    const u = t - 1;
+    const scale = 1 + 2.70158 * u * u * u + 1.70158 * u * u;
+    return body.radius * (0.15 + 0.85 * scale);
   }
 
   // Planets more recent than the focused one (higher index after the timeline

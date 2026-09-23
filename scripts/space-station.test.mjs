@@ -104,6 +104,7 @@ function frame(spaceStations = [], ringWorlds = [], visible = true) {
 function engineFor(authored = [company()]) {
   const engine = Object.create(Engine.prototype);
   engine.models = scene.buildPlanetModels(authored);
+  engine.regenerationTimes = new Map();
   engine.startupAbort = new AbortController();
   engine.settings = { forceBackend: 'webgl2' };
   engine.activeQuality = QUALITY_PRESETS.low;
@@ -386,7 +387,7 @@ test('the engine emits both companions before parent culling without adding laun
   engine.cloudTimes = [2];
   engine.orientations = [quat.identity()];
   engine.scrubCurrent = 0;
-  engine.sun = { center: [40, 90, -30], radius: 5 };
+  engine.sun = { center: [40, 90, -30], radius: 5, color: [1, 1, 1] };
   engine.settings = {
     freeCamera: false,
     flightPath: false,

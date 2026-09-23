@@ -9,6 +9,7 @@ struct Frame {
   misc : vec4<f32>, // x=time, y=unused, z=qualityScale, w=unused
   shadowSpheres : array<vec4<f32>, 8>, // xyz=center, w=radius
   shadowMisc : vec4<f32>, // x=active sphere count, y=lowTier flag, zw unused
+  sunColor : vec4<f32>,
 };
 
 struct Obj {
@@ -602,8 +603,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // and the matte response come purely from the material parameters.
   //
   // Water roughness floor (0.35) is chosen so the GGX highlight FWHM stays
-  // wider than a UV-sphere triangle face at the equator (~5.6° arc on a
-  // 48x64 mesh; see geometry.ts). Below ~0.30 the highlight gets sharp
+  // wider than a full-detail icosphere triangle face (see geometry.ts).
+  // Below ~0.30 the highlight gets sharp
   // enough that its sub-triangle peak snaps to mesh seams, producing a
   // visible polygonal/chevron kink right in the brightest pixels.
   let albedo = base2;
@@ -700,9 +701,8 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   }
 
   // Sun radiance pre-multiplied by PI so that diffuse simplifies to
-  // kD * albedo * NdL (matches the look of the previous Lambert-ish shader
-  // at NdL=1) while the specular term retains its physical units.
-  let sunRadiance = vec3<f32>(PI);
+  // kD * albedo * sunColor * NdL while specular retains its physical units.
+  let sunRadiance = frame.sunColor.rgb * PI;
   // Analytic planet shadow on the lit side. Self-shadow is implicitly handled
   // because the lit-side test gives t <= 0 (the receiver's own sphere is
   // sun-ward, so the ray to the sun never re-enters).
@@ -724,7 +724,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // being pitch black — surface noise stays just barely legible.
   let ambientShadowMul = 0.10 + 0.90 * cloudShadowMul;
   let ambient = albedo * 0.004 * ambientShadowMul;
-  var color = ambient + direct + glitter * shadow * cloudShadowMul;
+  var color = ambient + direct + glitter * frame.sunColor.rgb * shadow * cloudShadowMul;
 
   // Night-side settlements combine regional population, irregular urban
   // cores, and fine lights with varied brightness.
@@ -813,7 +813,7 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Multiplied by NdL (not (a + b*NdL)) so the rim fresnel fully zeroes on
   // the unlit side instead of leaving a faint constant glow there. Also gated
   // by shadow so it doesn't glow through another planet's shadow.
-  let atmo = obj.palHigh.rgb * rim * NdL * 0.55 * atmoStrength * shadow;
+  let atmo = obj.palHigh.rgb * frame.sunColor.rgb * rim * NdL * 0.55 * atmoStrength * shadow;
   color = color + atmo;
 
   color = color * (0.85 + 0.3 * obj.p1.x);

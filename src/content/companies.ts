@@ -233,12 +233,8 @@ const raw: CompanyInput[] = [
     seed: 'lucasarts-entertainment',
     palette: { low: '#3a2e10', mid: '#b89b3e', high: '#ffe9a8' },
     features: {
-      rings: true,
+      rings: false,
       spaceStation: true,
-      ringTilt: 0.8,
-      thinRing: true,
-      secondRing: true,
-      secondRingTilt: 0.5,
       clouds: true,
       cityLights: true,
       moons: 0,
@@ -344,7 +340,17 @@ const raw: CompanyInput[] = [
       'and high school students.',
     seed: 'id-tech-camps-game-creation',
     palette: { low: '#3a0a0a', mid: '#c0392b', high: '#ff8a7a' },
-    features: { rings: false, ringTilt: 0.4, oceans: true, clouds: true, aurora: true, moons: 1 },
+    features: {
+      rings: true,
+      ringTilt: 0.8,
+      thinRing: true,
+      secondRing: true,
+      secondRingTilt: 0.5,
+      oceans: true,
+      clouds: true,
+      aurora: true,
+      moons: 1,
+    },
     pois: [
       {
         slug: 'video-game-creation-extreme',

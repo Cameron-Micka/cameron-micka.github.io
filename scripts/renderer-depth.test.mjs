@@ -177,7 +177,7 @@ function frame(cameraPos = [0, 0, 10], wireframe = false) {
     cameraPos,
     frustum: { intersectsSphere: () => true },
     keyLightDir: [0, 1, 0],
-    sun: { center: [0, 3, -30], radius: 2 },
+    sun: { center: [0, 3, -30], radius: 2, color: [1, 1, 1] },
     planets: [
       {
         ...body,

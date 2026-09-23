@@ -2545,6 +2545,9 @@ main:focus {
     gap: 4px;
     padding: 6px 4px;
   }
+  .ruler .ruler-nav {
+    display: none;
+  }
   .ruler button,
   .ruler .ruler-nav {
     height: 24px;
@@ -2620,12 +2623,19 @@ main:focus {
 }
 
 @media (pointer: coarse) and (max-height: 500px) and (orientation: landscape) {
-  .ruler,
+  .ribbon,
   .intro-actions {
     display: none;
   }
-  .ribbon {
-    display: grid;
+  .ruler {
+    display: flex;
+  }
+  .ruler .ruler-nav {
+    display: none;
+  }
+  .ruler button,
+  .ruler .ruler-nav {
+    height: 24px;
   }
 }
 

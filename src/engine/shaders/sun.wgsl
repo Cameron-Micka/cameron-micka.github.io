@@ -129,7 +129,7 @@ fn sunShade(p : vec3<f32>) -> vec3<f32> {
   var col = mix(warm, hot, gran * 0.6 + mottle * 0.4);
   col = mix(col, vec3<f32>(0.6, 0.28, 0.12), penumbra * 0.75);
   col = mix(col, vec3<f32>(0.32, 0.13, 0.05), umbra * 0.88);
-  return col;
+  return col * obj.palLow.rgb / vec3<f32>(1.0, 0.66, 0.30);
 }
 
 struct BodyOut {
@@ -275,5 +275,5 @@ fn fs_corona(in : CoronaOut) -> @location(0) vec4<f32> {
   let glow = radial * (0.16 + 1.4 * arm * armVary) * streak * pulse * 1.3;
   // Hotter, whiter at the base of the arms; cooler, redder toward the tips.
   let col = mix(vec3<f32>(1.0, 0.92, 0.6), vec3<f32>(1.0, 0.42, 0.14), r) * glow;
-  return vec4<f32>(col, glow);
+  return vec4<f32>(col * obj.palLow.rgb / vec3<f32>(1.0, 0.66, 0.30), glow);
 }
