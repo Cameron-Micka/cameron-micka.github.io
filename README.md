@@ -614,8 +614,8 @@ For other subjects, reuse the [create-3d-model skill](#copilot-skills).
 [death-star-ii.glb](public/models/death-star-ii.glb) is an original procedural
 model inspired by the unfinished station in the supplied *Return of the Jedi*
 reference. It includes a physically recessed dish, equatorial trench, incomplete
-armor, a closed recessed interior, layered decks, structural supports, and sparse
-maintenance lights.
+armor, a closed recessed interior, layered decks, and structural supports.
+Its emissive map is black and material emission is disabled, with no maintenance lights.
 No film/game geometry, textures, or reference-image pixels are embedded.
 The live timeline includes this model as the **LucasArts** planet's orbit-only
 moon through its `spaceStation` feature flag.
