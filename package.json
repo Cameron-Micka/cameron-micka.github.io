@@ -14,7 +14,11 @@
     "lint": "eslint . --max-warnings 0",
     "photos:build": "node scripts/build-photos.mjs",
     "test": "node --test scripts/*.test.mjs",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "models:build": "node scripts/build-broken-ring.mjs",
+    "models:preview": "vite --open /tools/broken-ring.html",
+    "models:death-star": "node scripts/build-death-star.mjs",
+    "models:preview:death-star": "vite --open /tools/broken-ring.html?model=/models/death-star-ii.glb"
   },
   "dependencies": {
     "lucide-react": "^1.45.0",
@@ -36,6 +40,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.12",
     "globals": "^15.10.0",
+    "gltf-validator": "^2.0.0-dev.3.10",
     "prettier": "^3.3.3",
     "remark-frontmatter": "^5.0.0",
     "remark-mdx-frontmatter": "^5.0.0",

@@ -18,7 +18,7 @@ const raw: CompanyInput[] = [
       'rendering tooling, and developer experience for mixed reality.',
     seed: 'microsoft-mesh-mrtk-hololens',
     palette: { low: '#0a2a4a', mid: '#1f6fb2', high: '#7ad6ff' },
-    features: { rings: false, ringTilt: 0.4, oceans: true, clouds: true, cityLights: true, moons: 2 },
+    features: { rings: false, ringWorld: true, ringTilt: 0.4, oceans: true, clouds: true, cityLights: true, moons: 2 },
     pois: [
       {
         slug: 'hololens-pocs',
@@ -234,6 +234,7 @@ const raw: CompanyInput[] = [
     palette: { low: '#3a2e10', mid: '#b89b3e', high: '#ffe9a8' },
     features: {
       rings: true,
+      spaceStation: true,
       ringTilt: 0.8,
       thinRing: true,
       secondRing: true,

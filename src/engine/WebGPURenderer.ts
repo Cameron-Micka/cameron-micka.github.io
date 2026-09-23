@@ -4,6 +4,7 @@ import type {
   PlanetInstance,
   RenderStats,
   SceneRenderer,
+  SceneAssets,
 } from './types';
 import { WebGPUCanvasError } from './types';
 import {
@@ -23,6 +24,8 @@ import { poiMarkerDistance, poiFocusFade } from './Scene';
 import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
 import { QUALITY_PRESETS } from './QualityManager';
+import { OrbitingModelScene, ORBITING_MODELS } from './OrbitingModels';
+import type { WebGPUGltfRenderer } from './gltf/WebGPUGltfRenderer';
 import {
   ATMOSPHERE_SHELL_SCALE,
   CLOUD_SHELL_SCALE,
@@ -182,12 +185,16 @@ export class WebGPURenderer implements SceneRenderer {
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
   private deviceLostError: Error | null = null;
+  private readonly orbitingModels = new Map<keyof SceneAssets, {
+    scene: OrbitingModelScene;
+    renderer: WebGPUGltfRenderer;
+  }>();
 
   constructor(initialSamples = 1) {
     this.sampleCount = initialSamples === 4 ? 4 : 1;
   }
 
-  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn, signal?: AbortSignal): Promise<void> {
+  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn, signal?: AbortSignal, assets?: SceneAssets): Promise<void> {
     const report = async (frac: number, label: string): Promise<void> => {
       signal?.throwIfAborted();
       if (!onProgress) return;
@@ -232,6 +239,22 @@ export class WebGPURenderer implements SceneRenderer {
       this.createPipelines(this.sampleCount);
       await report(0.9, 'Generating starfield…');
       this.buildStars(QUALITY_PRESETS.high.starCount);
+      for (const definition of Object.values(ORBITING_MODELS)) {
+        const source = assets?.[definition.feature];
+        if (!source) continue;
+        await report(0.95, `Preparing ${definition.label}...`);
+        const { WebGPUGltfRenderer } = await import('./gltf/WebGPUGltfRenderer');
+        signal?.throwIfAborted();
+        const scene = new OrbitingModelScene(definition, source.asset, source.planets);
+        const renderer = await WebGPUGltfRenderer.create(device, scene.asset, {
+          colorFormat: this.hdrFormat,
+          depthFormat: 'depth24plus',
+          sampleCount: this.sampleCount,
+          sampleCounts: [1, 4],
+        });
+        this.orbitingModels.set(definition.feature, { scene, renderer });
+        signal?.throwIfAborted();
+      }
     });
 
     await report(1, 'Entering the timeline…');
@@ -1593,6 +1616,7 @@ export class WebGPURenderer implements SceneRenderer {
     // index list — triangles vs. wireframe edges) is currently bound so the
     // common case of consecutive draws at the same LOD costs no extra calls.
     // Set to -1 whenever a non-sphere vertex buffer is bound.
+    this.drawOrbitingModels(scenePass, frame);
     let boundLod = -1;
     let boundLines = false;
     const bindSphere = (lod: number) => {
@@ -2008,7 +2032,34 @@ export class WebGPURenderer implements SceneRenderer {
     const fx = this.fxW * this.fxH * hdrBytesPerPixel * 2;
     const stars = this.starCount * 7 * 4;
     const atmosphere = ATMOSPHERE_LUT_WIDTH * ATMOSPHERE_LUT_HEIGHT * 8;
-    return (hdr * 2 + msaa + depth + backdrop + fx + stars + atmosphere) / (1024 * 1024);
+    let modelBytes = 0;
+    for (const { renderer } of this.orbitingModels.values()) {
+      modelBytes += renderer.stats.geometryBytes + renderer.stats.textureBytes;
+    }
+    return (hdr * 2 + msaa + depth + backdrop + fx + stars + atmosphere + modelBytes) / (1024 * 1024);
+  }
+
+  private drawOrbitingModels(pass: GPURenderPassEncoder, frame: FrameState): void {
+    let rendered = false;
+    for (const definition of Object.values(ORBITING_MODELS)) {
+      const model = this.orbitingModels.get(definition.feature);
+      if (!model) {
+        if (frame[definition.instances]?.length) {
+          throw new Error(`The ${definition.label} GPU resources were not initialized.`);
+        }
+        continue;
+      }
+      const modelFrame = model.scene.update(frame);
+      if (!modelFrame) continue;
+      const stats = model.renderer.render(pass, modelFrame, this.sampleCount);
+      this.stats.drawCalls += stats.drawCalls;
+      this.stats.triangles += stats.triangles;
+      rendered = true;
+    }
+    if (!rendered) return;
+    pass.setBindGroup(0, this.frameBG);
+    pass.setBindGroup(1, null);
+    pass.setBindGroup(2, null);
   }
 
   getStats(): RenderStats {
@@ -2022,6 +2073,8 @@ export class WebGPURenderer implements SceneRenderer {
 
   destroy(): void {
     this.deviceLostCb = null;
+    for (const { renderer } of this.orbitingModels.values()) renderer.dispose();
+    this.orbitingModels.clear();
     this.context?.unconfigure();
     this.hdrTex?.destroy();
     this.msaaTex?.destroy();

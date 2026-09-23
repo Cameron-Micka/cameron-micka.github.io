@@ -406,6 +406,8 @@ export function instanceFromModel(
     paletteMid: model.paletteMid,
     paletteHigh: model.paletteHigh,
     hasRing: f.rings,
+    ringWorld: f.ringWorld,
+    spaceStation: f.spaceStation,
     ringTilt: f.ringTilt,
     thinRing: f.thinRing,
     secondRing: f.secondRing,

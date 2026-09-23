@@ -2,6 +2,7 @@ import type { Mat4 } from './math/mat4';
 import type { Vec3 } from './math/vec3';
 import type { Quat } from './math/quat';
 import type { Frustum } from './math/frustum';
+import type { GltfAsset } from './gltf/types';
 
 export type RendererBackend = 'webgpu' | 'webgl2';
 
@@ -41,6 +42,8 @@ export interface PlanetInstance {
   paletteMid: Vec3;
   paletteHigh: Vec3;
   hasRing: boolean;
+  ringWorld: boolean;
+  spaceStation: boolean;
   ringTilt: number;
   thinRing: boolean;
   // When true, a second ring is drawn on a different plane from the primary
@@ -101,6 +104,18 @@ export interface MoonInstance {
   paletteHigh: Vec3;
 }
 
+export interface OrbitingModelInstance {
+  planet: string;
+  center: Vec3;
+  radius: number;
+  orientation: Quat;
+}
+
+export interface SceneAssets {
+  ringWorld?: { asset: GltfAsset; planets: string[] };
+  spaceStation?: { asset: GltfAsset; planets: string[] };
+}
+
 export interface FrameState {
   time: number; // seconds
   // Moon-orbit/spin clock. Independent of `time` so reduced motion can freeze
@@ -126,6 +141,8 @@ export interface FrameState {
   sun: { center: Vec3; radius: number };
   planets: PlanetInstance[];
   moons: MoonInstance[];
+  ringWorlds: OrbitingModelInstance[];
+  spaceStations: OrbitingModelInstance[];
   quality: QualitySettings;
   // Sphere occluders used for analytic shadow casting. Empty when shadows are
   // disabled by the active quality tier. Limited to MAX_SHADOW_CASTERS (8).
@@ -168,6 +185,7 @@ export interface SceneRenderer {
     canvas: HTMLCanvasElement,
     onProgress?: LoadProgressFn,
     signal?: AbortSignal,
+    assets?: SceneAssets,
   ): Promise<void>;
   // Queue dimensions; only render() may resize and clear the backing buffer.
   resize(width: number, height: number, dpr: number): boolean;

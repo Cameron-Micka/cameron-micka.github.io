@@ -1,4 +1,6 @@
-import type { FrameState, LoadProgressFn, PlanetInstance, RenderStats, SceneRenderer } from './types';
+import type { FrameState, LoadProgressFn, PlanetInstance, RenderStats, SceneRenderer, SceneAssets } from './types';
+import { OrbitingModelScene, ORBITING_MODELS } from './OrbitingModels';
+import type { WebGL2GltfRenderer } from './gltf/WebGL2GltfRenderer';
 import { createSphere, createRingGeometry, interleave, trianglesToLineIndices, selectSphereLod, SPHERE_LODS_WEBGL2 } from './geometry';
 import { mat4 } from './math/mat4';
 import { quat, type Quat } from './math/quat';
@@ -1675,8 +1677,7 @@ void main(){
   vec3 n=normalize(cross(ray,impact)-ray*sqrt(max(h,0.0)));
   vec3 world=uCenter+n*radius;
   vec4 clip=uViewProj*vec4(world,1.0);
-  // The engine's projection is passed unchanged to GL, whose depth viewport
-  // maps NDC [-1,1] to [0,1], unlike WebGPU's [0,1] NDC.
+  // uViewProj is already converted to GL clip space. Match rasterized depth.
   float depth=0.5*(clip.z/clip.w)+0.5;
   if(clip.w<=0.0||depth<0.0||depth>1.0){discard;}
   gl_FragDepth=depth;
@@ -1773,6 +1774,7 @@ export class WebGL2Renderer implements SceneRenderer {
   private sceneHeight = 1;
   private sceneScale = QUALITY_PRESETS.high.sceneScale;
   private requestedSamples = QUALITY_PRESETS.high.msaa;
+  private readonly glViewProj = mat4.create();
 
   private nebula!: Program;
   private backdrop!: Program;
@@ -1861,6 +1863,10 @@ export class WebGL2Renderer implements SceneRenderer {
 
   private stats: RenderStats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
   private deviceLostCb: (() => void) | null = null;
+  private readonly orbitingModels = new Map<keyof SceneAssets, {
+    scene: OrbitingModelScene;
+    renderer: WebGL2GltfRenderer;
+  }>();
   private readonly handleContextLost = (event: Event): void => {
     event.preventDefault();
     this.deviceLostCb?.();
@@ -1869,7 +1875,7 @@ export class WebGL2Renderer implements SceneRenderer {
   // Scratch for uShadowSpheres[8] uploads (8 vec4 = 32 floats).
   private shadowScratch = new Float32Array(32);
 
-  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn, signal?: AbortSignal): Promise<void> {
+  async init(canvas: HTMLCanvasElement, onProgress?: LoadProgressFn, signal?: AbortSignal, assets?: SceneAssets): Promise<void> {
     const report = async (frac: number, label: string): Promise<void> => {
       signal?.throwIfAborted();
       if (!onProgress) return;
@@ -1956,6 +1962,17 @@ export class WebGL2Renderer implements SceneRenderer {
     this.buildStars(QUALITY_PRESETS.high.starCount);
     this.buildPoiBuffers();
     this.buildSatBuffers();
+    for (const definition of Object.values(ORBITING_MODELS)) {
+      const source = assets?.[definition.feature];
+      if (!source) continue;
+      await report(0.95, `Preparing ${definition.label}...`);
+      const { WebGL2GltfRenderer } = await import('./gltf/WebGL2GltfRenderer');
+      signal?.throwIfAborted();
+      const scene = new OrbitingModelScene(definition, source.asset, source.planets);
+      const renderer = await WebGL2GltfRenderer.create(gl, scene.asset);
+      this.orbitingModels.set(definition.feature, { scene, renderer });
+      signal?.throwIfAborted();
+    }
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -2438,6 +2455,13 @@ export class WebGL2Renderer implements SceneRenderer {
     if (this.canvas.width !== this.width) this.canvas.width = this.width;
     if (this.canvas.height !== this.height) this.canvas.height = this.height;
     const gl = this.gl;
+    // Procedural shaders need GL's [-1, 1] clip depth to match glTF's depth
+    // writes. Keep the shared [0, 1] matrix intact: glTF converts in its shader.
+    const viewProj = this.glViewProj;
+    viewProj.set(frame.viewProj);
+    for (let i = 2; i < 16; i += 4) {
+      viewProj[i] = 2 * frame.viewProj[i]! - frame.viewProj[i + 1]!;
+    }
     this.stats = { drawCalls: 0, triangles: 0, gpuMemoryMB: 0 };
     const sceneScale = Math.max(0.5, Math.min(1, frame.quality.sceneScale));
     const targetsChanged =
@@ -2483,7 +2507,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.blendFunc(gl.ONE, gl.ONE);
     if (frame.quality.starCount > 0) {
       gl.useProgram(this.star.prog);
-      gl.uniformMatrix4fv(this.star.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.star.uniforms.uViewProj!, false, viewProj);
       gl.uniform1f(this.star.uniforms.uTime!, frame.time);
       gl.uniform1f(this.star.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.starVao);
@@ -2494,6 +2518,7 @@ export class WebGL2Renderer implements SceneRenderer {
     }
 
     // Planets + moons (opaque).
+    this.drawOrbitingModels(frame);
     gl.disable(gl.BLEND);
     gl.enable(gl.DEPTH_TEST);
     const model = mat4.create();
@@ -2513,7 +2538,7 @@ export class WebGL2Renderer implements SceneRenderer {
       // Debug wireframe: planets and moons as edges.
       gl.depthMask(true);
       gl.useProgram(this.wire.prog);
-      gl.uniformMatrix4fv(this.wire.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.wire.uniforms.uViewProj!, false, viewProj);
       // Sun body as wireframe (drawn separately from planets, like the filled
       // path below). Skipped when the sun is off screen.
       if (sunVisible) {
@@ -2546,7 +2571,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.frontFace(gl.CW);
     gl.useProgram(this.planet.prog);
     gl.uniform1f(this.planet.uniforms.uTier!, tier);
-    gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, frame.viewProj);
+    gl.uniformMatrix4fv(this.planet.uniforms.uViewProj!, false, viewProj);
     gl.uniform3fv(this.planet.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.planet.uniforms.uLight!, frame.keyLightDir);
     this.bindShadowUniforms(this.planet, frame);
@@ -2595,7 +2620,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.blendFunc(gl.ONE, gl.ONE);
       gl.depthMask(false);
       gl.useProgram(this.corona.prog);
-      gl.uniformMatrix4fv(this.corona.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.corona.uniforms.uViewProj!, false, viewProj);
       gl.uniform3fv(this.corona.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.corona.uniforms.uCenter!, frame.sun.center);
       gl.uniform1f(this.corona.uniforms.uRadius!, frame.sun.radius);
@@ -2605,7 +2630,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.depthMask(true);
       gl.useProgram(this.sun.prog);
-      gl.uniformMatrix4fv(this.sun.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.sun.uniforms.uViewProj!, false, viewProj);
       gl.uniform3fv(this.sun.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.sun.uniforms.uCenter!, frame.sun.center);
       gl.uniform1f(this.sun.uniforms.uRadius!, frame.sun.radius);
@@ -2628,7 +2653,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.blendFunc(gl.ONE, gl.ONE);
       gl.depthMask(false);
       gl.useProgram(this.star.prog);
-      gl.uniformMatrix4fv(this.star.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.star.uniforms.uViewProj!, false, viewProj);
       gl.uniform1f(this.star.uniforms.uTime!, frame.time);
       gl.uniform1f(this.star.uniforms.uWireframe!, 0);
       gl.bindVertexArray(this.satVao);
@@ -2664,7 +2689,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.frontFace(gl.CW);
       gl.useProgram(this.clouds.prog);
       gl.uniform1f(this.clouds.uniforms.uTier!, tier);
-      gl.uniformMatrix4fv(this.clouds.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.clouds.uniforms.uViewProj!, false, viewProj);
       gl.uniform3fv(this.clouds.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.clouds.uniforms.uLight!, frame.keyLightDir);
       this.bindShadowUniforms(this.clouds, frame);
@@ -2711,7 +2736,7 @@ export class WebGL2Renderer implements SceneRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this.atmosphereLut);
     gl.uniform1i(this.atmosphere.uniforms.uOpticalDepth!, 0);
     gl.uniform1f(this.atmosphere.uniforms.uTier!, tier);
-    gl.uniformMatrix4fv(this.atmosphere.uniforms.uViewProj!, false, frame.viewProj);
+    gl.uniformMatrix4fv(this.atmosphere.uniforms.uViewProj!, false, viewProj);
     gl.uniform3fv(this.atmosphere.uniforms.uCamera!, frame.cameraPos);
     gl.uniform3fv(this.atmosphere.uniforms.uLight!, frame.keyLightDir);
     this.bindShadowUniforms(this.atmosphere, frame);
@@ -2778,7 +2803,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.cullFace(gl.BACK);
       gl.frontFace(gl.CW);
       gl.useProgram(this.aurora.prog);
-      gl.uniformMatrix4fv(this.aurora.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.aurora.uniforms.uViewProj!, false, viewProj);
       gl.uniform3fv(this.aurora.uniforms.uCamera!, frame.cameraPos);
       gl.uniform3fv(this.aurora.uniforms.uLight!, frame.keyLightDir);
       gl.uniform1f(this.aurora.uniforms.uTime!, frame.time);
@@ -2831,7 +2856,7 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.disable(gl.CULL_FACE);
       const program = frame.wireframe ? this.wire : this.ring;
       gl.useProgram(program.prog);
-      gl.uniformMatrix4fv(program.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(program.uniforms.uViewProj!, false, viewProj);
       if (!frame.wireframe) {
         gl.uniform3fv(this.ring.uniforms.uCamera!, frame.cameraPos);
         gl.uniform3fv(this.ring.uniforms.uLight!, frame.keyLightDir);
@@ -2891,7 +2916,7 @@ export class WebGL2Renderer implements SceneRenderer {
       // Connector lines first, markers on top.
       if (this.poiLineVerts > 0) {
         gl.useProgram(this.line.prog);
-        gl.uniformMatrix4fv(this.line.uniforms.uViewProj!, false, frame.viewProj);
+        gl.uniformMatrix4fv(this.line.uniforms.uViewProj!, false, viewProj);
         gl.uniform1f(this.line.uniforms.uAspect!, this.width / this.height);
         gl.uniform1f(this.line.uniforms.uThick!, 0.0035);
         gl.uniform1f(this.line.uniforms.uHeight!, this.sceneHeight);
@@ -2901,7 +2926,7 @@ export class WebGL2Renderer implements SceneRenderer {
         this.stats.drawCalls++;
       }
       gl.useProgram(this.point.prog);
-      gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.point.uniforms.uViewProj!, false, viewProj);
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 1);
       gl.uniform1f(this.point.uniforms.uHeight!, this.sceneHeight);
@@ -2930,7 +2955,7 @@ export class WebGL2Renderer implements SceneRenderer {
         gl.ONE_MINUS_SRC_ALPHA,
       );
       gl.useProgram(this.flight.prog);
-      gl.uniformMatrix4fv(this.flight.uniforms.uViewProj!, false, frame.viewProj);
+      gl.uniformMatrix4fv(this.flight.uniforms.uViewProj!, false, viewProj);
       gl.uniform1f(this.flight.uniforms.uAspect!, this.width / this.height);
       gl.uniform1f(this.flight.uniforms.uThick!, 0.0045);
       gl.uniform3fv(this.flight.uniforms.uCamera!, frame.cameraPos);
@@ -3243,7 +3268,38 @@ export class WebGL2Renderer implements SceneRenderer {
     const postBytes = this.fxWidth * this.fxHeight * colorBytes * 2;
     const backdropBytes = this.backdropTarget ? this.backdropTarget.width * this.backdropTarget.height * colorBytes : 0;
     const atmosphereBytes = ATMOSPHERE_LUT_WIDTH * ATMOSPHERE_LUT_HEIGHT * 8;
-    return (sceneBytes + postBytes + backdropBytes + atmosphereBytes + this.starCount * 40) / (1024 * 1024);
+    let modelBytes = 0;
+    for (const { renderer } of this.orbitingModels.values()) {
+      modelBytes += renderer.stats.geometryBytes + renderer.stats.textureBytes;
+    }
+    return (sceneBytes + postBytes + backdropBytes + atmosphereBytes + this.starCount * 40 + modelBytes) / (1024 * 1024);
+  }
+
+  private drawOrbitingModels(frame: FrameState): void {
+    let rendered = false;
+    for (const definition of Object.values(ORBITING_MODELS)) {
+      const model = this.orbitingModels.get(definition.feature);
+      if (!model) {
+        if (frame[definition.instances]?.length) {
+          throw new Error(`The ${definition.label} GPU resources were not initialized.`);
+        }
+        continue;
+      }
+      const modelFrame = model.scene.update(frame, this.hdr);
+      if (!modelFrame) continue;
+      const stats = model.renderer.render(modelFrame);
+      this.stats.drawCalls += stats.drawCalls;
+      this.stats.triangles += stats.triangles;
+      rendered = true;
+    }
+    if (!rendered) return;
+    // Native samplers otherwise override the atmosphere LUT and post textures.
+    const gl = this.gl;
+    for (let unit = 0; unit < 5; unit++) gl.bindSampler(unit, null);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindVertexArray(null);
+    gl.disable(gl.CULL_FACE);
+    gl.frontFace(gl.CCW);
   }
 
   getStats(): RenderStats {
@@ -3257,6 +3313,8 @@ export class WebGL2Renderer implements SceneRenderer {
   destroy(): void {
     this.canvas?.removeEventListener('webglcontextlost', this.handleContextLost);
     this.deviceLostCb = null;
+    for (const { renderer } of this.orbitingModels.values()) renderer.dispose();
+    this.orbitingModels.clear();
     this.destroyPostTargets();
     this.destroyBackdropTarget();
     this.gl?.deleteTexture(this.atmosphereLut);

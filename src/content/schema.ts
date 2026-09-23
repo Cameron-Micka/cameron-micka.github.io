@@ -42,6 +42,9 @@ export const companySchema = z.object({
   }),
   features: z.object({
     rings: z.boolean(),
+    // Orbiting GLB companions, independent of planetary rings and moon count.
+    ringWorld: z.boolean().default(false),
+    spaceStation: z.boolean().default(false),
     ringTilt: z.number().default(0.4),
     // When true, the planet's ring is rendered as a narrow band with only a
     // few visible stripes instead of the broader many-band default.

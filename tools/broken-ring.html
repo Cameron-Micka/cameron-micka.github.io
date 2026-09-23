@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Broken ring | PBR asset preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, sans-serif;
+        background: #05080e;
+        color: #d9e5ee;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100dvh;
+        touch-action: none;
+      }
+      header {
+        position: fixed;
+        top: 30px;
+        left: 34px;
+        pointer-events: none;
+      }
+      .eyebrow {
+        font-size: 10px;
+        color: #8ba4b7;
+        letter-spacing: 0.23em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 8px 0;
+        font-size: clamp(20px, 3vw, 34px);
+        font-weight: 450;
+        letter-spacing: 0.13em;
+      }
+      header p {
+        font-size: 12px;
+        color: #8194a5;
+        margin: 6px 0;
+      }
+      .backend {
+        position: fixed;
+        right: 34px;
+        top: 30px;
+        font-size: 11px;
+        color: #b9ccd9;
+      }
+      select {
+        margin-left: 8px;
+        padding: 7px;
+        color: inherit;
+        background: #101923;
+        border: 1px solid #293b4b;
+        border-radius: 4px;
+      }
+      footer {
+        position: fixed;
+        left: 34px;
+        right: 34px;
+        bottom: 26px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        max-width: 480px;
+      }
+      button,
+      a {
+        color: #b9ccd9;
+        background: #101923dd;
+        border: 1px solid #293b4b;
+        padding: 9px 12px;
+        border-radius: 4px;
+        font: inherit;
+        font-size: 11px;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button:hover,
+      a:hover {
+        border-color: #91b3c9;
+        color: #fff;
+      }
+      button:focus-visible,
+      a:focus-visible {
+        outline: 2px solid #c1e5ff;
+        outline-offset: 3px;
+      }
+      button[aria-pressed='true'] {
+        background: #203747;
+        border-color: #6f9cb8;
+        color: #e4f2ff;
+      }
+      #stats {
+        text-align: right;
+        font:
+          11px/1.8 ui-monospace,
+          monospace;
+        color: #8ba4b7;
+        white-space: pre-line;
+      }
+      #status {
+        position: fixed;
+        top: 45%;
+        width: 100%;
+        text-align: center;
+        font-size: 14px;
+        color: #c3d7e4;
+        padding: 20px;
+      }
+      #status[hidden] {
+        display: none;
+      }
+      @media (max-width: 600px) {
+        header {
+          top: 18px;
+          left: 18px;
+        }
+        footer {
+          left: 18px;
+          right: 18px;
+          bottom: 18px;
+          flex-direction: column-reverse;
+          align-items: flex-start;
+        }
+        #stats {
+          text-align: left;
+          font-size: 10px;
+        }
+        header p {
+          max-width: 230px;
+          line-height: 1.5;
+        }
+        .backend {
+          top: 116px;
+          left: 18px;
+          right: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas
+      aria-label="Interactive PBR preview of a broken space ring"
+    ></canvas>
+    <header>
+      <div class="eyebrow">Original procedural asset / realtime PBR</div>
+      <h1>SHATTERED RING</h1>
+      <p>Drag to orbit &middot; scroll to inspect &middot; right-drag to pan</p>
+    </header>
+    <label class="backend"
+      >Renderer
+      <select id="backend">
+        <option value="webgl2">WebGL2</option>
+        <option value="webgpu">WebGPU</option>
+      </select>
+    </label>
+    <div id="status" role="status">
+      Loading the GLB and preparing PBR lighting...
+    </div>
+    <footer>
+      <nav aria-label="Model preview controls">
+        <button data-view="reference" aria-pressed="true">Reference</button>
+        <button data-view="front" aria-pressed="false">Silhouette</button>
+        <button data-view="hull" aria-pressed="false">Hull</button>
+        <button data-view="fracture" aria-pressed="false">Fracture</button>
+        <button id="wireframe" aria-pressed="false">Wireframe</button>
+        <button id="rotate" aria-pressed="false">Auto orbit</button>
+        <a id="download" href="/models/broken-ring.glb" download
+          >Download GLB</a
+        >
+      </nav>
+      <output id="stats" aria-label="Model performance statistics"></output>
+    </footer>
+    <script type="module" src="./broken-ring-preview.ts"></script>
+  </body>
+</html>

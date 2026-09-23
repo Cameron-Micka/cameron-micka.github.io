@@ -119,9 +119,25 @@ Each planet is fully deterministic from a per-company **seed** (string → 32-bi
 
 **Rings:** Optional per-planet — flat ring mesh, single texture with alpha falloff. Authored on/off + tilt angle per company.
 
+**Ring worlds:** `features.ringWorld` defaults to `false` and is enabled for
+Microsoft. It adds the broken-ring GLB as a decorative, tilted-orbit companion,
+separate from planetary rings and the moon count. It follows the parent's
+transform, timeline visibility, and paused moon clock, but cannot be launched.
+Both backends share the model's GPU geometry/textures across enabled planets
+and render it with depth testing, scene lighting, and distance fog.
+
+**Space stations:** `features.spaceStation` defaults to `false` and is enabled
+for LucasArts. It adds the Death Star GLB as an orbit-only model moon, separate
+from planetary rings, ring worlds, and the procedural moon count. Stations use
+the same parent transforms, visibility, paused clock, shared-resource rendering,
+and independent culling as ring worlds; they cannot be launched. When both GLB
+flags are enabled, the station's orbit sits outside the ring-world companion.
+
 **Moons:** Optional per-planet — N small spheres orbiting at fixed radii and periods. Moons use a rocky grayscale palette (lower saturation, stone-biased tones) over the procedural terrain pattern so they read more lunar/rocky than planets. They also get **meteorite impact craters**: a Worley-style field where only cells passing a hash threshold spawn a crater, each one a radial height profile (bowl, raised rim, ejecta apron) in two size classes. Bowls darken and rims brighten the albedo, and the profile's analytic radial gradient perturbs the shading normal so the relief is lit by the real sun direction. A per-layer screen-space LOD fade dissolves the field before it can alias. Authored count + orbital params per company.
 
-> Final per-company "feature set" (rings y/n, moon count) lives in the MDX frontmatter.
+> The implemented per-company feature set (`rings`, `ringWorld`, `spaceStation`, moon count)
+> lives in [companies.ts](src/content/companies.ts) and is validated by
+> [schema.ts](src/content/schema.ts).
 
 ### 3.4 Points of interest (POIs)
 
@@ -294,6 +310,8 @@ seed: microsoft-mesh-mrtk # deterministic procedural seed
 palette: ms-cyan # references /assets/palettes/ms-cyan.png
 features:
   rings: false
+  ringWorld: true
+  spaceStation: false
   moons: 2
 pois:
   - slug: mrtk-graphics-tools

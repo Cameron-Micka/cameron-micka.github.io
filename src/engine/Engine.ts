@@ -5,6 +5,7 @@ import type {
   RendererBackend,
   RenderStats,
   SceneRenderer,
+  SceneAssets,
   QualitySettings,
   QualityTier,
 } from './types';
@@ -27,12 +28,17 @@ import {
 } from './QualityManager';
 import { InputController } from './InputController';
 import { Moons } from './Moons';
+import {
+  buildRingWorlds,
+  buildSpaceStations,
+  ORBITING_MODELS,
+} from './OrbitingModels';
 import { TinyEventEmitter } from './TinyEventEmitter';
 import { clamp, damp, easing, lerp } from './math/easing';
 import { rayFromNDC, rayPointAt, raySphere } from './math/raycast';
 import { quat, type Quat } from './math/quat';
 import { vec3, type Vec3 } from './math/vec3';
-import type { Company } from '@/content/schema';
+import { assetUrl, type Company } from '@/content/schema';
 import {
   loadSettings,
   saveSettings,
@@ -402,6 +408,32 @@ export class Engine {
   private async createRenderer(
     onProgress?: LoadProgressFn,
   ): Promise<SceneRenderer> {
+    const assets: SceneAssets = {};
+    const models = Object.values(ORBITING_MODELS)
+      .map((definition) => ({
+        definition,
+        planets: this.models
+          .filter((model) => model.company.features[definition.feature])
+          .map((model) => model.company.slug),
+      }))
+      .filter(({ planets }) => planets.length > 0);
+    if (models.length) {
+      onProgress?.(
+        0.03,
+        `Loading ${models.map(({ definition }) => definition.label).join(' and ')}...`,
+      );
+      const { loadGlb } = await import('./gltf/loader');
+      this.startupAbort.signal.throwIfAborted();
+      await Promise.all(
+        models.map(async ({ definition, planets }) => {
+          const asset = await loadGlb(assetUrl(definition.path), {
+            signal: this.startupAbort.signal,
+          });
+          for (const warning of asset.warnings) console.warn(warning);
+          assets[definition.feature] = { asset, planets };
+        }),
+      );
+    }
     const force = this.backendOverride ?? this.settings.forceBackend;
     const preferWebGL =
       force === 'auto' &&
@@ -419,7 +451,9 @@ export class Engine {
         if (this.destroyed)
           throw new DOMException('Timeline unmounted', 'AbortError');
         candidate = new WebGPURenderer(this.activeQuality.msaa);
-        await candidate.init(this.canvas, onProgress, this.startupAbort.signal);
+        await candidate.init(
+          this.canvas, onProgress, this.startupAbort.signal, assets,
+        );
         return candidate;
       } catch (err) {
         candidate?.destroy();
@@ -433,7 +467,7 @@ export class Engine {
       throw new DOMException('Timeline unmounted', 'AbortError');
     const r2 = new WebGL2Renderer();
     try {
-      await r2.init(this.canvas, onProgress, this.startupAbort.signal);
+      await r2.init(this.canvas, onProgress, this.startupAbort.signal, assets);
       return r2;
     } catch (error) {
       r2.destroy();
@@ -747,6 +781,8 @@ export class Engine {
       sun: this.sun,
       planets: visiblePlanets,
       moons: this.moons.instances,
+      ringWorlds: buildRingWorlds(planets, this.moonTime),
+      spaceStations: buildSpaceStations(planets, this.moonTime),
       quality: this.activeQuality,
       shadowCasters: this.activeQuality.shadows
         ? planets

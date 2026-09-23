@@ -1,0 +1,56 @@
+{
+  "iteration": 5,
+  "triangles": 13264,
+  "vertices": 12776,
+  "drawCalls": 2,
+  "materials": 1,
+  "dimensions": {
+    "radius": 10,
+    "bandWidth": 2.6,
+    "shellThickness": 0.24
+  },
+  "arcDegrees": 197.67043932013402,
+  "textures": [
+    {
+      "name": "Base color (sRGB)",
+      "width": 2048,
+      "height": 1024,
+      "bytes": 512505,
+      "mimeType": "image/jpeg"
+    },
+    {
+      "name": "Normal (linear)",
+      "width": 1024,
+      "height": 512,
+      "bytes": 703215,
+      "mimeType": "image/png"
+    },
+    {
+      "name": "ORM (linear)",
+      "width": 1024,
+      "height": 512,
+      "bytes": 428809,
+      "mimeType": "image/png"
+    },
+    {
+      "name": "Heat (sRGB)",
+      "width": 1024,
+      "height": 512,
+      "bytes": 225284,
+      "mimeType": "image/png"
+    }
+  ],
+  "textureBytesWithMipmaps": 19573420,
+  "geometryBytes": 692832,
+  "budget": {
+    "triangles": 15000,
+    "drawCalls": 2,
+    "fileBytes": 3145728,
+    "textureBytesWithMipmaps": 20971520
+  },
+  "fileBytes": 2566924,
+  "validation": {
+    "errors": 0,
+    "warnings": 0
+  }
+}

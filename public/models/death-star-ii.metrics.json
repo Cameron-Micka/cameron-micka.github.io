@@ -1,0 +1,55 @@
+{
+  "iteration": 5,
+  "triangles": 14902,
+  "vertices": 18553,
+  "drawCalls": 2,
+  "materials": 2,
+  "dimensions": {
+    "radius": 10,
+    "dishRadius": 3.05,
+    "dishDepth": 1
+  },
+  "textures": [
+    {
+      "name": "Hull plating (sRGB)",
+      "mimeType": "image/jpeg",
+      "width": 2048,
+      "height": 1024,
+      "bytes": 583487
+    },
+    {
+      "name": "Panel relief (linear)",
+      "mimeType": "image/png",
+      "width": 1024,
+      "height": 512,
+      "bytes": 664378
+    },
+    {
+      "name": "Packed ORM (linear)",
+      "mimeType": "image/png",
+      "width": 1024,
+      "height": 512,
+      "bytes": 250282
+    },
+    {
+      "name": "Maintenance lights (sRGB)",
+      "mimeType": "image/png",
+      "width": 1024,
+      "height": 512,
+      "bytes": 7443
+    }
+  ],
+  "textureBytesWithMipmaps": 19573420,
+  "geometryBytes": 979956,
+  "budget": {
+    "triangles": 15000,
+    "drawCalls": 2,
+    "fileBytes": 3145728,
+    "textureBytesWithMipmaps": 20971520
+  },
+  "fileBytes": 2490260,
+  "validation": {
+    "errors": 0,
+    "warnings": 0
+  }
+}
