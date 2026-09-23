@@ -1,5 +1,6 @@
 export function writePbrGlb(meshes, textures, extras, metadata) {
   const chunks = [];
+  const material = metadata.material ?? {};
   const materialSides = [
     ...new Set(meshes.map((mesh) => mesh.doubleSided ?? false)),
   ];
@@ -28,13 +29,16 @@ export function writePbrGlb(meshes, textures, extras, metadata) {
       pbrMetallicRoughness: {
         baseColorTexture: { index: 0 },
         metallicRoughnessTexture: { index: 2 },
-        metallicFactor: 1,
+        metallicFactor: material.metallicFactor ?? 1,
         roughnessFactor: 1,
       },
-      normalTexture: { index: 1, scale: 1 },
-      occlusionTexture: { index: 2, strength: 0.8 },
+      normalTexture: { index: 1, scale: material.normalScale ?? 1 },
+      occlusionTexture: {
+        index: 2,
+        strength: material.occlusionStrength ?? 0.8,
+      },
       emissiveTexture: { index: 3 },
-      emissiveFactor: [1, 1, 1],
+      emissiveFactor: material.emissiveFactor ?? [1, 1, 1],
       alphaMode: 'OPAQUE',
       doubleSided,
     })),

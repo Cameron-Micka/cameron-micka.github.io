@@ -746,7 +746,7 @@ function hullPattern(n, iteration) {
       smallY > 0.2 &&
       smallY < 0.75 &&
       cell > (iteration >= 4 ? 0.74 : 0.63);
-    let shade = 116 + panel * 16 + noise(lon * 380, lat * 94, 334) * 6;
+    let shade = 117 * (0.88 + panel * 0.24);
     shade *= seam ? 0.71 : longLine ? 0.81 : recess ? 0.66 : module ? 0.92 : 1;
     let exposed = 0;
     if (iteration >= 5) {
@@ -767,23 +767,14 @@ function hullPattern(n, iteration) {
         exposed,
       );
     }
-    const light =
-      cell > 0.994 &&
-      smallX > 0.4 &&
-      smallX < 0.75 &&
-      smallY > 0.28 &&
-      smallY < 0.52
-        ? 0.65
-        : 0;
     return {
-      color: [shade * 0.975, shade * 0.985, shade * 1.015],
+      color: [shade, shade * (124 / 117), shade * (132 / 117)],
       height:
         (seam ? 0.18 : recess ? 0.2 : longLine ? 0.24 : module ? 0.28 : 0.31) -
         exposed * 0.075,
-      roughness: 0.72 + panel * 0.12,
-      metalness: 0.58 + panel * 0.16,
+      roughness: 0.65 + panel * 0.15,
+      metalness: 1,
       ao: (seam || recess ? 0.69 : 1) * (1 - exposed * 0.3),
-      light,
     };
   }
   const row = Math.floor(lat * 34);
@@ -833,8 +824,8 @@ function pattern(region, u, v, iteration) {
     return {
       color: [shade * 0.96, shade * 0.98, shade * 1.04],
       height: radialLine || circularLine ? 0.1 : 0.23,
-      roughness: 0.76,
-      metalness: 0.58,
+      roughness: 0.75,
+      metalness: 1,
       ao: distance < 0.065 ? 0.45 : 0.9,
       light: 0,
     };
@@ -856,8 +847,8 @@ function pattern(region, u, v, iteration) {
   return {
     color: [shade * 0.9, shade * 0.95, shade],
     height: line || inset ? 0.1 : 0.4,
-    roughness: 0.82,
-    metalness: 0.72,
+    roughness: 0.8,
+    metalness: 1,
     ao: line || inset ? 0.55 : 0.88,
     light: 0,
   };
@@ -882,9 +873,6 @@ async function buildTextures(iteration) {
         orm[offset] = Math.round(sample.ao * 255);
         orm[offset + 1] = Math.round(sample.roughness * 255);
         orm[offset + 2] = Math.round(sample.metalness * 255);
-        emission[offset] = Math.round(sample.light * 255);
-        emission[offset + 1] = Math.round(sample.light * 238);
-        emission[offset + 2] = Math.round(sample.light * 206);
         height[y * WIDTH + x] = sample.height;
       }
     }
@@ -931,7 +919,7 @@ async function buildTextures(iteration) {
       'Hull plating (sRGB)',
       'Panel relief (linear)',
       'Packed ORM (linear)',
-      'Maintenance lights (sRGB)',
+      'Unlit emission (sRGB)',
     ][index],
     mimeType: index === 0 ? 'image/jpeg' : 'image/png',
     width: index === 0 ? WIDTH : WIDTH / 2,
@@ -979,7 +967,13 @@ export async function generateDeathStar({ iteration = 5 } = {}) {
     generator: 'Deterministic unfinished battle-station builder',
     sceneName: 'Unfinished battle station / reference-inspired Death Star II',
     rootName: 'Battle station / center origin / +Y up / front +Z',
-    materialName: 'Weathered alloy plating, machinery and dish / packed PBR',
+    materialName: 'Cold painted armor, machinery and dish / packed PBR',
+    material: {
+      metallicFactor: 0.4,
+      normalScale: 1.5,
+      occlusionStrength: 1,
+      emissiveFactor: [0, 0, 0],
+    },
   });
   stats.fileBytes = glb.byteLength;
   const validation = await validateBytes(new Uint8Array(glb), {
