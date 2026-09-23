@@ -151,7 +151,7 @@ test('ring center and orientation follow parent translations and rotations', () 
   assert.deepEqual(c.orientation, quat.multiply(rotation, a.orientation));
 });
 
-test('ring face stays perpendicular to the planet surface after the other-axis quarter-turn', () => {
+test('ring face stays perpendicular to the planet surface with its normal along the orbital tangent', () => {
   for (const orientation of [
     quat.identity(),
     quat.multiply(
@@ -160,7 +160,7 @@ test('ring face stays perpendicular to the planet surface after the other-axis q
     ),
   ]) {
     const p = planet({ center: [3, -2, 5], orientation });
-    const expectedNormal = quat.rotateVec3(orientation, [
+    const orbitNormal = quat.rotateVec3(orientation, [
       0,
       -Math.cos(0.75),
       Math.sin(0.75),
@@ -171,16 +171,24 @@ test('ring face stays perpendicular to the planet surface after the other-axis q
         (value, index) => (value - p.center[index]) / p.radius,
       );
       const normal = quat.rotateVec3(instance.orientation, [0, 0, 1]);
+      const tangent = [
+        orbitNormal[1] * radial[2] - orbitNormal[2] * radial[1],
+        orbitNormal[2] * radial[0] - orbitNormal[0] * radial[2],
+        orbitNormal[0] * radial[1] - orbitNormal[1] * radial[0],
+      ];
+      const tangentLength = Math.hypot(...tangent);
       near(
         radial.reduce((dot, value, index) => dot + value * normal[index], 0),
         0,
       );
-      normal.forEach((value, index) => near(value, expectedNormal[index]));
+      normal.forEach((value, index) =>
+        near(value, tangent[index] / tangentLength),
+      );
     }
   }
 });
 
-test('ring has a 90 degree radial-axis rotation rather than an in-plane rotation', () => {
+test('ring face rotates 90 degrees about the radial axis from its previous orientation', () => {
   const p = planet();
   const time = 4;
   const [instance] = ring.buildRingWorlds([p], time);
@@ -195,11 +203,27 @@ test('ring has a 90 degree radial-axis rotation rather than an in-plane rotation
     quat.fromAxisAngle([1, 0, 0], -0.75),
     quat.fromAxisAngle([0, 1, 0], -angle),
   );
-  const expected = quat.multiply(
+  const previous = quat.multiply(
     quat.multiply(orbitOrientation, quat.fromAxisAngle([1, 0, 0], Math.PI / 2)),
     quat.fromAxisAngle([0, 0, 1], 0.65 + time * 0.045),
   );
+  const expected = quat.multiply(
+    quat.fromAxisAngle(
+      relativeCenter.map((value) => value / Math.hypot(...relativeCenter)),
+      -Math.PI / 2,
+    ),
+    previous,
+  );
   instance.orientation.forEach((value, index) => near(value, expected[index]));
+  const previousNormal = quat.rotateVec3(previous, [0, 0, 1]);
+  const normal = quat.rotateVec3(instance.orientation, [0, 0, 1]);
+  near(
+    normal.reduce(
+      (dot, value, index) => dot + value * previousNormal[index],
+      0,
+    ),
+    0,
+  );
 });
 
 test('visibility scales the orbit and body like moons, then removes the hidden ring', () => {
