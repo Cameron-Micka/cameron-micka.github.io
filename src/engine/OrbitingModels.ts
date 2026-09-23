@@ -60,7 +60,10 @@ export function buildRingWorlds(
       quat.fromAxisAngle([0, 1, 0], -angle),
     );
     const tilt = quat.multiply(
-      orbitOrientation,
+      quat.multiply(
+        orbitOrientation,
+        quat.fromAxisAngle([0, 1, 0], Math.PI / 2),
+      ),
       quat.fromAxisAngle([0, 0, 1], 0.65 + moonTime * 0.045),
     );
     instances.push({
