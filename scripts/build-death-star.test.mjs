@@ -299,6 +299,7 @@ test('the atlas contains four embedded readable PBR maps with correct color-spac
     );
     assert.equal(material.occlusionTexture.index, 2);
     assert.equal(material.emissiveTexture.index, 3);
+    assert.deepEqual(material.emissiveFactor, [0, 0, 0]);
     assert.equal(material.alphaMode, 'OPAQUE');
   }
   const orm = await sharp(encodedImage(2)).raw().toBuffer();
@@ -314,13 +315,9 @@ test('the atlas contains four embedded readable PBR maps with correct color-spac
   );
   assert.ok(maximumMetal > 170);
   const emission = await sharp(encodedImage(3)).raw().toBuffer();
-  const lights = emission.filter(
-    (value, offset) => offset % 3 === 0 && value > 0,
-  ).length;
-  assert.ok(lights > 0);
   assert.ok(
-    lights / (1024 * 512) < 0.01,
-    'Lighting should remain sparse maintenance pinpricks',
+    emission.every((value) => value === 0),
+    'Station emissive map should remain black with no maintenance lights',
   );
 });
 
