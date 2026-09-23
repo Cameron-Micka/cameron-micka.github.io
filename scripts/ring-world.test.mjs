@@ -151,7 +151,7 @@ test('ring center and orientation follow parent translations and rotations', () 
   assert.deepEqual(c.orientation, quat.multiply(rotation, a.orientation));
 });
 
-test('ring face stays perpendicular to the planet surface with its normal along the orbital tangent', () => {
+test('ring face stays parallel to the planet surface with its normal along the radial direction', () => {
   for (const orientation of [
     quat.identity(),
     quat.multiply(
@@ -159,36 +159,38 @@ test('ring face stays perpendicular to the planet surface with its normal along 
       quat.fromAxisAngle([0, 1, 0], -1.2),
     ),
   ]) {
-    const p = planet({ center: [3, -2, 5], orientation });
-    const orbitNormal = quat.rotateVec3(orientation, [
-      0,
-      -Math.cos(0.75),
-      Math.sin(0.75),
-    ]);
-    for (const time of [0, 4, 12, 35, 100]) {
-      const [instance] = ring.buildRingWorlds([p], time);
-      const radial = instance.center.map(
-        (value, index) => (value - p.center[index]) / p.radius,
-      );
-      const normal = quat.rotateVec3(instance.orientation, [0, 0, 1]);
-      const tangent = [
-        orbitNormal[1] * radial[2] - orbitNormal[2] * radial[1],
-        orbitNormal[2] * radial[0] - orbitNormal[0] * radial[2],
-        orbitNormal[0] * radial[1] - orbitNormal[1] * radial[0],
-      ];
-      const tangentLength = Math.hypot(...tangent);
-      near(
-        radial.reduce((dot, value, index) => dot + value * normal[index], 0),
-        0,
-      );
-      normal.forEach((value, index) =>
-        near(value, tangent[index] / tangentLength),
-      );
+    for (const visibility of [0.03, 0.5, 1]) {
+      const p = planet({ center: [3, -2, 5], orientation, visibility });
+      for (const time of [0, 4, 12, 35, 100]) {
+        const [instance] = ring.buildRingWorlds([p], time);
+        const radial = instance.center.map(
+          (value, index) => value - p.center[index],
+        );
+        const radialLength = Math.hypot(...radial);
+        const normal = quat.rotateVec3(instance.orientation, [0, 0, 1]);
+        normal.forEach((value, index) =>
+          near(value, radial[index] / radialLength),
+        );
+        for (const axis of [
+          [1, 0, 0],
+          [0, 1, 0],
+        ]) {
+          const faceAxis = quat.rotateVec3(instance.orientation, axis);
+          near(
+            faceAxis.reduce(
+              (dot, value, index) =>
+                dot + (value * radial[index]) / radialLength,
+              0,
+            ),
+            0,
+          );
+        }
+      }
     }
   }
 });
 
-test('ring face rotates 90 degrees about the radial axis from its previous orientation', () => {
+test('ring preserves its in-plane spin after aligning its face to the surface', () => {
   const p = planet();
   const time = 4;
   const [instance] = ring.buildRingWorlds([p], time);
@@ -203,27 +205,18 @@ test('ring face rotates 90 degrees about the radial axis from its previous orien
     quat.fromAxisAngle([1, 0, 0], -0.75),
     quat.fromAxisAngle([0, 1, 0], -angle),
   );
-  const previous = quat.multiply(
-    quat.multiply(orbitOrientation, quat.fromAxisAngle([1, 0, 0], Math.PI / 2)),
-    quat.fromAxisAngle([0, 0, 1], 0.65 + time * 0.045),
+  const aligned = quat.multiply(
+    orbitOrientation,
+    quat.fromAxisAngle([0, 1, 0], Math.PI / 2),
   );
-  const expected = quat.multiply(
-    quat.fromAxisAngle(
-      relativeCenter.map((value) => value / Math.hypot(...relativeCenter)),
-      -Math.PI / 2,
-    ),
-    previous,
-  );
-  instance.orientation.forEach((value, index) => near(value, expected[index]));
-  const previousNormal = quat.rotateVec3(previous, [0, 0, 1]);
-  const normal = quat.rotateVec3(instance.orientation, [0, 0, 1]);
-  near(
-    normal.reduce(
-      (dot, value, index) => dot + value * previousNormal[index],
-      0,
-    ),
+  const spin = 0.65 + time * 0.045;
+  const expected = quat.rotateVec3(aligned, [
+    Math.cos(spin),
+    Math.sin(spin),
     0,
-  );
+  ]);
+  const faceAxis = quat.rotateVec3(instance.orientation, [1, 0, 0]);
+  faceAxis.forEach((value, index) => near(value, expected[index]));
 });
 
 test('visibility scales the orbit and body like moons, then removes the hidden ring', () => {
