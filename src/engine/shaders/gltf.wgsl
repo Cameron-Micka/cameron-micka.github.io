@@ -171,7 +171,7 @@ fn fs(input: VertexOutput, @builtin(front_facing) frontFacing: bool) -> @locatio
   }
   let alpha = select(1.0, clamp(base.a, 0.0, 1.0), material.flags.x > 1.5);
   if (frame.outputConfig.z > 0.5) {
-    return vec4<f32>(outputColor(mix(vec3<f32>(0.25, 0.8, 1.0), base.rgb, 0.25)), alpha);
+    return vec4<f32>(outputColor(vec3<f32>(1.0, 0.478, 0.094)), alpha);
   }
 
   var normal = normalizeOr(input.normal, vec3<f32>(0.0, 1.0, 0.0));
