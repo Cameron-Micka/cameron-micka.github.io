@@ -509,8 +509,8 @@ on both backends; a passing TypeScript check alone does not validate shaders.
 
 [broken-ring.glb](public/models/broken-ring.glb) is an original, reference-based
 broken ring with a muted blue-gray and sage-green mountainous inner habitat,
-a dark graphite mechanical shell, circular inset service panels, scorched
-fractures, exposed structural splinters, and detached debris. Geometry and
+a slender silver-blue metallic shell, beveled plating, circular inset service
+panels, scorched fractures, exposed structural splinters, and detached debris. Geometry and
 textures are generated locally; no game meshes or textures are extracted or
 downloaded.
 
@@ -540,7 +540,8 @@ Append `?model=/models/another-model.glb` to preview another static asset;
 - **13,264 triangles, 12,776 vertices, two draw calls**, one shared PBR material.
   The body and all 206 debris pieces are separate, batched meshes; debris does
   not create a draw call per fragment.
-- A self-contained **GLB 2.0**, under **3 MiB**, with four embedded textures:
+- A self-contained **GLB 2.0**, **2.58 MiB** (under **3 MiB**), with four embedded
+  textures:
   a 2048x1024 sRGB base-color JPEG and 1024x512 PNG normal, packed
   occlusion/roughness/metallic, and sRGB emissive maps. ORM channels are
   **R = occlusion, G = roughness, B = metallic**; normals and ORM are linear.
@@ -556,7 +557,7 @@ Append `?model=/models/another-model.glb` to preview another static asset;
   anisotropic filtering for the intended PBR appearance. Bloom is optional,
   not required for the asset to work.
 - **+Y up**, ring in the **XY plane**, width along **Z**, origin at the original
-  ring center. Radius is 10 model units, band width 2.6, shell thickness 0.24,
+  ring center. Radius is 10 model units, band width 2.2, shell thickness 0.18,
   and the surviving arc is about 197.7 degrees. Scale the root node to fit the
   destination scene; include debris in culling bounds.
 
@@ -567,39 +568,45 @@ Every export runs Khronos glTF validation and rejects errors **and** warnings.
 meshes and encoded images. Tests independently parse the committed binary,
 check geometry/tangent frames, decode every texture, verify material channels,
 and enforce the budgets. Texture regressions also check habitat color coverage
-and restrained saturation, dark plating and circular insets, unchanged
-body/debris geometry and UVs, and pixel-for-pixel preservation of exterior
-colors, normal/ORM maps, and the original fire map. Regeneration checks
-encoded textures exactly and permits only float-roundoff differences in tangents.
+and restrained saturation, bright metallic plating with dark circular insets,
+measured band width and shell thickness, unchanged body/debris topology, and
+pixel-for-pixel preservation of the habitat/fracture atlas interiors and
+the original fire map. Hull tests check both base-color contrast and the
+roughness/metallic channels, not just the material's metallic factor.
+Regeneration checks encoded textures exactly and permits only float-roundoff
+differences in tangents.
 
-### Reference texture refresh
+### Thinner band and metallic exterior
 
-The latest surface pass follows the supplied reference's dense, dark hull
-paneling and inset circular hardware, with blue water, green lowlands, rocky
-coasts, and localized mountain snow on the inner band. Five visual texture
-reviews refined the palette, circular panels, terrain transitions, varied
-machinery bays, and final fine detail. The existing scorch/fissure pipeline and
-emissive heat map are retained, including the burning ends and heated debris.
-Earlier modeling iterations remain available through `--iteration`.
+The latest reference refinement narrows the axial band from 2.6 to 2.2 units
+(about **15%**) and the radial shell from 0.24 to 0.18 units (**25%**). Edge-rail
+overhangs shrink proportionally; the radius, surviving arc, topology, and debris
+count stay unchanged. Physical shard UVs and circular hardware proportions
+follow the new dimensions.
 
-The habitat-only palette refinement returns the greens and blues toward the
-first version's cooler, muted appearance: slate-blue water, sage-green lowlands,
-and softer gray-green coasts. Terrain placement and detail, mountain snow, the
-dark mechanical shell, and orange fracture heat are retained; only the habitat's
-base-color palette changes.
+The exterior uses brighter silver-blue reflectance, varied lower roughness,
+polished bevels, subtle brushed normals, and darker recessed machinery. Heavy
+soot stays nearer the torn ends so intact metal can reflect the scene lights.
+This is baked into the existing PBR atlas, not added emission or a global shader
+change. The muted habitat, fracture atlas interiors, and orange heat map are
+preserved. Final hull/rim normal quantization saves about 61 KiB compared with
+the unoptimized material pass, without adding textures or draw calls.
 
-This updates the appearance of the existing Microsoft-planet ring without
-changing its geometry, placement, feature flag, renderer, or runtime dependencies.
+The existing Microsoft-planet ring uses the updated asset in the live scene.
+Its orbit, feature flag, renderer, and runtime dependencies are unchanged.
+The five refinement passes and comparison renders are kept as session artifacts,
+not deployed binaries. `--iteration 1..4` still produces the earlier modeling
+stages; the default `--iteration 5` produces this final asset.
 
 ### Five visual critique-and-update passes
 
 | Pass | Render critique | Update |
 | --- | --- | --- |
-| 1 | Clean horseshoe shape, square ends, overly upright framing. | Layered rims, asymmetric torn ends, diagonal presentation. |
-| 2 | Interior resembled clouds; exterior repeated large tiles; right branch too long. | Ridged terrain, water basins, finer multi-scale plating, shorter asymmetric arc. |
-| 3 | Terrain was too glossy and contoured; destruction lacked depth. | Rougher snow/rock, charred hull, emissive fissures, structural splinters, batched debris. |
-| 4 | Close-ups exposed stretched emissive shard UVs; landscape was too smooth and geometry too dense. | World-scaled shard UVs, finer icy terrain, lower arc tessellation, tetrahedral small debris. |
-| 5 | Wide and fracture views held up, but glow was too uniform and material maps carried excess precision. | Patchier restrained heat, smaller normal/ORM encodings, final framing and idle-render checks. |
+| 1 | Narrower band preserved the silhouette, but edge rails still looked heavy and dark. | Proportional rail thickness and cooler polished edge treatment. |
+| 2 | Thin edges caught the light, but the broad hull remained matte graphite. | Silver-blue plating, lower roughness, bright service panels, localized soot. |
+| 3 | Metal read clearly, but close-up plates looked flat and similarly reflective. | Beveled normals, rounded hardware rims, brushing, independent roughness variation. |
+| 4 | Reflection-aligned lighting washed out too much of the intact hull. | Slightly rougher plates and darker, recessed machinery bays to break up highlights. |
+| 5 | Detail and contrast held up, but exterior normals carried excess download precision. | Coarser post-resize hull/rim normal encoding, then re-exported and re-rendered the final GLB. |
 
 Earlier working stages can be regenerated without replacing the final asset:
 

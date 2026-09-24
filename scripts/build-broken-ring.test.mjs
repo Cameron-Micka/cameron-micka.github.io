@@ -227,23 +227,66 @@ test('terrain, metal, occlusion, normals and heat share one opaque PBR atlas', a
   assert.ok(maximumMetal > 200, 'Hull plating must retain a metallic response');
 });
 
-test('the texture refresh preserves the broken body, debris, and UV layout', () => {
+test('the thinner ring preserves the broken body and batched debris topology', () => {
   const expected = [
-    '7518e6cb78a7d8534ed157bb06254e4daf14663fb2ec23765f70f398d8a8e7bb',
-    '8313d6f95d00c3e31e348decb0d4545c5c513b2d4ba7ea8de67ed04c2870811f',
+    'bf022f4c4c98c159965dba1d250fb897470da417f71898d1be20ec02f70c24d4',
+    'ce19b2eef81786f23e2e545d946ef0d93d762f942072c589a8ae03a97a036ff3',
   ];
   for (const [index, mesh] of document.meshes.entries()) {
     const primitive = mesh.primitives[0];
     const digest = createHash('sha256');
-    for (const accessor of [
-      primitive.attributes.POSITION,
-      primitive.attributes.TEXCOORD_0,
-      primitive.indices,
-    ]) {
-      digest.update(bufferViewBytes(document.accessors[accessor].bufferView));
-    }
+    digest.update(
+      bufferViewBytes(document.accessors[primitive.indices].bufferView),
+    );
     assert.equal(digest.digest('hex'), expected[index], mesh.name);
   }
+});
+
+test('actual ring geometry has a 2.2-wide band and 0.18-thick shell at the original radius', () => {
+  assert.deepEqual(metrics.dimensions, {
+    radius: 10,
+    bandWidth: 2.2,
+    shellThickness: 0.18,
+  });
+  const primitive = document.meshes[0].primitives[0];
+  const positions = readAccessor(primitive.attributes.POSITION);
+  const uvs = readAccessor(primitive.attributes.TEXCOORD_0);
+  const centralHull = positions.filter((_, index) => {
+    const [u, v] = uvs[index];
+    return Math.abs(u - 0.5) < 1e-6 && v >= 520 / 1024 && v <= 760 / 1024;
+  });
+  assert.equal(centralHull.length, 17);
+  const width =
+    Math.max(...centralHull.map((p) => p[2])) -
+    Math.min(...centralHull.map((p) => p[2]));
+  assert.ok(Math.abs(width - 2.2) < 1e-4, `Actual band width: ${width}`);
+  for (const v of [0, 1]) {
+    const inner =
+      positions[
+        uvs.findIndex(
+          (uv) =>
+            Math.abs(uv[0] - 0.5) < 1e-6 &&
+            Math.abs(uv[1] - (8 + v * 496) / 1024) < 1e-6,
+        )
+      ];
+    const outer =
+      positions[
+        uvs.findIndex(
+          (uv) =>
+            Math.abs(uv[0] - 0.5) < 1e-6 &&
+            Math.abs(uv[1] - (520 + v * 240) / 1024) < 1e-6,
+        )
+      ];
+    assert.ok(inner && outer, 'Both shell surfaces must be present');
+    const outerRadius = Math.hypot(outer[0], outer[1]);
+    const thickness = outerRadius - Math.hypot(inner[0], inner[1]);
+    assert.ok(Math.abs(outerRadius - 10) < 1e-4);
+    assert.ok(
+      Math.abs(thickness - 0.18) < 2e-6,
+      `Actual shell thickness: ${thickness}`,
+    );
+  }
+  assert.ok(Math.abs(metrics.arcDegrees - 197.67043932013402) < 1e-8);
 });
 
 test('the original orange fire and fracture heat map is preserved pixel-for-pixel', async () => {
@@ -254,27 +297,47 @@ test('the original orange fire and fracture heat map is preserved pixel-for-pixe
   );
 });
 
-test('muting the habitat preserves exterior colors, normals, and surface response', async () => {
-  const { data, info } = await sharp(encodedImage(0))
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const exterior = data.subarray(512 * info.width * info.channels);
-  assert.equal(
-    createHash('sha256').update(exterior).digest('hex'),
-    '10c06f105e88d4be2a74e46cebd4a2c08c35dcb76b22d7716973d111b26e06cc',
-    'Hull, rim, and fracture colors must remain unchanged',
-  );
-  const expected = [
-    '53869aa0b2ea74af823e9eaeeecaaf7604c9fb18c51c86709565e2f4e5ea4403',
-    '0766033cdff16dd4f8867c1eb4b6e5fc68273ea4296ed99cc80bd0e8d3bc3f72',
+test('metallic hull changes preserve habitat and fracture colors, normals, and ORM', async () => {
+  const regions = [
+    {
+      name: 'habitat',
+      top: 0,
+      height: 512,
+      hashes: [
+        'ffda124a6e026c045d396e48b6499f1c1be4b196c9ae99fd08035bcc10440f9a',
+        '5769bfb88982aaced892c778161cc73f5633dde9726371fb7d8f2c90b90cbb57',
+        '2e4dca4e4a102443b5599ccffe581688c664e01774def281a3e58ae5becdc87d',
+      ],
+    },
+    {
+      name: 'fracture',
+      top: 896,
+      height: 128,
+      hashes: [
+        'f410e8922e9ea7b29909e30a363c575f96b643cd86340550f2b390f2ba85432f',
+        '764778b1ab47a3517ecb7351f12f2db75c66185e75461f862ad3c4e6fa3b47b9',
+        'd754d6f3ed43657ee6b1c6f22a437ab38c16996cc3ad344f69888a877eea19db',
+      ],
+    },
   ];
-  for (const [index, digest] of expected.entries()) {
-    const pixels = await sharp(encodedImage(index + 1)).raw().toBuffer();
-    assert.equal(
-      createHash('sha256').update(pixels).digest('hex'),
-      digest,
-      document.images[index + 1].name,
-    );
+  for (const region of regions) {
+    for (const [index, digest] of region.hashes.entries()) {
+      const scale = index === 0 ? 1 : 0.5;
+      const pixels = await sharp(encodedImage(index))
+        .extract({
+          left: 8 * scale,
+          top: (region.top + 8) * scale,
+          width: 2032 * scale,
+          height: (region.height - 16) * scale,
+        })
+        .raw()
+        .toBuffer();
+      assert.equal(
+        createHash('sha256').update(pixels).digest('hex'),
+        digest,
+        `${region.name} / ${document.images[index].name}`,
+      );
+    }
   }
 });
 
@@ -328,7 +391,7 @@ test('the intact habitat retains muted blue water, sage-green land, and limited 
   );
 });
 
-test('dark hull plating retains circular inset hardware at physical scale', async () => {
+test('silver-blue hull plating retains dark recesses and circular hardware at physical scale', async () => {
   const { data, info } = await sharp(encodedImage(0))
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -344,28 +407,86 @@ test('dark hull plating retains circular inset hardware at physical scale', asyn
     luminance(Math.round(8 + u * 2032), 512 + Math.round(8 + v * 240));
   let total = 0;
   let samples = 0;
+  let blue = 0;
+  let dark = 0;
+  let bright = 0;
   for (let y = 524; y < 756; y++) {
     for (let x = 1030; x < 1320; x++) {
-      total += luminance(x, y);
+      const value = luminance(x, y);
+      total += value;
+      const offset = (y * info.width + x) * info.channels;
+      if (data[offset + 2] > data[offset]) blue++;
+      if (value < 60) dark++;
+      if (value > 140) bright++;
       samples++;
     }
   }
-  assert.ok(total / samples > 20 && total / samples < 60);
+  assert.ok(
+    total / samples > 90 && total / samples < 150,
+    'Metal must not read as dark graphite',
+  );
+  assert.ok(
+    blue / samples > 0.85,
+    'Intact metal should retain a cool silver-blue tint',
+  );
+  assert.ok(
+    dark / samples > 0.1,
+    'Recesses must remain darker than the plating',
+  );
+  assert.ok(
+    bright / samples > 0.25,
+    'Bare metal must retain bright reflectance',
+  );
+  const aspect =
+    (((metrics.arcDegrees * Math.PI) / 180) * metrics.dimensions.radius) /
+    metrics.dimensions.bandWidth;
   for (const module of [8, 10, 11]) {
     const u = (module + 0.5) / 18;
-    const v =
-      (module % 2 ? 0.3 : 0.7) + (hash(module, 0, 439) - 0.5) * 0.05;
+    const v = (module % 2 ? 0.3 : 0.7) + (hash(module, 0, 439) - 0.5) * 0.05;
     const radius = 0.08 + hash(module, 0, 553) * 0.045;
     let cap = 0;
     for (let index = 0; index < 8; index++) {
       const angle = ((index + 0.5) / 8) * Math.PI * 2;
       cap += sample(
-        u + (Math.cos(angle) * radius * 0.4) / (34.5 / 2.6),
+        u + (Math.cos(angle) * radius * 0.4) / aspect,
         v + Math.sin(angle) * radius * 0.4,
       );
     }
     assert.ok(cap / 8 > sample(u, v) + 20, `Missing circular inset ${module}`);
   }
+});
+
+test('intact hull ORM has reflective metal plates rather than uniform matte shading', async () => {
+  const { data, info } = await sharp(encodedImage(2))
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let samples = 0;
+  let roughness = 0;
+  let metallic = 0;
+  let polished = 0;
+  let rough = 0;
+  for (let y = 262; y < 378; y++) {
+    for (let x = 515; x < 660; x++) {
+      const offset = (y * info.width + x) * info.channels;
+      const r = data[offset + 1] / 255;
+      const m = data[offset + 2] / 255;
+      roughness += r;
+      metallic += m;
+      if (r < 0.55 && m > 0.8) polished++;
+      if (r > 0.58) rough++;
+      samples++;
+    }
+  }
+  assert.ok(roughness / samples > 0.35 && roughness / samples < 0.55);
+  assert.ok(metallic / samples > 0.85);
+  assert.ok(
+    polished / samples > 0.6,
+    'Most intact plates should reflect the scene lights',
+  );
+  assert.ok(
+    rough / samples > 0.05,
+    'Mechanical recesses need a distinct rougher finish',
+  );
 });
 
 test('final textures and geometry regenerate reproducibly', async () => {

@@ -24,6 +24,10 @@ import {
 const ATLAS_WIDTH = 2048;
 const ATLAS_HEIGHT = 1024;
 const GUTTER = 8;
+const RING_RADIUS = 10;
+const BAND_WIDTH = 2.2;
+const SHELL_THICKNESS = 0.18;
+const ARC_LENGTH = RING_RADIUS * (4.11 - 0.66);
 const REGIONS = [
   { name: 'habitat', top: 0, height: 512 },
   { name: 'hull', top: 512, height: 256 },
@@ -230,8 +234,8 @@ class MeshBuilder {
           b.reduce((sum, value) => sum + value * value, 0) - along * along,
         ),
       );
-      const spanU = region === 3 ? 2.6 : 34.5;
-      const spanV = region === 3 ? 0.24 : 2.6;
+      const spanU = region === 3 ? BAND_WIDTH : ARC_LENGTH;
+      const spanV = region === 3 ? SHELL_THICKNESS : BAND_WIDTH;
       const us = [0, length / spanU, along / spanU];
       const minU = Math.min(...us);
       const maxU = Math.max(...us);
@@ -277,9 +281,9 @@ function buildGeometry(iteration) {
     'Broken ring / habitat and superstructure',
     iteration >= 5,
   );
-  const radius = 10;
-  const thickness = 0.24;
-  const width = 2.6;
+  const radius = RING_RADIUS;
+  const thickness = iteration >= 5 ? SHELL_THICKNESS : 0.24;
+  const width = iteration >= 5 ? BAND_WIDTH : 2.6;
   const startAngle = iteration >= 3 ? 0.66 : iteration >= 2 ? 0.12 : -0.22;
   const endAngle = iteration >= 3 ? 4.11 : Math.PI * 1.29;
   const segments = iteration >= 5 ? 128 : 160;
@@ -373,8 +377,8 @@ function buildGeometry(iteration) {
     for (const edge of [0, 1]) {
       const va = edge === 0 ? -0.025 : 0.982;
       const vb = edge === 0 ? 0.018 : 1.025;
-      const inner = radius - thickness - 0.055;
-      const outer = radius + 0.035;
+      const inner = radius - thickness - thickness * (0.055 / 0.24);
+      const outer = radius + thickness * (0.035 / 0.24);
       for (const side of [0, 1]) {
         mesh.grid(
           segments,
@@ -492,21 +496,39 @@ function hullSurface(u, v, detail) {
   const fine = hash(Math.floor(fineU), Math.floor(fineV), 574);
   const machinery =
     x > 0.12 && x < 0.84 && y > 0.18 && y < 0.82 && panel > 0.35;
-  const groove = machinery && ((fineU % 1) < 0.2 || (fineV % 1) < 0.17);
-  const conduit =
-    Math.abs(v - 0.18) < 0.008 || Math.abs(v - 0.81) < 0.008;
-  let shade = 30 + panel * 24 + detail * 11 + fine * 9;
-  let surface = 0.36 + panel * 0.045;
-  let roughness = 0.66 + panel * 0.1;
+  const groove = machinery && (fineU % 1 < 0.2 || fineV % 1 < 0.17);
+  const conduit = Math.abs(v - 0.18) < 0.008 || Math.abs(v - 0.81) < 0.008;
+  const bevel =
+    smoothstep(0.035, 0.12, x) *
+    (1 - smoothstep(0.91, 0.98, x)) *
+    smoothstep(0.055, 0.2, y) *
+    (1 - smoothstep(0.86, 0.985, y));
+  const brushing = noise(u * 125, v * 48, 293);
+  let shade = 120 + panel * 56 + detail * 18 + fine * 8;
+  let surface = 0.29 + bevel * (0.065 + panel * 0.045);
+  let roughness =
+    0.29 + hash(column, row, 991) * 0.23 + (brushing - 0.5) * 0.08;
+  surface += (brushing - 0.5) * 0.007;
+  if (!seam && !conduit) {
+    const wear = (1 - bevel) * smoothstep(0.35, 0.75, fine);
+    shade += wear * 24;
+    roughness = mix(roughness, 0.22, wear);
+  }
+  let metalness = 0.98;
   let ao = 0.94;
   if (seam || conduit) {
-    shade *= 0.5;
+    shade *= 0.26;
     surface = 0.29;
+    roughness = 0.7;
+    metalness = 0.72;
     ao = 0.7;
   } else if (machinery) {
-    shade *= groove ? 0.55 : 1.1;
-    surface += groove ? -0.045 : 0.025;
-    ao = groove ? 0.72 : 0.92;
+    const recessed = panel > 0.78;
+    shade *= groove ? 0.32 : recessed ? 0.58 : 1.06;
+    surface += groove ? -0.045 : recessed ? -0.035 : 0.025;
+    roughness = groove ? 0.61 : recessed ? 0.57 : roughness;
+    metalness = recessed ? 0.82 : metalness;
+    ao = groove ? 0.72 : recessed ? 0.82 : 0.92;
   }
   const bayU = (u * 30 + Math.floor(v * 4) * 0.37) % 1;
   const bayV = (v * 4) % 1;
@@ -518,51 +540,51 @@ function hullSurface(u, v, detail) {
   shade *= 0.85 + noise(u * 143, v * 31, 446) * 0.3;
   const rivet =
     fine > 0.973 &&
-    (fineU % 1) > 0.35 &&
-    (fineU % 1) < 0.7 &&
-    (fineV % 1) > 0.2 &&
-    (fineV % 1) < 0.6;
+    fineU % 1 > 0.35 &&
+    fineU % 1 < 0.7 &&
+    fineV % 1 > 0.2 &&
+    fineV % 1 < 0.6;
   if (!seam && rivet) {
-    shade = 112 + fine * 14;
+    shade = 218 + fine * 14;
     surface += 0.035;
-    roughness = 0.52;
+    roughness = 0.25;
   }
 
   const module = Math.floor(u * 18);
   // Match the hull's physical aspect ratio rather than the atlas pixel ratio.
-  const dx = ((u * 18) % 1 - 0.5) * (34.5 / 2.6 / 18);
-  const dy =
-    v - (module % 2 ? 0.3 : 0.7) - (hash(module, 0, 439) - 0.5) * 0.05;
+  const dx = (((u * 18) % 1) - 0.5) * (ARC_LENGTH / BAND_WIDTH / 18);
+  const dy = v - (module % 2 ? 0.3 : 0.7) - (hash(module, 0, 439) - 0.5) * 0.05;
   const radius = 0.08 + hash(module, 0, 553) * 0.045;
   const distance = Math.hypot(dx, dy) / radius;
   if (distance < 1) {
     const angle = ((Math.atan2(dy, dx) / (Math.PI * 2) + 1) * 12) % 12;
     const seam = angle % 1 < 0.075 || Math.abs(distance - 0.57) < 0.035;
     if (distance > 0.9) {
-      shade = 18 + detail * 8;
+      shade = 24 + detail * 8;
       surface = 0.25;
-      roughness = 0.83;
+      roughness = 0.72;
+      metalness = 0.65;
       ao = 0.58;
     } else if (distance > 0.82) {
-      shade = 75 + detail * 15;
-      surface = 0.405;
-      roughness = 0.56;
+      shade = 205 + detail * 20;
+      surface = 0.31 + 0.095 * Math.sin(((distance - 0.82) / 0.08) * Math.PI);
+      roughness = 0.22;
       ao = 0.91;
     } else {
-      shade = 48 + hash(module, Math.floor(angle), 713) * 18 + detail * 7;
+      shade = 138 + hash(module, Math.floor(angle), 713) * 38 + detail * 12;
       if (seam) shade *= 0.5;
-      if (distance < 0.21) shade *= 1.2;
-      if (distance < 0.065) shade = 16;
+      if (distance < 0.21) shade *= 1.15;
+      if (distance < 0.065) shade = 24;
       surface = 0.27 + distance * 0.07 - (seam ? 0.025 : 0);
-      roughness = 0.69;
+      roughness = seam ? 0.6 : 0.34;
       ao = 0.8;
     }
   }
   return {
-    color: [shade * 0.88, shade, shade * 0.95],
+    color: [shade * 0.88, shade * 0.95, shade],
     surface,
     roughness,
-    metalness: 0.88,
+    metalness,
     ao,
   };
 }
@@ -608,9 +630,7 @@ async function buildTextures(iteration) {
               continent,
             } = terrain(u, v, iteration);
             const land =
-              iteration >= 5
-                ? smoothstep(0.41, 0.47, continent)
-                : originalLand;
+              iteration >= 5 ? smoothstep(0.41, 0.47, continent) : originalLand;
             const ranges =
               iteration >= 5
                 ? smoothstep(0.4, 0.67, fbm(u * 43, v * 4.8, 821, 3))
@@ -679,11 +699,7 @@ async function buildTextures(iteration) {
                   (iteration >= 4 ? 0.38 : 0.72));
             roughness =
               iteration >= 4
-                ? mix(
-                    iteration >= 5 ? 0.3 : 0.48,
-                    mix(0.93, 0.85, snow),
-                    land,
-                  )
+                ? mix(iteration >= 5 ? 0.3 : 0.48, mix(0.93, 0.85, snow), land)
                 : mix(0.2, mix(0.89, 0.73, snow), land);
             ao = mix(1, 0.85 + mountains * 0.15, land);
           }
@@ -739,18 +755,20 @@ async function buildTextures(iteration) {
           }
         } else if (region === 2) {
           const rib = (u * (iteration >= 5 ? 216 : 108)) % 1 < 0.1;
+          const bevel = 1 - smoothstep(0.03, 0.12, Math.min(v, 1 - v));
           const shade =
             iteration >= 5
               ? rib
-                ? 27
-                : 44 + detail * 12
+                ? 35
+                : 95 + detail * 18 + bevel * 45
               : rib
                 ? 42
                 : 100 + detail * 22;
           color = [shade * 0.85, shade * 0.95, shade];
-          surface = rib ? 0.15 : 0.35;
-          roughness = iteration >= 5 ? 0.8 : 0.47;
-          metalness = 0.9;
+          surface = rib ? 0.15 : 0.35 + (iteration >= 5 ? bevel * 0.05 : 0);
+          roughness =
+            iteration >= 5 ? (rib ? 0.72 : mix(0.5, 0.28, bevel)) : 0.47;
+          metalness = iteration >= 5 ? 0.96 : 0.9;
         } else {
           color = [28 + detail * 30, 20 + detail * 18, 18 + detail * 15];
           surface = detail;
@@ -804,15 +822,27 @@ async function buildTextures(iteration) {
           }
           const burn =
             scars * smoothstep(0.2, 0.62, warp) * (region === 3 ? 0.9 : 0.88);
+          const soot =
+            iteration >= 5 && region === 1
+              ? burn *
+                mix(
+                  0.35,
+                  1,
+                  Math.max(
+                    1 - smoothstep(0.02, 0.18, u),
+                    smoothstep(0.82, 0.99, u),
+                  ),
+                )
+              : burn;
           color = color.map((channel, index) =>
-            mix(channel, [22, 18, 15][index] + detail * 7, burn),
+            mix(channel, [22, 18, 15][index] + detail * 7, soot),
           );
           color = color.map((channel, index) =>
             mix(channel, [112, 41, 12][index], heat * 0.55),
           );
           surface -= fissure * scars * 0.18;
-          roughness = mix(roughness, 0.97, burn);
-          metalness *= 1 - burn * 0.9;
+          roughness = mix(roughness, 0.97, soot);
+          metalness *= 1 - soot * 0.9;
           ao *= 1 - fissure * scars * 0.42;
         }
 
@@ -864,16 +894,17 @@ async function buildTextures(iteration) {
     sharp(data, {
       raw: { width: ATLAS_WIDTH, height: ATLAS_HEIGHT, channels: 3 },
     });
-  async function reducedMap(data, quantum = 1) {
+  async function reducedMap(data, quantum = 1, hullQuantum = quantum) {
     const width = ATLAS_WIDTH / 2;
     const height = ATLAS_HEIGHT / 2;
     const pixels = await image(data).resize(width, height).raw().toBuffer();
     if (quantum > 1) {
+      const hullStart = (REGIONS[1].top / 2) * width * 3;
+      const hullEnd = (REGIONS[3].top / 2) * width * 3;
       for (let index = 0; index < pixels.length; index++) {
-        pixels[index] = Math.min(
-          255,
-          Math.round(pixels[index] / quantum) * quantum,
-        );
+        const step =
+          index >= hullStart && index < hullEnd ? hullQuantum : quantum;
+        pixels[index] = Math.min(255, Math.round(pixels[index] / step) * step);
       }
     }
     return sharp(pixels, { raw: { width, height, channels: 3 } })
@@ -889,7 +920,7 @@ async function buildTextures(iteration) {
       })
       .toBuffer(),
     iteration >= 4
-      ? reducedMap(normal, iteration >= 5 ? 2 : 1)
+      ? reducedMap(normal, iteration >= 5 ? 2 : 1, iteration >= 5 ? 4 : 1)
       : image(normal).png({ compressionLevel: 9 }).toBuffer(),
     reducedMap(orm, iteration >= 5 ? 4 : 1),
     reducedMap(emissive),
