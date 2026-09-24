@@ -299,7 +299,7 @@ test('multiple station parents share both materials and all textures with indepe
   }
   assert.equal(model.asset.draws.length, asset.draws.length * 2);
   assert.equal(model.asset.stats.drawCalls, 4);
-  assert.equal(model.asset.stats.triangles, 29804);
+  assert.equal(model.asset.stats.triangles, asset.stats.triangles * 2);
   const instances = orbiting.buildSpaceStations(
     [planet(), planet({ slug: 'another', center: [20, 0, 0] })],
     2,
@@ -482,7 +482,10 @@ test('station and ring assets load once per model and are reused across backend 
   assert.equal(glInit.mock.calls[0].arguments[3], supplied);
   assert.deepEqual(supplied.spaceStation.planets, ['lucasarts', 'another']);
   assert.deepEqual(supplied.ringWorld.planets, ['lucasarts']);
-  assert.equal(supplied.spaceStation.asset.stats.triangles, 14902);
+  assert.equal(
+    supplied.spaceStation.asset.stats.triangles,
+    assets.spaceStation.stats.triangles,
+  );
   assert.equal(supplied.ringWorld.asset.stats.triangles, 13264);
 });
 
@@ -559,7 +562,10 @@ for (const backend of ['webgl2', 'webgpu']) {
     draw(frame(stations, rings));
     assert.deepEqual(renders, ['ringWorld', 'spaceStation']);
     assert.equal(renderer.getStats().drawCalls, 4);
-    assert.equal(renderer.getStats().triangles, 28166);
+    assert.equal(
+      renderer.getStats().triangles,
+      assets.ringWorld.stats.triangles + assets.spaceStation.stats.triangles,
+    );
     assert.ok(
       stateChanges.length > 0,
       'Restore host renderer bindings after GLB draws',
@@ -573,7 +579,10 @@ for (const backend of ['webgl2', 'webgpu']) {
     draw(frame(stations));
     assert.deepEqual(renders, ['spaceStation']);
     assert.equal(renderer.getStats().drawCalls, 2);
-    assert.equal(renderer.getStats().triangles, 14902);
+    assert.equal(
+      renderer.getStats().triangles,
+      assets.spaceStation.stats.triangles,
+    );
     renderer.destroy();
     renderer.destroy();
     assert.deepEqual(disposed, ['ringWorld', 'spaceStation']);

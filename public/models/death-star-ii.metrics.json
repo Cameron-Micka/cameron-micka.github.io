@@ -1,7 +1,7 @@
 {
   "iteration": 5,
-  "triangles": 14902,
-  "vertices": 18553,
+  "triangles": 14772,
+  "vertices": 19393,
   "drawCalls": 2,
   "materials": 2,
   "dimensions": {
@@ -15,39 +15,39 @@
       "mimeType": "image/jpeg",
       "width": 2048,
       "height": 1024,
-      "bytes": 595669
+      "bytes": 578793
     },
     {
       "name": "Panel relief (linear)",
       "mimeType": "image/png",
-      "width": 1024,
-      "height": 512,
-      "bytes": 664378
+      "width": 768,
+      "height": 384,
+      "bytes": 385367
     },
     {
       "name": "Packed ORM (linear)",
       "mimeType": "image/png",
-      "width": 1024,
-      "height": 512,
-      "bytes": 231174
+      "width": 768,
+      "height": 384,
+      "bytes": 178115
     },
     {
-      "name": "Unlit emission (sRGB)",
+      "name": "Clustered surface lights (sRGB)",
       "mimeType": "image/png",
-      "width": 1024,
-      "height": 512,
-      "bytes": 1625
+      "width": 1536,
+      "height": 768,
+      "bytes": 139898
     }
   ],
-  "textureBytesWithMipmaps": 19573420,
-  "geometryBytes": 979956,
+  "textureBytesWithMipmaps": 20621995,
+  "geometryBytes": 1019496,
   "budget": {
     "triangles": 15000,
     "drawCalls": 2,
     "fileBytes": 3145728,
     "textureBytesWithMipmaps": 20971520
   },
-  "fileBytes": 2477504,
+  "fileBytes": 2306392,
   "validation": {
     "errors": 0,
     "warnings": 0

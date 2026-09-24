@@ -28,14 +28,21 @@ export const STATION_BUDGET = {
 
 const WIDTH = 2048;
 const HEIGHT = 1024;
+const MAP_SIZES = [
+  [WIDTH, HEIGHT],
+  [768, 384],
+  [768, 384],
+  [1536, 768],
+];
 const GUTTER = 8;
 const RADIUS = 10;
 const DISH_RADIUS = 3.05;
 const DISH_ANGLE = Math.asin(DISH_RADIUS / RADIUS);
 const REGIONS = [
   { x: 0, y: 0, width: 1536, height: 1024 },
-  { x: 1536, y: 0, width: 512, height: 512 },
+  { x: 1536, y: 256, width: 512, height: 256 },
   { x: 1536, y: 512, width: 512, height: 512 },
+  { x: 1536, y: 0, width: 512, height: 256 },
 ];
 const dot = (a, b) => a.reduce((sum, value, i) => sum + value * b[i], 0);
 const cross = (a, b) => [
@@ -69,7 +76,7 @@ function direction(alpha, beta) {
   );
 }
 
-function shellBoundary(y, iteration) {
+function shellBoundary(y, iteration, z = 1) {
   if (iteration < 3 && Math.abs(y) < 0.045) return 1.1;
   if (iteration === 1) return y > 0 ? 0.36 : 0.19;
   const latitude = Math.abs(y);
@@ -77,18 +84,22 @@ function shellBoundary(y, iteration) {
     y > 0
       ? 0.38 - latitude * 0.43
       : 0.04 + smoothstep(0.48, 0.96, latitude) * 0.34;
-  return (
-    base +
-    (iteration >= 5
-      ? (hash(Math.floor((y * RADIUS) / 0.26), 74, 621) - 0.5) * 0.125 +
-        Math.sin(y * 21) * 0.025
-      : 0)
-  );
+  if (iteration < 5) return base;
+  const broad = noise(y * 6.7, z * 2.3, 1201) - 0.5;
+  const stepped = noise(y * 21, z * 5.1, 731) - 0.5;
+  const breach = smoothstep(0.48, 0.7, noise(y * 8 + 2.1, z * 4, 814));
+  const fringe =
+    hash(Math.floor((y * RADIUS) / 0.26), z > 0 ? 11 : 29, 621) - 0.5;
+  return base + broad * 0.26 + stepped * 0.13 - breach * 0.12 + fringe * 0.09;
 }
 
 function shellPresent(n, iteration, inset = 0) {
-  const boundary = shellBoundary(n[1], iteration) + inset;
+  const boundary = shellBoundary(n[1], iteration, n[2]) + inset;
   return n[0] <= boundary;
+}
+
+function fractureHeight(layer) {
+  return layer * 0.26 + (hash(layer, 31, 717) - 0.5) * 0.18;
 }
 
 class Mesh {
@@ -265,7 +276,7 @@ function shell(
       const mid = direction((a0 + a1) / 2, (b0 + b1) / 2);
       let recessed = false;
       if (!closed && iteration >= 4) {
-        const boundary = shellBoundary(mid[1], iteration);
+        const boundary = shellBoundary(mid[1], iteration, mid[2]);
         if (region === 1 && mid[0] < boundary - 0.16) continue;
         const lowerBays =
           mid[1] < -0.25 &&
@@ -335,33 +346,35 @@ function shell(
           const cut = (part) => {
             if (
               iteration < 5 ||
-              Math.abs(mid[0] - shellBoundary(mid[1], iteration)) > 0.2
+              Math.abs(mid[0] - shellBoundary(mid[1], iteration, mid[2])) > 0.2
             ) {
               return [
                 clipPolygon(
                   part,
                   (p) =>
-                    shellBoundary(p[1] / radius, iteration) - p[0] / radius,
+                    shellBoundary(p[1] / radius, iteration, p[2] / radius) -
+                    p[0] / radius,
                 ),
               ];
             }
             const result = [];
-            const first = Math.floor(
-              Math.min(...part.map((v) => v.point[1])) / 0.26,
-            );
-            const last = Math.floor(
-              Math.max(...part.map((v) => v.point[1])) / 0.26,
-            );
+            const first =
+              Math.floor(Math.min(...part.map((v) => v.point[1])) / 0.26) - 1;
+            const last =
+              Math.floor(Math.max(...part.map((v) => v.point[1])) / 0.26) + 1;
             for (let layer = first; layer <= last; layer++) {
-              const bottom = layer * 0.26;
-              const top = bottom + 0.26;
+              const bottom = fractureHeight(layer);
+              const top = fractureHeight(layer + 1);
               const sliced = clipPolygon(
                 clipPolygon(part, (p) => p[1] - bottom),
                 (p) => top - p[1],
               );
               const limit =
-                shellBoundary((bottom + top) / (2 * radius), iteration) *
-                radius;
+                shellBoundary(
+                  (bottom + top) / (2 * radius),
+                  iteration,
+                  mid[2],
+                ) * radius;
               result.push(clipPolygon(sliced, (p) => limit - p[0]));
             }
             return result;
@@ -382,7 +395,9 @@ function shell(
           polygon = clipPolygon(
             polygon,
             (p) =>
-              shellBoundary(p[1] / radius, iteration) + inset - p[0] / radius,
+              shellBoundary(p[1] / radius, iteration, p[2] / radius) +
+              inset -
+              p[0] / radius,
           );
           parts =
             region === 0
@@ -511,10 +526,20 @@ function armorPatch(mesh, x0, x1, y0, y1, side) {
   const normals = points.map(normalize);
   const inner = points.map((p) => scale(p, 0.993));
   const coords = normals.map(hullUV);
+  const u = hash(Math.floor(y0 * 71), side, 2357) * 0.7;
+  const v = hash(Math.floor(x0 * 67), side, 2371) * 0.7;
+  const width = (x1 - x0) * 0.035;
+  const height = (y1 - y0) * 0.07;
+  const insideCoords = [
+    uv(1, u, v),
+    uv(1, u + width, v),
+    uv(1, u + width, v + height),
+    uv(1, u, v + height),
+  ];
   mesh.polygon(points, coords, normals);
   mesh.polygon(
     [...inner].reverse(),
-    [...coords].reverse(),
+    insideCoords.reverse(),
     [...normals].reverse().map((n) => scale(n, -1)),
   );
   for (const index of [1, 2]) {
@@ -534,16 +559,25 @@ function fragmentedArmor(mesh, iteration) {
   const rng = random(32983);
   for (const side of [1, -1]) {
     for (let row = 0; row < 90; row++) {
-      const y0 = -9.65 + (row * 19.3) / 89;
+      const stagger = iteration >= 5 ? (hash(row, side, 391) - 0.5) * 0.75 : 0;
+      const y0 = -9.65 + ((row + stagger) * 19.3) / 89;
       if (Math.abs(y0) < 0.5) continue;
+      const cluster = noise(y0 * 0.74, side * 2.7, 881);
+      if (iteration >= 5 && rng() > 0.58 + cluster * 0.4) continue;
       const y1 =
-        y0 + (iteration >= 5 ? 0.025 + rng() * 0.12 : 0.045 + rng() * 0.19);
+        y0 +
+        (iteration >= 5 ? 0.025 + rng() ** 1.6 * 0.18 : 0.045 + rng() * 0.19);
       const halfWidth =
         Math.sqrt(RADIUS * RADIUS - Math.max(y0 * y0, y1 * y1)) - 0.025;
       const boundary =
-        shellBoundary((y0 + y1) / (2 * RADIUS), iteration) * RADIUS;
+        shellBoundary((y0 + y1) / (2 * RADIUS), iteration, side) * RADIUS;
       const x0 = boundary - 0.32 - rng() * 0.22;
-      const x1 = Math.min(halfWidth, boundary + 0.18 + rng() ** 1.5 * 1.95);
+      const x1 = Math.min(
+        halfWidth,
+        boundary +
+          0.18 +
+          rng() ** 1.5 * (iteration >= 5 ? 0.7 + cluster * 3.4 : 1.95),
+      );
       if (x0 < -halfWidth || x0 >= x1 || halfWidth < 0.1) continue;
       armorPatch(mesh, x0, x1, y0, y1, side);
       if (rng() < 0.34 && x1 + 0.6 < halfWidth) {
@@ -555,50 +589,183 @@ function fragmentedArmor(mesh, iteration) {
   }
 }
 
-function internalPanels(mesh) {
-  const rng = random(11983);
-  for (let i = 0; i < 160; i++) {
-    const y = -8.8 + rng() * 17.6;
-    const r = Math.sqrt(100 - y * y) * (0.7 + rng() * 0.16);
-    const angle = 0.24 + rng() * (Math.PI - 0.48);
-    const y1 = y + 0.08 + rng() * 0.22;
-    const angle1 = angle + 0.018 + rng() * 0.11;
-    const at = (theta, height, scale = 1) => [
-      r * Math.sin(theta) * scale,
-      height,
-      r * Math.cos(theta) * scale,
-    ];
-    const front = [at(angle, y), at(angle1, y), at(angle1, y1), at(angle, y1)];
-    const u = rng() * 0.7;
-    const v = rng() * 0.7;
-    mesh.quad(front, 1, u, v, 0.17, 0.07);
-    mesh.quad(
-      [
-        at(angle, y1, 0.991),
-        at(angle1, y1, 0.991),
-        at(angle1, y, 0.991),
-        at(angle, y, 0.991),
-      ],
-      1,
-      u,
-      v,
-      0.17,
-      0.07,
-    );
+function constructionWall(mesh) {
+  const layers = 20;
+  const cuts = [-0.96, -0.65, -0.25, 0.18, 0.56, 0.79, 0.96];
+  const level = (row) =>
+    -8.65 +
+    (row * 17.3) / layers +
+    (row > 0 && row < layers ? (hash(row, 17, 2503) - 0.5) * 0.3 : 0);
+  const joints = Array.from({ length: layers + 1 }, (_, row) =>
+    cuts.map((cut, column) => {
+      const y =
+        level(row) + (hash(column, Math.floor(row / 3), 2741) - 0.5) * 0.44;
+      const span = Math.sqrt(9.35 ** 2 - y * y);
+      return [
+        span *
+          (cut +
+            (column > 0 && column < cuts.length - 1
+              ? (hash(row, column, 2543) - 0.5) * 0.1
+              : 0)),
+        y,
+      ];
+    }),
+  );
+  for (let row = 0; row < layers; row++) {
+    for (let column = 0; column < cuts.length - 1; column++) {
+      let outline = [
+        joints[row][column],
+        joints[row][column + 1],
+        joints[row + 1][column + 1],
+        joints[row + 1][column],
+      ];
+      if (column >= 2 && hash(row, column, 2801) > 0.52) {
+        const corner = hash(row, column, 2819) > 0.5 ? 2 : 0;
+        outline = outline.flatMap((point, index, points) =>
+          index === corner
+            ? [
+                point.map((value, axis) =>
+                  mix(
+                    points[(index + 3) % 4][axis],
+                    value,
+                    0.55 + hash(row, column, 2879) * 0.28,
+                  ),
+                ),
+                point.map((value, axis) =>
+                  mix(
+                    value,
+                    points[(index + 1) % 4][axis],
+                    0.21 + hash(row, column, 2887) * 0.26,
+                  ),
+                ),
+              ]
+            : [point],
+        );
+      }
+      const center = [0, 1].map(
+        (axis) =>
+          outline.reduce((sum, point) => sum + point[axis], 0) / outline.length,
+      );
+      const limits = outline.map(([x, y]) =>
+        Math.sqrt(9.35 ** 2 - x * x - y * y),
+      );
+      const surfaces = [-1, 1].map((side) => {
+        const seed = side > 0 ? 2591 : 2617;
+        const slopeX = (hash(row, column, seed + 97) - 0.5) * 0.65;
+        const slopeY = (hash(row, column, seed + 151) - 0.5) * 0.85;
+        const offsets = outline.map(
+          ([x, y]) => (x - center[0]) * slopeX + (y - center[1]) * slopeY,
+        );
+        const depth = Math.min(
+          6.25 + noise(column * 0.8, row * 0.46, seed) * 1.75,
+          ...limits.map((limit, index) => limit - offsets[index]),
+        );
+        const open =
+          column >= 2 && noise(column * 0.93, row * 0.48, seed + 223) > 0.55;
+        const recessed = open
+          ? Math.min(depth, 0.9 + hash(row, column, seed) * 0.7)
+          : depth;
+        return {
+          side,
+          open,
+          points: outline.map(([x, y], index) => [
+            x,
+            y,
+            side * (recessed + offsets[index]),
+          ]),
+          rim: outline.map(([x, y], index) => [
+            x,
+            y,
+            side * (depth + offsets[index]),
+          ]),
+        };
+      });
+      const corners = surfaces.flatMap((surface) => surface.points);
+      const count = outline.length;
+      const perimeter = outline.map((_, index) => index);
+      const faces = surfaces.every((surface) => surface.open)
+        ? []
+        : [
+            perimeter.map((index) => index + count),
+            [...perimeter].reverse(),
+            ...perimeter.map((index) => {
+              const next = (index + 1) % count;
+              return [index, next, next + count, index + count];
+            }),
+          ];
+      for (const [face, indices] of faces.entries()) {
+        const points = indices.map((index) => corners[index]);
+        const across = normalize(subtract(points[1], points[0]));
+        const normal = normalize(cross(across, subtract(points[2], points[0])));
+        const up = cross(normal, across);
+        const projected = points.map((point) => [
+          dot(point, across),
+          dot(point, up),
+        ]);
+        const minimum = [0, 1].map((axis) =>
+          Math.min(...projected.map((point) => point[axis])),
+        );
+        const span = [0, 1].map(
+          (axis) =>
+            Math.max(...projected.map((point) => point[axis])) - minimum[axis],
+        );
+        const width = Math.min(0.85, span[0] * 0.055);
+        const height = Math.min(0.85, span[1] * 0.12);
+        const u = hash(row, column, 2671 + face) * (1 - width);
+        const v = hash(row, column, 2693 + face) * (1 - height);
+        mesh.polygon(
+          points,
+          projected.map((point) =>
+            uv(
+              3,
+              u + ((point[0] - minimum[0]) / span[0]) * width,
+              v + ((point[1] - minimum[1]) / span[1]) * height,
+            ),
+          ),
+        );
+      }
+      for (const { open, rim, points, side } of surfaces) {
+        if (open && hash(row, column, 2731 + side) > 0.4) {
+          const inset = (point) =>
+            point.map((value, axis) =>
+              axis < 2 ? mix(value, center[axis], 0.08) : value,
+            );
+          const diagonal =
+            hash(row, column, 2833 + side) > 0.5
+              ? [0, Math.floor(count / 2)]
+              : [1, count - 1];
+          const start = inset(rim[diagonal[0]]);
+          mesh.beam(
+            start,
+            inset(rim[diagonal[1]]),
+            0.035 + hash(row, column, 2851 + side) * 0.045,
+            0.04,
+            hash(row, side, 2731) * 0.7,
+          );
+          const anchor = inset(points[diagonal[0]]);
+          if (
+            faces.length > 0 &&
+            hash(row, column, 2861 + side) > 0.45 &&
+            Math.hypot(...subtract(start, anchor)) > 0.12
+          ) {
+            mesh.beam(start, anchor, 0.04, 0.04, 0.4);
+          }
+        }
+      }
+    }
   }
 }
 
 function buildGeometry(iteration) {
-  const body = new Mesh(
-    'Unfinished battle station / armor and recessed dish',
-    { doubleSided: true },
-  );
+  const body = new Mesh('Unfinished battle station / armor and recessed dish', {
+    doubleSided: true,
+  });
   const skeleton = new Mesh(
     'Unfinished battle station / interior, decks and framework',
   );
   shell(body, {
     radius: RADIUS,
-    rings: 44,
+    rings: iteration >= 5 ? 42 : 44,
     segments: iteration >= 5 ? 88 : 96,
     region: 0,
     iteration,
@@ -626,48 +793,85 @@ function buildGeometry(iteration) {
       }
     }
   }
-  shell(skeleton, {
-    radius: 8.1,
-    rings: iteration >= 5 ? 10 : iteration >= 4 ? 14 : 18,
-    segments: iteration >= 5 ? 24 : iteration >= 4 ? 40 : 48,
-    region: 1,
-    iteration,
-    inset: 0.2,
-    closed: iteration >= 5,
-  });
+  if (iteration >= 5) {
+    constructionWall(skeleton);
+  } else {
+    shell(skeleton, {
+      radius: 8.1,
+      rings: iteration >= 4 ? 14 : 18,
+      segments: iteration >= 4 ? 40 : 48,
+      region: 1,
+      iteration,
+      inset: 0.2,
+    });
+  }
   if (iteration >= 4) fragmentedArmor(body, iteration);
-  if (iteration >= 5) internalPanels(skeleton);
   const rng = random(1983);
   const levels =
-    iteration >= 5 ? 59 : iteration >= 4 ? 63 : iteration >= 2 ? 45 : 25;
-  const sectors = iteration >= 4 ? 8 : iteration >= 2 ? 10 : 12;
+    iteration >= 5 ? 61 : iteration >= 4 ? 63 : iteration >= 2 ? 45 : 25;
   for (let row = 0; row < levels; row++) {
-    const y = -9.2 + (row * 18.4) / (levels - 1);
+    const stagger = iteration >= 5 ? (hash(row, 17, 541) - 0.5) * 0.78 : 0;
+    const y = -9.2 + ((row + stagger) * 18.4) / (levels - 1);
     const span = Math.sqrt(RADIUS * RADIUS - y * y);
     const boundary = shellBoundary(y / RADIUS, iteration) * RADIUS;
     if (boundary >= span) continue;
     const start = Math.asin(clamp(boundary / span, -0.8, 0.98));
+    const end =
+      iteration >= 5
+        ? Math.PI -
+          Math.asin(
+            clamp(
+              (shellBoundary(y / RADIUS, iteration, -1) * RADIUS) / span,
+              -0.8,
+              0.98,
+            ),
+          )
+        : Math.PI - start;
+    const sectors =
+      iteration >= 5
+        ? 8 + Math.floor(hash(row, 28, 612) * 6)
+        : iteration >= 4
+          ? 8
+          : iteration >= 2
+            ? 10
+            : 12;
     for (let sector = 0; sector < sectors; sector++) {
-      if (rng() < 0.2) continue;
-      const a =
-        mix(start, Math.PI - start, sector / sectors) +
-        (iteration >= 5 ? rng() * 0.07 : 0);
+      const cluster = noise(y * 0.67, ((sector + 0.5) / sectors) * 5.2, 804);
+      const presence = rng();
+      if (iteration >= 5 ? presence > 0.25 + cluster * 0.7 : presence < 0.2)
+        continue;
+      const deckY =
+        y + (iteration >= 5 ? (hash(row, sector, 925) - 0.5) * 0.22 : 0);
+      const deckSpan = Math.sqrt(RADIUS * RADIUS - deckY * deckY);
+      const a = mix(
+        start,
+        end,
+        (sector + (iteration >= 5 ? rng() * 0.22 : 0)) / sectors,
+      );
       const b =
-        mix(start, Math.PI - start, (sector + 1) / sectors) -
-        (iteration >= 5 ? 0.01 + rng() * 0.075 : 0.012);
+        mix(
+          start,
+          end,
+          (sector + (iteration >= 5 ? 0.58 + rng() * 0.4 : 1)) / sectors,
+        ) - (iteration >= 5 ? 0 : 0.012);
       const outerScale =
-        iteration >= 4
-          ? 0.79 + 0.19 * (1 - Math.abs(y) / 10) + rng() * 0.035
-          : 0.88 + rng() * 0.1;
+        iteration >= 5
+          ? 0.82 + cluster * 0.165 + rng() * 0.09
+          : iteration >= 4
+            ? 0.79 + 0.19 * (1 - Math.abs(y) / 10) + rng() * 0.035
+            : 0.88 + rng() * 0.1;
       const outer =
-        span * (iteration >= 5 ? Math.min(0.985, outerScale) : outerScale);
+        deckSpan * (iteration >= 5 ? Math.min(0.985, outerScale) : outerScale);
       const inner =
-        iteration >= 2
-          ? outer - 0.16 - rng() * 0.55
-          : span * (0.66 + rng() * 0.12);
+        iteration >= 5
+          ? outer - 0.12 - rng() ** 1.7 * 0.85
+          : iteration >= 2
+            ? outer - 0.16 - rng() * 0.55
+            : deckSpan * (0.66 + rng() * 0.12);
+      const thickness = iteration >= 5 ? 0.025 + rng() * 0.085 : 0.06;
       const at = (r, theta, dy) => [
         r * Math.sin(theta),
-        y + dy,
+        deckY + dy,
         r * Math.cos(theta),
       ];
       skeleton.quad(
@@ -680,10 +884,10 @@ function buildGeometry(iteration) {
       );
       skeleton.quad(
         [
-          at(inner, b, -0.06),
-          at(outer, b, -0.06),
-          at(outer, a, -0.06),
-          at(inner, a, -0.06),
+          at(inner, b, -thickness),
+          at(outer, b, -thickness),
+          at(outer, a, -thickness),
+          at(inner, a, -thickness),
         ],
         1,
         rng() * 0.8,
@@ -693,8 +897,8 @@ function buildGeometry(iteration) {
       );
       skeleton.quad(
         [
-          at(outer, a, -0.06),
-          at(outer, b, -0.06),
+          at(outer, a, -thickness),
+          at(outer, b, -thickness),
           at(outer, b, 0),
           at(outer, a, 0),
         ],
@@ -704,19 +908,58 @@ function buildGeometry(iteration) {
         0.15,
         0.025,
       );
-      if (iteration >= 2 && row > 0 && row < levels - 1 && rng() < 0.26) {
+      if (
+        iteration >= 2 &&
+        row > 0 &&
+        row < levels - 1 &&
+        rng() < (iteration >= 5 ? 0.2 : 0.26)
+      ) {
         const theta = (a + b) / 2;
+        const r = (outer + inner) / 2;
+        const supportHeight =
+          iteration >= 5
+            ? Math.min(0.16 + rng() * 0.5, Math.sqrt(99.6 - r * r) - deckY)
+            : 0.48;
+        const width = iteration >= 5 ? 0.025 + rng() * 0.04 : 0.05;
         skeleton.beam(
-          at((outer + inner) / 2, theta, -0.04),
-          at((outer + inner) / 2, theta, 0.48),
-          0.05,
-          0.05,
+          at(r, theta, iteration >= 5 ? -thickness : -0.04),
+          at(
+            r,
+            theta + (iteration >= 5 ? (rng() - 0.5) * 0.07 : 0),
+            supportHeight,
+          ),
+          width,
+          width,
           rng() * 0.8,
         );
       }
     }
   }
   return [body.finish(iteration >= 5), skeleton.finish(iteration >= 5)];
+}
+
+function surfaceEmission(n, lon, lat) {
+  const row = Math.floor(lat * 144);
+  const x = lon * 384 + hash(row, 18, 1821) * 0.7;
+  const column = Math.floor(x);
+  const district = noise(lon * 28, lat * 17, 1492);
+  const density =
+    (0.015 +
+      smoothstep(0.35, 0.72, district) * 0.22 +
+      (1 - smoothstep(0.035, 0.16, Math.abs(n[1]))) * 0.2) *
+    (1 - smoothstep(0.72, 0.96, Math.abs(n[1])));
+  if (hash(column, row, 1637) > density) return [0, 0, 0];
+  const dx = Math.abs((x % 1) - (0.3 + hash(column, row, 1761) * 0.4));
+  const dy = Math.abs(
+    ((lat * 144) % 1) - (0.28 + hash(column, row, 1813) * 0.44),
+  );
+  const intensity =
+    (1 - smoothstep(0.07, 0.2, dx)) *
+    (1 - smoothstep(0.06, 0.19, dy)) *
+    (0.45 + hash(column, row, 1889) * 0.55);
+  const color =
+    hash(column, row, 1901) < 0.035 ? [255, 207, 137] : [218, 236, 255];
+  return color.map((channel) => channel * intensity);
 }
 
 function hullPattern(n, iteration) {
@@ -775,6 +1018,7 @@ function hullPattern(n, iteration) {
       roughness: 0.65 + panel * 0.15,
       metalness: 1,
       ao: (seam || recess ? 0.69 : 1) * (1 - exposed * 0.3),
+      emission: iteration >= 5 ? surfaceEmission(n, lon, lat) : [0, 0, 0],
     };
   }
   const row = Math.floor(lat * 34);
@@ -802,6 +1046,24 @@ function pattern(region, u, v, iteration) {
       direction(mix(DISH_ANGLE, Math.PI, v), u * Math.PI * 2),
       iteration,
     );
+  if (region === 3) {
+    const row = Math.floor(v * 36);
+    const x = u * 64 + hash(row, 34, 2053) * 0.7;
+    const module = hash(Math.floor(x), row, 2113);
+    const bay = noise(u * 12, v * 19, 2179);
+    const rail = (v * 110) % 1 < 0.16;
+    const seam = x % 1 < 0.09;
+    const shade =
+      (24 + module * 13 + bay * 7 + (rail ? 19 : 0)) *
+      (seam ? 0.64 : bay < 0.28 ? 0.6 : 1);
+    return {
+      color: [shade * 0.9, shade * 0.96, shade],
+      height: seam ? 0.16 : rail ? 0.25 : 0.2 + module * 0.025,
+      roughness: 0.85 + module * 0.09,
+      metalness: 0.85,
+      ao: seam || bay < 0.28 ? 0.66 : 0.92,
+    };
+  }
   if (region === 2) {
     const x = (u - 0.5) * 2;
     const y = (v - 0.5) * 2;
@@ -870,6 +1132,9 @@ async function buildTextures(iteration) {
         sample.color.forEach((value, i) => {
           base[offset + i] = Math.round(clamp(value, 0, 255));
         });
+        sample.emission?.forEach((value, i) => {
+          emission[offset + i] = Math.round(clamp(value, 0, 255));
+        });
         orm[offset] = Math.round(sample.ao * 255);
         orm[offset + 1] = Math.round(sample.roughness * 255);
         orm[offset + 2] = Math.round(sample.metalness * 255);
@@ -894,24 +1159,21 @@ async function buildTextures(iteration) {
   }
   const raw = (data) =>
     sharp(data, { raw: { width: WIDTH, height: HEIGHT, channels: 3 } });
-  const reduced = async (data, quantum) => {
-    const pixels = await raw(data)
-      .resize(WIDTH / 2, HEIGHT / 2)
-      .raw()
-      .toBuffer();
+  const reduced = async (data, quantum, [width, height]) => {
+    const pixels = await raw(data).resize(width, height).raw().toBuffer();
     for (let i = 0; i < pixels.length; i++)
       pixels[i] = Math.min(255, Math.round(pixels[i] / quantum) * quantum);
     return sharp(pixels, {
-      raw: { width: WIDTH / 2, height: HEIGHT / 2, channels: 3 },
+      raw: { width, height, channels: 3 },
     })
       .png({ compressionLevel: 9 })
       .toBuffer();
   };
   const maps = await Promise.all([
     raw(base).jpeg({ quality: 88, chromaSubsampling: '4:4:4' }).toBuffer(),
-    reduced(normal, 2),
-    reduced(orm, 4),
-    reduced(emission, 1),
+    reduced(normal, 2, MAP_SIZES[1]),
+    reduced(orm, 4, MAP_SIZES[2]),
+    reduced(emission, 1, MAP_SIZES[3]),
   ]);
   return maps.map((data, index) => ({
     data,
@@ -919,11 +1181,11 @@ async function buildTextures(iteration) {
       'Hull plating (sRGB)',
       'Panel relief (linear)',
       'Packed ORM (linear)',
-      'Unlit emission (sRGB)',
+      'Clustered surface lights (sRGB)',
     ][index],
     mimeType: index === 0 ? 'image/jpeg' : 'image/png',
-    width: index === 0 ? WIDTH : WIDTH / 2,
-    height: index === 0 ? HEIGHT : HEIGHT / 2,
+    width: MAP_SIZES[index][0],
+    height: MAP_SIZES[index][1],
   }));
 }
 
@@ -972,7 +1234,7 @@ export async function generateDeathStar({ iteration = 5 } = {}) {
       metallicFactor: 0.4,
       normalScale: 1.5,
       occlusionStrength: 1,
-      emissiveFactor: [0, 0, 0],
+      emissiveFactor: [1, 1, 1],
     },
   });
   stats.fileBytes = glb.byteLength;

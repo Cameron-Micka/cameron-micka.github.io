@@ -205,7 +205,7 @@ enabled on one planet, the station also orbits outside its ring-world companion.
 Existing moon, satellite, terrain, and POI seeds are unchanged.
 
 Both native backends share one copy of the station's geometry and textures across
-enabled planets. Each visible station adds **two draw calls and 14,902 triangles**,
+enabled planets. Each visible station adds **two draw calls and 14,772 triangles**,
 included in the debug HUD. WebGPU prewarms 1x/4x sample-count variants.
 The model is loaded only when enabled, and load failures use the existing
 startup error/fallback UI rather than silently omitting it.
@@ -621,8 +621,11 @@ For other subjects, reuse the [create-3d-model skill](#copilot-skills).
 [death-star-ii.glb](public/models/death-star-ii.glb) is an original procedural
 model inspired by the unfinished station in the supplied *Return of the Jedi*
 reference. It includes a physically recessed dish, equatorial trench, incomplete
-armor, a closed recessed interior, layered decks, and structural supports.
-Its emissive map is black and material emission is disabled, with no maintenance lights.
+armor, an angular construction wall, layered decks, and structural supports.
+Seeded, multiscale damage varies the front/back cut lines, missing plate groups,
+fragment lengths, and individual deck elevations. Small cool-white surface
+lights cluster around the equator and hull districts, with rare warm accents;
+the dish, bulkheads, and fragment undersides remain unlit.
 No film/game geometry, textures, or reference-image pixels are embedded.
 The live timeline includes this model as the **LucasArts** planet's orbit-only
 moon through its `spaceStation` feature flag.
@@ -643,17 +646,24 @@ The existing ring build/preview commands and ring-world integration are unchange
 
 ### Station asset contract
 
-- **14,902 triangles, 18,553 vertices, two draws, two PBR materials.**
+- **14,772 triangles, 19,393 vertices, two draws, two PBR materials.**
   Armor/dish and interior/construction framework are batched separately;
-  individual struts and plates do not add draw calls. The final model's closed
-  radius-8.1 inner body backs the exposed decks. The outer shell is double-sided
-  so its inside also blocks sightlines that pass around the core; the framework
-  remains backface-culled. Both materials share the same four texture maps.
-- **2.37 MiB self-contained core GLB 2.0**, with a 2048x1024 sRGB base-color
-  atlas and 1024x512 PNG normal, packed ORM, and sRGB emissive maps.
+  individual struts and plates do not add draw calls. The interior uses sloping
+  bulkhead faces, skewed joints, clipped corners, and varied diagonal braces
+  instead of cubes or a smooth inner sphere. Clustered bays are deeply recessed,
+  and 21 complete core sections are omitted to expose real negative space.
+  Selected braces tie into the recessed walls; each machinery face has planar,
+  world-scaled UVs. The bulkheads stay within radius 9.35.
+  The outer shell remains double-sided so its inside is visible around the
+  construction bays; fully missing core sections can open through the unfinished
+  side. The intact armor hemisphere remains opaque, and the framework remains
+  backface-culled. Both materials share the same four texture maps.
+- **2.20 MiB self-contained core GLB 2.0**, with a 2048x1024 sRGB base-color
+  atlas, 768x384 PNG normal and packed ORM maps, and a 1536x768 sRGB emissive map.
+  The smaller data maps reserve texture memory for finer light points.
   ORM is R = occlusion, G = roughness, B = metallic.
-- Approximately **18.7 MiB RGBA8 textures with mipmaps** and **0.93 MiB exported
-  geometry**. The native adapters use about **1.47 MiB of geometry buffers**,
+- Approximately **19.7 MiB RGBA8 textures with mipmaps** and **0.97 MiB exported
+  geometry**. The native adapters use about **1.53 MiB of geometry buffers**,
   including their interleaved layout and cached wireframe edges. Render targets
   are not included in those costs.
 - **+Y up, front +Z, origin at the sphere center**. Radius 10 model units,
@@ -667,9 +677,11 @@ The [builder](scripts/build-death-star.mjs) enforces the original targets of
 and rejects Khronos validation errors and warnings. The
 [metrics](public/models/death-star-ii.metrics.json) are measured from actual
 meshes and encoded textures. [Tests](scripts/build-death-star.test.mjs)
-verify native loading, geometry/tangents, core and outer-shell occlusion,
-per-mesh sidedness, shared GPU textures, dish/trench depth, PBR maps, budgets,
-and byte-for-byte regeneration.
+verify native loading, geometry/tangents, sloping planar bulkheads, real core
+openings and recessed bays, staggered deck elevations, outer-shell occlusion,
+per-mesh sidedness, shared GPU
+textures, dish/trench depth, sparse clustered emission, PBR maps, budgets, and
+byte-for-byte regeneration.
 The ring and station builders reuse the
 [PBR GLB writer](scripts/lib/write-pbr-glb.mjs), seeded procedural helpers,
 and native mesh math; no new modeling dependencies are required.
@@ -683,6 +695,19 @@ and native mesh math; no new modeling dependencies are required.
 | 3 | Construction edge too clean and hull too speckled. | Fragmented armor fingers, lower unfinished bays, denser decks and narrower etched detail. |
 | 4 | Close-up exposed empty framework and oversized dark openings. | Recessed machinery, internal panels, interrupted decks, finer fringe and welded vertices. |
 | 5 | Lower bays still too blocky; front boundary too straight. | Smaller layered lower-hull detail, stepped construction edges, and rebalanced tessellation to meet the original budgets. |
+
+The subsequent damage/light refinement used five additional visual passes
+on the final-stage asset: irregular cut heights and clustered fragments,
+dedicated interior UVs, finer and less uniform light points, visible structural
+depth, and unlit fragment undersides. A follow-up replaced the smooth core with
+the stepped construction wall, then deepened its backing and added cross-braces
+after checking front, reverse, and structural views. A further five-pass
+refinement removed the brick-like courses: skewed panel outlines and tilted
+faces, fully missing sections, quieter machinery textures, diagonal corner
+cuts with planar UVs, and varied braces tied into deep recesses. Final corner
+cut proportions are seeded rather than repeated. These refinements apply to
+iteration 5; intermediate exports and comparison images stay outside deployed
+assets.
 
 Rebuild an earlier pass without overwriting the final model:
 

@@ -47,6 +47,13 @@ before(async () => {
           a,
           ab: vec3.sub(b, a),
           ac: vec3.sub(c, a),
+          normal: [
+            ...vertices.subarray(indices[i] * 18 + 3, indices[i] * 18 + 6),
+          ],
+          wall: [0, 1, 2].every((offset) => {
+            const vertex = indices[i + offset] * 18;
+            return vertices[vertex + 10] > 0.75 && vertices[vertex + 11] < 0.25;
+          }),
           primitive,
           doubleSided: asset.materials[material].doubleSided,
         });
@@ -69,10 +76,16 @@ function encodedImage(index) {
 function rayHitsStation(
   origin,
   direction,
-  { primitive, frontFacesOnly = false, maxDistance = Infinity } = {},
+  {
+    primitive,
+    wallOnly = false,
+    frontFacesOnly = false,
+    maxDistance = Infinity,
+  } = {},
 ) {
   return triangles.some((face) => {
     if (primitive !== undefined && face.primitive !== primitive) return false;
+    if (wallOnly && !face.wall) return false;
     const p = vec3.cross(direction, face.ac);
     const determinant = vec3.dot(face.ab, p);
     if (
@@ -134,7 +147,7 @@ test('actual geometry, file and memory counts enforce the original realtime limi
   for (const [key, limit] of Object.entries(STATION_BUDGET)) {
     assert.ok(metrics[key] <= limit, `${key} exceeds ${limit}`);
   }
-  assert.equal(metrics.triangles, 14902);
+  assert.equal(metrics.triangles, 14772);
   assert.equal(metrics.drawCalls, 2);
   for (const axis of [0, 1, 2]) {
     assert.ok(asset.bounds.min[axis] >= -10.02);
@@ -182,45 +195,125 @@ test('geometry has finite attributes, nondegenerate faces, and orthonormal tange
   }
 });
 
-test('the unfinished side has opaque interior backing with backface culling enabled', () => {
-  for (const view of [
-    [1, 0, 0],
-    [1, 0, 1],
-    [1, 0, -1],
-    [1, 1, 0],
-    [1, -1, 0],
-  ]) {
-    const outward = vec3.normalize(view);
-    const right = vec3.normalize(vec3.cross([0, 1, 0], outward));
-    const up = vec3.cross(outward, right);
-    for (const x of [-6, -3, 0, 3, 6]) {
-      for (const y of [-6, -3, 0, 3, 6]) {
-        if (Math.hypot(x, y) > 7.5) continue;
-        const origin = vec3.add(
-          vec3.scale(outward, 20),
-          vec3.add(vec3.scale(right, x), vec3.scale(up, y)),
-        );
-        assert.ok(
-          rayHitsStation(origin, vec3.scale(outward, -1), {
-            frontFacesOnly: true,
-            maxDistance: 20,
-          }),
-          `See-through interior from ${view} at projected offset ${x}, ${y}`,
-        );
-      }
+test('the intact armor hemisphere stays opaque while the construction side has voids', () => {
+  for (const y of [-1, -0.6, -0.3, 0, 0.3, 0.6, 1]) {
+    for (const z of [-1, -0.65, 0, 0.65, 1]) {
+      const outward = vec3.normalize([-1, y, z]);
+      assert.ok(
+        rayHitsStation(vec3.scale(outward, 20), vec3.scale(outward, -1), {
+          primitive: 0,
+          frontFacesOnly: true,
+          maxDistance: 20,
+        }),
+        `Missing intact armor along ${outward}`,
+      );
     }
   }
+});
+
+test('the core has sloping planar construction faces rather than cubes or a smooth sphere', () => {
+  const { vertices } = asset.primitives[1];
+  let wallVertices = 0;
+  let slopedVertices = 0;
+  let minimumRadius = Infinity;
+  let maximumRadius = 0;
+  const frontDepths = new Set();
+  for (let i = 0; i < vertices.length; i += 18) {
+    if (vertices[i + 10] <= 0.75 || vertices[i + 11] >= 0.25) continue;
+    wallVertices++;
+    const normal = [...vertices.subarray(i + 3, i + 6)];
+    if (Math.max(...normal.map(Math.abs)) < 0.985) slopedVertices++;
+    const radius = Math.hypot(...vertices.subarray(i, i + 3));
+    minimumRadius = Math.min(minimumRadius, radius);
+    maximumRadius = Math.max(maximumRadius, radius);
+    if (normal[2] > 0.7) frontDepths.add(vertices[i + 2].toFixed(4));
+  }
+  assert.ok(wallVertices > 1000, 'The wall must be actual bulkhead geometry');
+  assert.ok(
+    maximumRadius <= 9.351,
+    'Bulkheads must stay inside the outer hull',
+  );
+  assert.ok(maximumRadius - minimumRadius > 2, 'The wall needs recessed bays');
+  assert.ok(frontDepths.size > 50, 'Bulkhead depths must vary between courses');
+  assert.ok(
+    slopedVertices > wallVertices / 2,
+    'Most construction faces should be oblique, not axis-aligned cube faces',
+  );
+  for (const face of triangles.filter((triangle) => triangle.wall)) {
+    const geometricNormal = vec3.normalize(vec3.cross(face.ab, face.ac));
+    assert.ok(
+      vec3.dot(geometricNormal, face.normal) > 0.999,
+      'Every construction face must be planar with outward-facing flat normals',
+    );
+  }
+});
+
+test('the construction wall contains both recessed bays and actual open regions', () => {
+  for (const side of [-1, 1]) {
+    let solid = 0;
+    let recessed = 0;
+    let through = 0;
+    for (let column = 0; column < 9; column++) {
+      for (let row = 0; row < 19; row++) {
+        const x = 2 + column * 0.6;
+        const y = -5.8 + row * 0.65;
+        if (Math.hypot(x, y) > 8.2) continue;
+        const origin = [x, y, side * 12];
+        const direction = [0, 0, -side];
+        if (
+          rayHitsStation(origin, direction, { wallOnly: true, maxDistance: 7 })
+        ) {
+          solid++;
+        } else if (
+          rayHitsStation(origin, direction, { wallOnly: true, maxDistance: 12 })
+        ) {
+          recessed++;
+        } else if (
+          !rayHitsStation(origin, direction, { primitive: 1, maxDistance: 24 })
+        ) {
+          through++;
+        }
+      }
+    }
+    assert.ok(
+      solid > 20,
+      `Side ${side} must retain substantial construction: ${solid}`,
+    );
+    assert.ok(
+      recessed > 10,
+      `Side ${side} needs deep, geometric recesses: ${recessed}`,
+    );
+    assert.ok(
+      through > 10,
+      `Side ${side} needs open regions, not dark painted faces: ${through}`,
+    );
+  }
+});
+
+test('exposed decks have staggered elevations rather than repeated level rings', () => {
+  const { vertices } = asset.primitives[1];
+  const elevations = new Set();
+  for (let i = 0; i < vertices.length; i += 18) {
+    if (
+      vertices[i + 10] > 0.75 &&
+      vertices[i + 11] > 0.25 &&
+      vertices[i + 11] < 0.5 &&
+      vertices[i + 4] > 0.999
+    ) {
+      elevations.add(vertices[i + 1].toFixed(4));
+    }
+  }
+  assert.ok(
+    elevations.size > 200,
+    'Individual deck fragments should not all align to the same few levels',
+  );
 });
 
 test('the outer shell blocks sightlines that miss the recessed core', () => {
   for (const radius of [8.4, 9, 9.5]) {
     for (let sample = 0; sample < 32; sample++) {
       const angle = ((sample + 0.5) / 32) * Math.PI * 2;
-      const origin = [
-        20,
-        Math.sin(angle) * radius,
-        Math.cos(angle) * radius,
-      ];
+      const origin = [20, Math.sin(angle) * radius, Math.cos(angle) * radius];
       assert.ok(
         rayHitsStation(origin, [-1, 0, 0], { primitive: 0 }),
         `See-through outer shell at radius ${radius}, angle ${angle}`,
@@ -280,11 +373,18 @@ test('dish and equatorial trench are recessed geometry rather than painted circl
 
 test('the atlas contains four embedded readable PBR maps with correct color-space roles', async () => {
   let memory = 0;
+  const dimensions = [
+    [2048, 1024],
+    [768, 384],
+    [768, 384],
+    [1536, 768],
+  ];
   for (let index = 0; index < document.images.length; index++) {
     const encoded = encodedImage(index);
     const metadata = await sharp(encoded).metadata();
-    assert.equal(metadata.width, index === 0 ? 2048 : 1024);
-    assert.equal(metadata.height, index === 0 ? 1024 : 512);
+    assert.equal(metadata.width, dimensions[index][0]);
+    assert.equal(metadata.height, dimensions[index][1]);
+    assert.equal(metadata.channels, 3);
     assert.equal(metadata.hasAlpha, false);
     assert.equal(encoded.length, metrics.textures[index].bytes);
     memory += Math.ceil((metadata.width * metadata.height * 4 * 4) / 3);
@@ -299,7 +399,7 @@ test('the atlas contains four embedded readable PBR maps with correct color-spac
     );
     assert.equal(material.occlusionTexture.index, 2);
     assert.equal(material.emissiveTexture.index, 3);
-    assert.deepEqual(material.emissiveFactor, [0, 0, 0]);
+    assert.deepEqual(material.emissiveFactor, [1, 1, 1]);
     assert.equal(material.alphaMode, 'OPAQUE');
   }
   const orm = await sharp(encodedImage(2)).raw().toBuffer();
@@ -314,16 +414,61 @@ test('the atlas contains four embedded readable PBR maps with correct color-spac
     'Station should use rough alloy rather than mirror chrome',
   );
   assert.ok(maximumMetal > 170);
-  const emission = await sharp(encodedImage(3)).raw().toBuffer();
+});
+
+test('surface lights are small, sparse, clustered and excluded from the dish and bulkheads', async () => {
+  const { data, info } = await sharp(encodedImage(3))
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const hullWidth = (info.width * 3) / 4;
+  const districts = new Array(24).fill(0);
+  let lit = 0;
+  let cool = 0;
+  let warm = 0;
+  let bright = 0;
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      const offset = (y * info.width + x) * 3;
+      const [r, g, b] = data.subarray(offset, offset + 3);
+      if (x >= hullWidth + 4) {
+        assert.equal(r + g + b, 0, 'Non-hull atlas regions must stay unlit');
+      }
+      if (Math.max(r, g, b) <= 40 || x >= hullWidth) continue;
+      lit++;
+      if (b > r + 5) cool++;
+      if (r > b + 10) warm++;
+      if (Math.max(r, g, b) > 150) bright++;
+      districts[
+        Math.floor((x / hullWidth) * 6) + 6 * Math.floor((y / info.height) * 4)
+      ]++;
+    }
+  }
+  const coverage = lit / (hullWidth * info.height);
   assert.ok(
-    emission.every((value) => value === 0),
-    'Station emissive map should remain black with no maintenance lights',
+    coverage > 0.003 && coverage < 0.03,
+    `Lights must cover 0.3-3% of hull texels, not broad glowing patches: ${coverage}`,
+  );
+  assert.ok(cool > lit * 0.9, 'Most lights should be cool white');
+  assert.ok(
+    warm > 10 && warm < lit * 0.08,
+    'Warm lights should be rare accents',
+  );
+  assert.ok(
+    bright > 100 && bright < lit / 3,
+    'Only a minority should be bright',
+  );
+  assert.ok(
+    Math.max(...districts) > Math.min(...districts) * 4,
+    'Illumination must be clustered rather than uniformly sprinkled',
   );
 });
 
 test('final station regeneration is byte-for-byte deterministic', async () => {
   const regenerated = await generateDeathStar();
-  assert.deepEqual(regenerated.glb, bytes);
+  assert.ok(
+    regenerated.glb.equals(bytes),
+    'Regenerated GLB must match the committed asset byte for byte',
+  );
   assert.deepEqual(regenerated.stats, metrics);
 });
 
