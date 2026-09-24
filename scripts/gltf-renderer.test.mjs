@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { after, before, test } from 'node:test';
 import { createModuleTestServer } from './lib/vite-test-server.mjs';
 
@@ -21,6 +22,19 @@ before(async () => {
 
 after(async () => {
   await server?.close();
+});
+
+test('glTF wireframes use the scene wireframe color', async () => {
+  const shaders = new URL('../src/engine/shaders/', import.meta.url);
+  const [scene, webgpu, webgl] = await Promise.all([
+    readFile(new URL('wireframe.wgsl', shaders), 'utf8'),
+    readFile(new URL('gltf.wgsl', shaders), 'utf8'),
+    readFile(new URL('gltf.frag.glsl', shaders), 'utf8'),
+  ]);
+  const color = '1.0, 0.478, 0.094';
+  assert.ok(scene.includes(color));
+  assert.ok(webgpu.includes(color));
+  assert.ok(webgl.includes(color));
 });
 
 function matrix(x = 0, y = 0, z = 0) {

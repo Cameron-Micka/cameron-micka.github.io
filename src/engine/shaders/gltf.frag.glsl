@@ -121,7 +121,7 @@ void main() {
   if (uFlags.x > 0.5 && uFlags.x < 1.5 && base.a < uSurface.w) discard;
   float alpha = uFlags.x > 1.5 ? clamp(base.a, 0.0, 1.0) : 1.0;
   if (uOutput.z > 0.5) {
-    outColor = vec4(outputColor(mix(vec3(0.25, 0.8, 1.0), base.rgb, 0.25)), alpha);
+    outColor = vec4(outputColor(vec3(1.0, 0.478, 0.094)), alpha);
     return;
   }
 
