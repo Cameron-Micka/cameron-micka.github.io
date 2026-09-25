@@ -379,25 +379,31 @@ test('engine includes orbiting rings even when the parent planet system is culle
   assert.equal(captured.moons.length, company().features.moons);
 });
 
-test('ring loading is gated by the flag and enabled-asset failures are explicit', async (t) => {
+test('ring loading is gated by the flag and failures do not block the timeline', async (t) => {
   const oldFetch = globalThis.fetch;
   const requests = [];
+  const warnings = [];
   globalThis.fetch = async (url) => {
     requests.push(String(url));
     return new Response('missing', { status: 404 });
   };
+  t.mock.method(console, 'warn', (...args) => warnings.push(args));
   t.after(() => {
     globalThis.fetch = oldFetch;
   });
   const engine = Object.create(Engine.prototype);
   engine.models = scene.buildPlanetModels([company()]);
   engine.startupAbort = new AbortController();
-  engine.settings = { forceBackend: 'webgl2' };
-  await assert.rejects(engine.createRenderer(), /HTTP 404/);
+  engine.destroyed = false;
+  engine.renderer = {
+    loadOrbitingModel: () =>
+      assert.fail('A missing asset must not reach the renderer'),
+  };
+  await engine.loadOrbitingModels();
   assert.deepEqual(requests, ['/models/broken-ring.glb']);
+  assert.match(String(warnings[0]?.[1]), /HTTP 404/);
   requests.length = 0;
   engine.models = scene.buildPlanetModels([company(false)]);
-  engine.destroyed = true;
-  await assert.rejects(engine.createRenderer(), { name: 'AbortError' });
+  await engine.loadOrbitingModels();
   assert.deepEqual(requests, []);
 });

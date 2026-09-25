@@ -411,23 +411,29 @@ test('the engine emits both companions before parent culling without adding laun
   assert.equal(captured.spaceStations[0].planet, 'lucasarts');
 });
 
-test('station loading is flag-gated and missing assets fail instead of disappearing', async (t) => {
+test('station loading failures do not block the timeline', async (t) => {
   const fetch = t.mock.method(
     globalThis,
     'fetch',
     async () => new Response('missing', { status: 404 }),
   );
+  const warning = t.mock.method(console, 'warn', () => undefined);
   const enabled = engineFor();
-  await assert.rejects(enabled.createRenderer(), /HTTP 404/);
+  enabled.renderer = {
+    loadOrbitingModel: () =>
+      assert.fail('A missing asset must not reach the renderer'),
+  };
+  await enabled.loadOrbitingModels();
   assert.equal(fetch.mock.calls.length, 1);
   assert.equal(fetch.mock.calls[0].arguments[0], '/models/death-star-ii.glb');
+  assert.equal(warning.mock.calls.length, 1);
   const disabled = engineFor([company({ spaceStation: false })]);
-  disabled.destroyed = true;
-  await assert.rejects(disabled.createRenderer(), { name: 'AbortError' });
+  disabled.renderer = enabled.renderer;
+  await disabled.loadOrbitingModels();
   assert.equal(fetch.mock.calls.length, 1);
 });
 
-test('station and ring assets load once per model and are reused across backend fallback', async (t) => {
+test('the renderer starts before enabled models load asynchronously', async (t) => {
   const requests = [];
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     requests.push(String(url));
@@ -438,48 +444,34 @@ test('station and ring assets load once per model and are reused across backend 
     assert.ok(definition, `Unexpected asset request: ${url}`);
     return new Response(files[definition.feature]);
   });
-  const previousNavigator = Object.getOwnPropertyDescriptor(
-    globalThis,
-    'navigator',
-  );
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: { gpu: {} },
-  });
-  t.after(() => {
-    if (previousNavigator)
-      Object.defineProperty(globalThis, 'navigator', previousNavigator);
-    else delete globalThis.navigator;
-  });
-  const warning = t.mock.method(console, 'warn', () => undefined);
-  const gpuInit = t.mock.method(WebGPURenderer.prototype, 'init', async () => {
-    throw new Error('GPU unavailable for test');
-  });
-  const gpuDestroy = t.mock.method(
-    WebGPURenderer.prototype,
-    'destroy',
-    () => undefined,
-  );
   const glInit = t.mock.method(
     WebGL2Renderer.prototype,
     'init',
     async () => undefined,
   );
+  const loaded = [];
+  t.mock.method(
+    WebGL2Renderer.prototype,
+    'loadOrbitingModel',
+    async (...args) => loaded.push(args),
+  );
   const engine = engineFor([
     company({ ringWorld: true }),
     company({}, 'another'),
   ]);
-  engine.settings.forceBackend = 'webgpu';
   const renderer = await engine.createRenderer();
   assert.equal(renderer.backend, 'webgl2');
+  assert.deepEqual(requests, []);
+  assert.equal(glInit.mock.calls[0].arguments[3], undefined);
+  engine.renderer = renderer;
+  await engine.loadOrbitingModels();
   assert.deepEqual(requests.sort(), [
     '/models/broken-ring.glb',
     '/models/death-star-ii.glb',
   ]);
-  assert.equal(gpuDestroy.mock.calls.length, 1);
-  assert.equal(warning.mock.calls.length, 1);
-  const supplied = gpuInit.mock.calls[0].arguments[3];
-  assert.equal(glInit.mock.calls[0].arguments[3], supplied);
+  const supplied = Object.fromEntries(
+    loaded.map(([feature, source]) => [feature, source]),
+  );
   assert.deepEqual(supplied.spaceStation.planets, ['lucasarts', 'another']);
   assert.deepEqual(supplied.ringWorld.planets, ['lucasarts']);
   assert.equal(
@@ -489,13 +481,14 @@ test('station and ring assets load once per model and are reused across backend 
   assert.equal(supplied.ringWorld.asset.stats.triangles, 13264);
 });
 
-test('aborted station startup makes no asset requests', async (t) => {
+test('aborted background model loading makes no asset requests', async (t) => {
   const fetch = t.mock.method(globalThis, 'fetch', async () => {
     assert.fail('An aborted startup must not fetch assets');
   });
   const engine = engineFor();
+  engine.renderer = { loadOrbitingModel: () => Promise.resolve() };
   engine.startupAbort.abort();
-  await assert.rejects(engine.createRenderer(), { name: 'AbortError' });
+  await engine.loadOrbitingModels();
   assert.equal(fetch.mock.calls.length, 0);
 });
 
@@ -589,13 +582,12 @@ for (const backend of ['webgl2', 'webgpu']) {
     assert.equal(renderer.orbitingModels.size, 0);
   });
 
-  test(`${backend} reports uninitialized station resources explicitly`, () => {
+  test(`${backend} skips orbiting models until their resources are ready`, () => {
     const renderer =
       backend === 'webgpu' ? new WebGPURenderer() : new WebGL2Renderer();
     const state = frame(orbiting.buildSpaceStations([planet()], 0));
-    assert.throws(() => {
-      if (backend === 'webgpu') renderer.drawOrbitingModels({}, state);
-      else renderer.drawOrbitingModels(state);
-    }, /space station GPU resources were not initialized/);
+    if (backend === 'webgpu') renderer.drawOrbitingModels({}, state);
+    else renderer.drawOrbitingModels(state);
+    assert.equal(renderer.getStats().drawCalls, 0);
   });
 }
