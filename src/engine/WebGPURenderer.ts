@@ -305,15 +305,18 @@ export class WebGPURenderer implements SceneRenderer {
     }
   }
 
-  private async validateInitialization(operation: () => void | Promise<void>): Promise<void> {
+  private async validateInitialization<T>(
+    operation: () => T | Promise<T>,
+  ): Promise<T> {
     const device = this.device;
     device.pushErrorScope('internal');
     device.pushErrorScope('out-of-memory');
     device.pushErrorScope('validation');
     let failed = false;
     let failure: unknown;
+    let result: T | undefined;
     try {
-      await operation();
+      result = await operation();
     } catch (error) {
       failed = true;
       failure = error;
@@ -329,6 +332,7 @@ export class WebGPURenderer implements SceneRenderer {
       throw new Error(`WebGPU initialization failed: ${messages.join('; ')}`);
     }
     if (this.deviceLostError) throw this.deviceLostError;
+    return result as T;
   }
 
   async renderInitialFrame(frame: FrameState): Promise<void> {

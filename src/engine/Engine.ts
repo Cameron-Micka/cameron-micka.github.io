@@ -5,7 +5,6 @@ import type {
   RendererBackend,
   RenderStats,
   SceneRenderer,
-  SceneAssets,
   QualitySettings,
   QualityTier,
 } from './types';
