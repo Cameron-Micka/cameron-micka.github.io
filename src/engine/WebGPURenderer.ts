@@ -287,14 +287,12 @@ export class WebGPURenderer implements SceneRenderer {
       source.asset,
       source.planets,
     );
-    const renderer = await this.validateInitialization(() =>
-      WebGPUGltfRenderer.create(this.device, scene.asset, {
-        colorFormat: this.hdrFormat,
-        depthFormat: 'depth24plus',
-        sampleCount: this.sampleCount,
-        sampleCounts: [1, 4],
-      }),
-    );
+    const renderer = await WebGPUGltfRenderer.create(this.device, scene.asset, {
+      colorFormat: this.hdrFormat,
+      depthFormat: 'depth24plus',
+      sampleCount: this.sampleCount,
+      sampleCounts: [1, 4],
+    });
     try {
       signal?.throwIfAborted();
       this.orbitingModels.get(feature)?.renderer.dispose();
@@ -305,18 +303,17 @@ export class WebGPURenderer implements SceneRenderer {
     }
   }
 
-  private async validateInitialization<T>(
-    operation: () => T | Promise<T>,
-  ): Promise<T> {
+  private async validateInitialization(
+    operation: () => void | Promise<void>,
+  ): Promise<void> {
     const device = this.device;
     device.pushErrorScope('internal');
     device.pushErrorScope('out-of-memory');
     device.pushErrorScope('validation');
     let failed = false;
     let failure: unknown;
-    let result: T | undefined;
     try {
-      result = await operation();
+      await operation();
     } catch (error) {
       failed = true;
       failure = error;
@@ -332,7 +329,6 @@ export class WebGPURenderer implements SceneRenderer {
       throw new Error(`WebGPU initialization failed: ${messages.join('; ')}`);
     }
     if (this.deviceLostError) throw this.deviceLostError;
-    return result as T;
   }
 
   async renderInitialFrame(frame: FrameState): Promise<void> {
