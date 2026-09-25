@@ -273,6 +273,38 @@ export class WebGPURenderer implements SceneRenderer {
     }
   }
 
+  async loadOrbitingModel(
+    feature: keyof SceneAssets,
+    source: NonNullable<SceneAssets[keyof SceneAssets]>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    signal?.throwIfAborted();
+    const definition = ORBITING_MODELS[feature];
+    const { WebGPUGltfRenderer } = await import('./gltf/WebGPUGltfRenderer');
+    signal?.throwIfAborted();
+    const scene = new OrbitingModelScene(
+      definition,
+      source.asset,
+      source.planets,
+    );
+    const renderer = await this.validateInitialization(() =>
+      WebGPUGltfRenderer.create(this.device, scene.asset, {
+        colorFormat: this.hdrFormat,
+        depthFormat: 'depth24plus',
+        sampleCount: this.sampleCount,
+        sampleCounts: [1, 4],
+      }),
+    );
+    try {
+      signal?.throwIfAborted();
+      this.orbitingModels.get(feature)?.renderer.dispose();
+      this.orbitingModels.set(feature, { scene, renderer });
+    } catch (error) {
+      renderer.dispose();
+      throw error;
+    }
+  }
+
   private async validateInitialization(operation: () => void | Promise<void>): Promise<void> {
     const device = this.device;
     device.pushErrorScope('internal');
@@ -2047,12 +2079,7 @@ export class WebGPURenderer implements SceneRenderer {
     let rendered = false;
     for (const definition of Object.values(ORBITING_MODELS)) {
       const model = this.orbitingModels.get(definition.feature);
-      if (!model) {
-        if (frame[definition.instances]?.length) {
-          throw new Error(`The ${definition.label} GPU resources were not initialized.`);
-        }
-        continue;
-      }
+      if (!model) continue;
       const modelFrame = model.scene.update(frame);
       if (!modelFrame) continue;
       const stats = model.renderer.render(pass, modelFrame, this.sampleCount);
