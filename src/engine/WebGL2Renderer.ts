@@ -1985,6 +1985,31 @@ export class WebGL2Renderer implements SceneRenderer {
     await report(1, 'Entering the timeline…');
   }
 
+  async loadOrbitingModel(
+    feature: keyof SceneAssets,
+    source: NonNullable<SceneAssets[keyof SceneAssets]>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    signal?.throwIfAborted();
+    const definition = ORBITING_MODELS[feature];
+    const { WebGL2GltfRenderer } = await import('./gltf/WebGL2GltfRenderer');
+    signal?.throwIfAborted();
+    const scene = new OrbitingModelScene(
+      definition,
+      source.asset,
+      source.planets,
+    );
+    const renderer = await WebGL2GltfRenderer.create(this.gl, scene.asset);
+    try {
+      signal?.throwIfAborted();
+      this.orbitingModels.get(feature)?.renderer.dispose();
+      this.orbitingModels.set(feature, { scene, renderer });
+    } catch (error) {
+      renderer.dispose();
+      throw error;
+    }
+  }
+
   private compile(type: number, src: string): WebGLShader {
     const gl = this.gl;
     const sh = gl.createShader(type)!;
@@ -3291,12 +3316,7 @@ export class WebGL2Renderer implements SceneRenderer {
     let rendered = false;
     for (const definition of Object.values(ORBITING_MODELS)) {
       const model = this.orbitingModels.get(definition.feature);
-      if (!model) {
-        if (frame[definition.instances]?.length) {
-          throw new Error(`The ${definition.label} GPU resources were not initialized.`);
-        }
-        continue;
-      }
+      if (!model) continue;
       const modelFrame = model.scene.update(frame, this.hdr);
       if (!modelFrame) continue;
       const stats = model.renderer.render(modelFrame);

@@ -187,6 +187,11 @@ export interface SceneRenderer {
     signal?: AbortSignal,
     assets?: SceneAssets,
   ): Promise<void>;
+  loadOrbitingModel(
+    feature: keyof SceneAssets,
+    source: NonNullable<SceneAssets[keyof SceneAssets]>,
+    signal?: AbortSignal,
+  ): Promise<void>;
   // Queue dimensions; only render() may resize and clear the backing buffer.
   resize(width: number, height: number, dpr: number): boolean;
   renderInitialFrame?(frame: FrameState): Promise<void>;

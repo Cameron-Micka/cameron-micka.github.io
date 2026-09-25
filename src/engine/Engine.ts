@@ -5,7 +5,6 @@ import type {
   RendererBackend,
   RenderStats,
   SceneRenderer,
-  SceneAssets,
   QualitySettings,
   QualityTier,
 } from './types';
@@ -396,6 +395,7 @@ export class Engine {
     this.events.emit('loadProgress', this.loadState);
     this.events.emit('ready', null);
     this.commit();
+    void this.loadOrbitingModels();
   }
 
   destroy(): void {
@@ -417,32 +417,6 @@ export class Engine {
   private async createRenderer(
     onProgress?: LoadProgressFn,
   ): Promise<SceneRenderer> {
-    const assets: SceneAssets = {};
-    const models = Object.values(ORBITING_MODELS)
-      .map((definition) => ({
-        definition,
-        planets: this.models
-          .filter((model) => model.company.features[definition.feature])
-          .map((model) => model.company.slug),
-      }))
-      .filter(({ planets }) => planets.length > 0);
-    if (models.length) {
-      onProgress?.(
-        0.03,
-        `Loading ${models.map(({ definition }) => definition.label).join(' and ')}...`,
-      );
-      const { loadGlb } = await import('./gltf/loader');
-      this.startupAbort.signal.throwIfAborted();
-      await Promise.all(
-        models.map(async ({ definition, planets }) => {
-          const asset = await loadGlb(assetUrl(definition.path), {
-            signal: this.startupAbort.signal,
-          });
-          for (const warning of asset.warnings) console.warn(warning);
-          assets[definition.feature] = { asset, planets };
-        }),
-      );
-    }
     const force = this.backendOverride ?? this.settings.forceBackend;
     const preferWebGL =
       force === 'auto' &&
@@ -461,7 +435,9 @@ export class Engine {
           throw new DOMException('Timeline unmounted', 'AbortError');
         candidate = new WebGPURenderer(this.activeQuality.msaa);
         await candidate.init(
-          this.canvas, onProgress, this.startupAbort.signal, assets,
+          this.canvas,
+          onProgress,
+          this.startupAbort.signal,
         );
         return candidate;
       } catch (err) {
@@ -476,11 +452,59 @@ export class Engine {
       throw new DOMException('Timeline unmounted', 'AbortError');
     const r2 = new WebGL2Renderer();
     try {
-      await r2.init(this.canvas, onProgress, this.startupAbort.signal, assets);
+      await r2.init(this.canvas, onProgress, this.startupAbort.signal);
       return r2;
     } catch (error) {
       r2.destroy();
       throw error;
+    }
+  }
+
+  private async loadOrbitingModels(): Promise<void> {
+    const renderer = this.renderer;
+    if (!renderer || this.destroyed) return;
+    const models = Object.values(ORBITING_MODELS)
+      .map((definition) => ({
+        definition,
+        planets: this.models
+          .filter((model) => model.company.features[definition.feature])
+          .map((model) => model.company.slug),
+      }))
+      .filter(({ planets }) => planets.length > 0);
+    if (!models.length) return;
+
+    try {
+      const { loadGlb } = await import('./gltf/loader');
+      await Promise.all(
+        models.map(async ({ definition, planets }) => {
+          try {
+            this.startupAbort.signal.throwIfAborted();
+            const asset = await loadGlb(assetUrl(definition.path), {
+              signal: this.startupAbort.signal,
+            });
+            for (const warning of asset.warnings) console.warn(warning);
+            await renderer.loadOrbitingModel(
+              definition.feature,
+              { asset, planets },
+              this.startupAbort.signal,
+            );
+            this.renderDirty = true;
+          } catch (error) {
+            if (
+              this.destroyed ||
+              (error instanceof DOMException && error.name === 'AbortError')
+            )
+              return;
+            console.warn(`Could not load ${definition.label}:`, error);
+          }
+        }),
+      );
+    } catch (error) {
+      if (
+        !this.destroyed &&
+        !(error instanceof DOMException && error.name === 'AbortError')
+      )
+        console.warn('Could not initialize 3D model loading:', error);
     }
   }
 
