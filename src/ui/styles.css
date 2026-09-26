@@ -1136,6 +1136,20 @@ main:focus {
   display: grid;
   gap: 12px;
 }
+.media-description {
+  color: #e2d6c1;
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.media-description p {
+  margin: 0 0 8px;
+}
+.media-description a {
+  color: var(--accent-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .modal .media img,
 .modal .media video {
   width: 100%;
@@ -1205,20 +1219,9 @@ main:focus {
   background: var(--key-hover);
 }
 .youtube-caption {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
-}
-.youtube-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--accent-2);
 }
 .modal-actions {
   position: absolute;

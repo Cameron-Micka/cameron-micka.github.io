@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
-  ExternalLink,
   LoaderCircle,
   Maximize2,
   Minimize2,
@@ -91,26 +90,16 @@ function YouTubeVideo({ videoId, media }: { videoId: string; media: Media }) {
           </button>
         )}
       </div>
-      <figcaption className="youtube-caption">
-        <a
-          className="youtube-link"
-          href={`https://www.youtube.com/watch?v=${videoId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Watch ${title} on YouTube`}
-        >
-          Watch on YouTube
-          <ExternalLink size={14} aria-hidden="true" />
-        </a>
-        {status === 'failed' && (
+      {status === 'failed' && (
+        <figcaption className="youtube-caption">
           <span role="status">YouTube couldn't load here.</span>
-        )}
-      </figcaption>
+        </figcaption>
+      )}
     </figure>
   );
 }
 
-function MediaItem({ m }: { m: Media }) {
+function MediaContent({ m }: { m: Media }) {
   if (m.type === 'video') {
     const yt = youtubeId(m.src);
     if (yt) {
@@ -123,6 +112,19 @@ function MediaItem({ m }: { m: Media }) {
     );
   }
   return <img src={m.src} alt={m.alt ?? ''} loading="lazy" decoding="async" />;
+}
+
+function MediaItem({ m }: { m: Media }) {
+  return (
+    <div className="media-item">
+      {m.description && (
+        <div className="media-description">
+          <Markdown text={m.description} />
+        </div>
+      )}
+      <MediaContent m={m} />
+    </div>
+  );
 }
 
 type Entry = {

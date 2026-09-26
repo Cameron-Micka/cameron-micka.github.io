@@ -4,6 +4,7 @@ export const mediaSchema = z.object({
   type: z.enum(['image', 'video']),
   src: z.string(),
   alt: z.string().optional(),
+  description: z.string().optional(),
   poster: z.string().optional(),
 });
 

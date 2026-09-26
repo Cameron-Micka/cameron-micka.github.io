@@ -393,23 +393,36 @@ const raw: CompanyInput[] = [
         title: 'Student Game Projects',
         accent: '#4fe08a',
         body:
-          'Shipped a new game each year with a team, learning engines, ' +
-          'graphics, and the discipline of finishing under deadline.',
+          'Earned a Bachelor of Science in Computer Science with a minor in ' +
+          'Mathematics. Studied real-time interactive simulation, mathematics, ' +
+          'physics, and game design. Shipped a new game engine and game from ' +
+          'scratch each year.',
         media: [
           {
             type: 'video',
             src: 'https://youtu.be/c5NJvkL3GLQ',
             alt: 'Gameplay footage from a DigiPen student game project (video 1 of 3)',
+            description:
+              'My junior capstone project, ' +
+              '[Kabloom](https://games.digipen.edu/games/kabloom), was a ' +
+              'finalist at the Independent Games Festival (IGF).',
           },
           {
             type: 'video',
             src: 'https://youtu.be/c9yoW2fkyzo',
             alt: 'Gameplay footage from a DigiPen student game project (video 2 of 3)',
+            description:
+              'We also took courses in console and handheld development. ' +
+              'This is an example of a Nintendo Game Boy Color game written in C.',
           },
           {
             type: 'video',
             src: 'https://youtu.be/9ujHQi1ChKM',
             alt: 'Gameplay footage from a DigiPen student game project (video 3 of 3)',
+            description:
+              'This game was built for the Nintendo Wii and ran on a ' +
+              'development kit. I wrote a custom engine in a single semester ' +
+              "that utilized the Wii's Texture Environment Unit (TEV).",
           },
         ],
       },
@@ -418,8 +431,9 @@ const raw: CompanyInput[] = [
         title: 'Graphics Foundations',
         accent: '#a8ffce',
         body:
-          'Built the low-level rendering and math foundations — rasterizers, ' +
-          'linear algebra, and shading — that the rest of the career stands on.',
+          'Took multiple real-time computer graphics courses each year, ' +
+          'starting with custom software rasterizers and progressing through ' +
+          'OpenGL, DirectX, shaders, and a variety of graphics algorithms.',
         media: [],
       },
     ],
