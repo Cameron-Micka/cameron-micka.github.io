@@ -121,7 +121,18 @@ const raw: CompanyInput[] = [
         body:
           'Contributed to rendering and avatar/scene technology for Mesh, ' +
           "Microsoft's platform for shared 3D experiences across devices.",
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/_0InCXA13L8?is=vflFpiEVH0-lb9qE',
+            alt: 'Microsoft Mesh project video',
+          },
+          {
+            type: 'video',
+            src: 'https://youtu.be/esBzumV_59Q?is=q3QIkV73tt1w8-zA',
+            alt: 'Microsoft Mesh project video',
+          },
+        ],
       },
       {
         slug: 'teams-immersive-events',
@@ -143,7 +154,7 @@ const raw: CompanyInput[] = [
           'quality for immersive product experiences.',
         media: [],
       },
-    ],
+    ].reverse() as CompanyInput['pois'],
   },
   {
     slug: 'fun-bits',
