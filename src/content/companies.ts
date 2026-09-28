@@ -112,7 +112,13 @@ const raw: CompanyInput[] = [
           'Helped shape Visual Profiler capabilities that made frame cost, ' +
           'rendering hot spots, and performance tradeoffs easier to diagnose ' +
           'for mixed reality developers.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/tO9GrqpmiYk?is=yEuv2fMGsqrYQqxl',
+            alt: 'Visual Profiler demonstration video',
+          },
+        ],
       },
       {
         slug: 'mesh',
