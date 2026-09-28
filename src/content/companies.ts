@@ -38,7 +38,13 @@ const raw: CompanyInput[] = [
           'Partnered with HoloLens 2 independent software vendors to unblock ' +
           'graphics and platform challenges, improve quality, and accelerate ' +
           'delivery of production mixed reality applications.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/eqFqtAJMtYE?is=kgVaWKT4L51SYxHh',
+            alt: 'HoloLens 2 ISV partner video',
+          },
+        ],
       },
       {
         slug: 'mrtk2',
