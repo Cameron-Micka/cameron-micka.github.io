@@ -153,7 +153,13 @@ const raw: CompanyInput[] = [
           'Worked on graphics and user experience foundations for Teams ' +
           'Immersive Events, bringing shared 3D presence into familiar ' +
           'Microsoft collaboration workflows.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/9jG4cPfjYuQ?is=ODIGWLVsZoGJsa_D',
+            alt: 'Teams Immersive Events project video',
+          },
+        ],
       },
     ].reverse() as CompanyInput['pois'],
   },
