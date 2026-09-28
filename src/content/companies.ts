@@ -31,6 +31,11 @@ const raw: CompanyInput[] = [
         media: [
           {
             type: 'video',
+            src: 'https://youtu.be/omGoz66xHU8?is=HH6e4SwEQqgJKaMe',
+            alt: 'HoloLens proof-of-concept video',
+          },
+          {
+            type: 'video',
             src: 'https://youtu.be/vuRzUjlrALw?is=aBbEGPcBX07y_OnN',
             alt: 'HoloLens proof-of-concept video',
           },
