@@ -143,7 +143,7 @@ const raw: CompanyInput[] = [
           'quality for immersive product experiences.',
         media: [],
       },
-    ],
+    ].reverse(),
   },
   {
     slug: 'fun-bits',
