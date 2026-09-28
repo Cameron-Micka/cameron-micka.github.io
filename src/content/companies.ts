@@ -68,7 +68,12 @@ const raw: CompanyInput[] = [
         media: [
           {
             type: 'video',
-            src: 'https://youtu.be/tGYGA_L8Pnw',
+           src: 'https://youtu.be/qfONlUCSWdg?is=rh1MdvlA2spZCmpX',
+           alt: 'MRTK2 project video',
+         },
+         {
+           type: 'video',
+           src: 'https://youtu.be/tGYGA_L8Pnw',
             alt: 'MRTK2 project video',
           },
         ],
