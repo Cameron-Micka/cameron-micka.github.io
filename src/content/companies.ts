@@ -150,16 +150,6 @@ const raw: CompanyInput[] = [
           'Microsoft collaboration workflows.',
         media: [],
       },
-      {
-        slug: 'design-to-code',
-        title: 'Design to Code',
-        accent: '#9f7aea',
-        body:
-          'Drove Design to Code efforts that tightened the loop between design ' +
-          'intent and implementation, improving developer velocity and UI ' +
-          'quality for immersive product experiences.',
-        media: [],
-      },
     ].reverse() as CompanyInput['pois'],
   },
   {
@@ -199,16 +189,6 @@ const raw: CompanyInput[] = [
             alt: 'Fat Princess Adventures gameplay',
           },
         ],
-      },
-      {
-        slug: 'fat-princess-2-prototype',
-        title: 'Fat Princess 2 \u2192 Adventures (Custom Engine)',
-        accent: '#ffc587',
-        body:
-          'As Senior Software Engineer, implemented gameplay and core ' +
-          'systems for a custom engine prototype of Fat Princess 2 that ' +
-          'later evolved into Fat Princess Adventures on PS4.',
-        media: [],
       },
       {
         slug: 'virtually-live',
