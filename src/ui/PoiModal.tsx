@@ -323,46 +323,48 @@ export function PoiModal({ companies }: { companies: Company[] }) {
           </div>
         </div>
 
-        <div
-          className="modal-content poi-list"
-          ref={listRef}
-          onScroll={onScroll}
-          tabIndex={-1}
-          aria-label={UI.poiList}
-        >
-          {entries.map((entry) => (
-            <section
-              className="poi-section"
-              key={entry.key}
-              aria-labelledby={titleId(entry.key)}
-              aria-current={entry.key === openKey ? 'true' : undefined}
-              ref={(el) => {
-                if (el) sectionRefs.current.set(entry.key, el);
-                else sectionRefs.current.delete(entry.key);
-              }}
-            >
-              <h2 id={titleId(entry.key)}>
-                <span>
-                  <span className="poi-index">{entry.ordinal}.</span>{' '}
-                  {entry.poi.title}
-                </span>
-              </h2>
-              <div className="body">
-                <p className="story-meta">
-                  {entry.company.name} ·{' '}
-                  {tenureLabel(entry.company.start, entry.company.end)}
-                </p>
-                <Markdown text={entry.poi.body} />
-              </div>
-              {entry.poi.media.length > 0 && (
-                <div className="media">
-                  {entry.poi.media.map((m, i) => (
-                    <MediaItem key={i} m={m} />
-                  ))}
+        <div className="poi-content-frame">
+          <div
+            className="modal-content poi-list"
+            ref={listRef}
+            onScroll={onScroll}
+            tabIndex={-1}
+            aria-label={UI.poiList}
+          >
+            {entries.map((entry) => (
+              <section
+                className="poi-section"
+                key={entry.key}
+                aria-labelledby={titleId(entry.key)}
+                aria-current={entry.key === openKey ? 'true' : undefined}
+                ref={(el) => {
+                  if (el) sectionRefs.current.set(entry.key, el);
+                  else sectionRefs.current.delete(entry.key);
+                }}
+              >
+                <h2 id={titleId(entry.key)}>
+                  <span>
+                    <span className="poi-index">{entry.ordinal}.</span>{' '}
+                    {entry.poi.title}
+                  </span>
+                </h2>
+                <div className="body">
+                  <p className="story-meta">
+                    {entry.company.name} ·{' '}
+                    {tenureLabel(entry.company.start, entry.company.end)}
+                  </p>
+                  <Markdown text={entry.poi.body} />
                 </div>
-              )}
-            </section>
-          ))}
+                {entry.poi.media.length > 0 && (
+                  <div className="media">
+                    {entry.poi.media.map((m, i) => (
+                      <MediaItem key={i} m={m} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
         </div>
       </div>
     </dialog>

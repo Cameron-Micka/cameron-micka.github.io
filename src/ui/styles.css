@@ -67,7 +67,7 @@ body,
 /* The grid lives on the root element so it propagates to the viewport canvas
    and keeps covering the page past 100vh. Only visible where no canvas is. */
 html,
-.modal.poi-modal .modal-content {
+.modal.poi-modal .poi-content-frame {
   background-color: var(--bg);
   background-image:
     linear-gradient(var(--grid-line) 1px, transparent 1px),
@@ -1236,6 +1236,8 @@ main:focus {
    content bezel. The scrollbar stays outside the text column. */
 .modal.poi-modal {
   --poi-bezel: 6px;
+  --poi-content-radius: calc(var(--radius-window) - var(--poi-bezel));
+  --poi-scrollbar-inset: calc(var(--poi-content-radius) - 4px);
   width: min(1120px, 100%);
   padding: var(--poi-bezel);
   background:
@@ -1326,16 +1328,25 @@ main:focus {
   flex-shrink: 0;
   gap: 8px;
 }
-.modal.poi-modal .modal-content {
-  padding: 0 var(--modal-pad);
+.modal.poi-modal .poi-content-frame {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   border: 1px solid var(--screen-edge);
-  border-bottom-width: 12px;
-  border-bottom-color: var(--bg);
-  border-radius: calc(var(--radius-window) - var(--poi-bezel));
-  clip-path: inset(0 round calc(var(--radius-window) - var(--poi-bezel)));
+  border-radius: var(--poi-content-radius);
+  clip-path: inset(0 round var(--poi-content-radius));
   box-shadow:
     inset 0 2px 5px #0008,
     0 1px 0 #fff9;
+}
+.modal.poi-modal .modal-content {
+  /* Account for the thumb's own inset from the native track edge. */
+  margin-right: var(--poi-scrollbar-inset);
+  padding:
+    0 max(10px, calc(var(--modal-pad) - var(--poi-scrollbar-inset)))
+    0 var(--modal-pad);
 }
 /* The header already reserves the space the absolutely-positioned buttons
    needed, so POI headings can use the full width. */
@@ -1350,6 +1361,9 @@ main:focus {
 .modal.poi-modal .poi-section {
   max-width: 1040px;
   margin-inline: auto;
+}
+.modal.poi-modal .poi-section:first-child {
+  padding-top: 16px;
 }
 .modal.poi-modal .body {
   color: var(--fg);
