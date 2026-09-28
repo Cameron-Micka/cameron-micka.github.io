@@ -106,12 +106,12 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'visual-profiler',
-        title: 'Visual Profiler',
+        title: 'Performance Tooling',
         accent: '#5dd39e',
         body:
-          'Helped shape Visual Profiler capabilities that made frame cost, ' +
-          'rendering hot spots, and performance tradeoffs easier to diagnose ' +
-          'for mixed reality developers.',
+          "Built Mesh's Content Performance Analyzer and helped shape Visual Profiler " +
+          'capabilities, giving mixed reality developers actionable insight into content ' +
+          'bottlenecks, frame cost, rendering hot spots, and performance tradeoffs.',
         media: [
           {
             type: 'video',
