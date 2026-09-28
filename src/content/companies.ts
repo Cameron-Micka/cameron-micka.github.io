@@ -138,6 +138,11 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/esBzumV_59Q?is=q3QIkV73tt1w8-zA',
             alt: 'Microsoft Mesh project video',
           },
+          {
+            type: 'video',
+            src: 'https://youtu.be/Owq4kHLIVsw?is=6I-jTo_Pdogfsgbo',
+            alt: 'Microsoft Mesh project video',
+          },
         ],
       },
       {
