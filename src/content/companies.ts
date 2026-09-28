@@ -177,7 +177,13 @@ const raw: CompanyInput[] = [
           'tool that let the team drop large, varied stadium audiences in ' +
           'place — with automatic texture atlasing, mesh combining, and LOD ' +
           'handling under the hood.',
-        media: [],
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/A3XenbMHPY8',
+            alt: 'Virtually Live soccer video',
+          },
+        ],
       },
       {
         slug: 'halp',
