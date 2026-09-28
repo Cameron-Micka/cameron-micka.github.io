@@ -338,6 +338,11 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/AaIiTEN6Hzw',
             alt: 'Hairball gameplay video',
           },
+          {
+            type: 'video',
+            src: 'https://youtube.com/shorts/vc2ZDdOg7Zw?is=EmNwoELJn3KuEM-2',
+            alt: 'Hairball gameplay video',
+          },
         ],
       },
       {
