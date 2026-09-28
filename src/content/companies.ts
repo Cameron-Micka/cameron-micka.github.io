@@ -122,11 +122,12 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'mesh',
-        title: 'Microsoft Mesh',
+        title: 'Microsoft Mesh & Teams Immersive Events',
         accent: '#4fd1c5',
         body:
-          'Contributed to rendering and avatar/scene technology for Mesh, ' +
-          "Microsoft's platform for shared 3D experiences across devices.",
+          'Contributed to rendering, avatar, scene, and user experience technology for ' +
+          'Microsoft Mesh and Teams Immersive Events, bringing shared 3D presence ' +
+          'across devices and into familiar Microsoft collaboration workflows.',
         media: [
           {
             type: 'video',
@@ -143,17 +144,6 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/Owq4kHLIVsw?is=6I-jTo_Pdogfsgbo',
             alt: 'Microsoft Mesh project video',
           },
-        ],
-      },
-      {
-        slug: 'teams-immersive-events',
-        title: 'Teams Immersive Events',
-        accent: '#6f9cff',
-        body:
-          'Worked on graphics and user experience foundations for Teams ' +
-          'Immersive Events, bringing shared 3D presence into familiar ' +
-          'Microsoft collaboration workflows.',
-        media: [
           {
             type: 'video',
             src: 'https://youtu.be/9jG4cPfjYuQ?is=ODIGWLVsZoGJsa_D',
