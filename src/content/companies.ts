@@ -261,6 +261,11 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/puvH9OmQ4fc',
             alt: 'Star Wars: The Force Unleashed II gameplay',
           },
+          {
+            type: 'video',
+            src: 'https://youtu.be/huT1ZyuOeHE?is=SxVcGRU-IQhoIfQ5',
+            alt: 'Star Wars: The Force Unleashed II DLC gameplay',
+          },
         ],
       },
       {
