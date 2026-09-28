@@ -50,6 +50,11 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/eqFqtAJMtYE?is=kgVaWKT4L51SYxHh',
             alt: 'HoloLens 2 ISV partner video',
           },
+          {
+            type: 'video',
+            src: 'https://youtu.be/FWYcuHUgcng?is=VyvJhUkEM0hljDaN',
+            alt: 'HoloLens 2 ISV partner video',
+          },
         ],
       },
       {
