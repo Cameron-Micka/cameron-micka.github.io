@@ -90,9 +90,20 @@ function YouTubeVideo({ videoId, media }: { videoId: string; media: Media }) {
           </button>
         )}
       </div>
-      {status === 'failed' && (
-        <figcaption className="youtube-caption">
-          <span role="status">YouTube couldn't load here.</span>
+      {(!media.description || status === 'failed') && (
+        <figcaption
+          className={
+            status === 'failed'
+              ? 'youtube-caption has-error'
+              : 'youtube-caption'
+          }
+        >
+          {!media.description && (
+            <span className="youtube-caption-title">{title}</span>
+          )}
+          {status === 'failed' && (
+            <span role="status">YouTube couldn't load here.</span>
+          )}
         </figcaption>
       )}
     </figure>
@@ -342,18 +353,20 @@ export function PoiModal({ companies }: { companies: Company[] }) {
                   else sectionRefs.current.delete(entry.key);
                 }}
               >
-                <h2 id={titleId(entry.key)}>
-                  <span>
-                    <span className="poi-index">{entry.ordinal}.</span>{' '}
-                    {entry.poi.title}
-                  </span>
-                </h2>
-                <div className="body">
-                  <p className="story-meta">
-                    {entry.company.name} ·{' '}
-                    {tenureLabel(entry.company.start, entry.company.end)}
-                  </p>
-                  <Markdown text={entry.poi.body} />
+                <div className="poi-copy">
+                  <h2 id={titleId(entry.key)}>
+                    <span>
+                      <span className="poi-index">{entry.ordinal}.</span>{' '}
+                      {entry.poi.title}
+                    </span>
+                  </h2>
+                  <div className="body">
+                    <p className="story-meta">
+                      {entry.company.name} ·{' '}
+                      {tenureLabel(entry.company.start, entry.company.end)}
+                    </p>
+                    <Markdown text={entry.poi.body} />
+                  </div>
                 </div>
                 {entry.poi.media.length > 0 && (
                   <div className="media">

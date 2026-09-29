@@ -260,6 +260,7 @@ When a POI is clicked:
 - Native modal `<dialog>` with a hardware-style shell, up to 1120px wide, with a full-screen expansion control.
 - The scrollable content has a uniform 1px inset border on every edge in both normal and expanded modes, with no extra bottom strip. The native scrollbar is inset from the rounded frame so neither end is clipped. Story headings retain breathing room below the top edge, including after jumping or scroll snapping.
 - The header includes the company, Close/Expand actions, and a keyboard-accessible native picker for every story, with an inset caret and reserved text padding. Content reads newest to oldest and uses the existing lightweight Markdown renderer.
+- Above 980px, stories alternate text and compact media galleries side by side. Preview cards are capped at 440px wide to avoid stretching YouTube's 480px thumbnails, with captions or existing descriptions below each preview. Playing videos span their gallery for usable controls. From 721–980px, the gallery sits below the text; at 720px and below, the existing single-column layout and description placement are unchanged.
 - **3D scene is paused** on modal open. Render a frozen frame with modal post-processing, then skip GPU submission until the dialog closes or the viewport changes.
 - On modal close, resume the scene, or render on demand if motion is paused.
 - **Close:** ESC key, click on the dimmed backdrop, or explicit ✕ button in the modal header. All three.
