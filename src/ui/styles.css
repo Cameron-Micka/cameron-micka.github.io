@@ -1164,6 +1164,17 @@ main:focus {
   border-radius: var(--radius-screen);
   display: block;
 }
+.media-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.media-zoom:focus-visible {
+  outline-offset: -4px;
+}
 .youtube-video {
   min-width: 0;
   margin: 0;

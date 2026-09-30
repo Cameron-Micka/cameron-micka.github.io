@@ -7,9 +7,15 @@ import {
   Play,
   X,
 } from 'lucide-react';
-import { tenureLabel, type Company, type Media } from '@/content/schema';
+import {
+  assetUrl,
+  tenureLabel,
+  type Company,
+  type Media,
+} from '@/content/schema';
 import { useEngine, useEngineValue } from './EngineContext';
 import { Markdown } from './Markdown';
+import { PhotoLightbox, type LightboxImage } from './PhotoLightbox';
 import { UI } from './strings';
 
 // Extract a YouTube video id from common URL shapes (youtu.be/ID,
@@ -110,7 +116,7 @@ function YouTubeVideo({ videoId, media }: { videoId: string; media: Media }) {
   );
 }
 
-function MediaContent({ m }: { m: Media }) {
+function MediaContent({ m, onOpen }: { m: Media; onOpen?: () => void }) {
   if (m.type === 'video') {
     const yt = youtubeId(m.src);
     if (yt) {
@@ -122,10 +128,29 @@ function MediaContent({ m }: { m: Media }) {
       </video>
     );
   }
-  return <img src={m.src} alt={m.alt ?? ''} loading="lazy" decoding="async" />;
+  const img = (
+    <img
+      src={assetUrl(m.src)}
+      alt={m.alt ?? ''}
+      loading="lazy"
+      decoding="async"
+    />
+  );
+  if (!onOpen) return img;
+  return (
+    <button
+      type="button"
+      className="media-zoom"
+      aria-label={m.alt ? `${UI.viewLarger}: ${m.alt}` : UI.viewLarger}
+      title={UI.viewLarger}
+      onClick={onOpen}
+    >
+      {img}
+    </button>
+  );
 }
 
-function MediaItem({ m }: { m: Media }) {
+function MediaItem({ m, onOpen }: { m: Media; onOpen?: () => void }) {
   return (
     <div className="media-item">
       {m.description && (
@@ -133,7 +158,7 @@ function MediaItem({ m }: { m: Media }) {
           <Markdown text={m.description} />
         </div>
       )}
-      <MediaContent m={m} />
+      <MediaContent m={m} onOpen={onOpen} />
     </div>
   );
 }
@@ -157,6 +182,11 @@ export function PoiModal({ companies }: { companies: Company[] }) {
   // moved last and avoid fighting each other.
   const activeKey = useRef<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  // Images of the POI whose picture was clicked, shown full-screen.
+  const [lightbox, setLightbox] = useState<{
+    images: LightboxImage[];
+    index: number;
+  } | null>(null);
 
   // Every POI across every company, in timeline order, so scrolling walks the
   // whole career the same way the old prev/next buttons did.
@@ -179,6 +209,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
   useEffect(() => {
     if (!isOpen) {
       setExpanded(false);
+      setLightbox(null);
       activeKey.current = null;
     }
   }, [isOpen]);
@@ -242,144 +273,181 @@ export function PoiModal({ companies }: { companies: Company[] }) {
   const titleId = (key: string) => `poi-title-${key.replace('/', '--')}`;
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="modal-scrim"
-      aria-labelledby={titleId(openKey)}
-      onCancel={(e) => {
-        e.preventDefault();
-        engine.closePoi();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
+    <>
+      <dialog
+        ref={dialogRef}
+        className="modal-scrim"
+        aria-labelledby={titleId(openKey)}
+        onCancel={(e) => {
           e.preventDefault();
           engine.closePoi();
-        }
-      }}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) engine.closePoi();
-      }}
-    >
-      <div
-        className={expanded ? 'modal poi-modal expanded' : 'modal poi-modal'}
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            engine.closePoi();
+          }
+        }}
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) engine.closePoi();
+        }}
       >
-        <div className="modal-header">
-          <div className="modal-title">
-            <span
-              className="accent-bar"
-              style={{ background: activeCompany?.palette.high }}
-              aria-hidden="true"
-            />
-            <span className="company-name">{activeCompany?.name}</span>
-          </div>
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label={expanded ? UI.collapse : UI.expand}
-              title={expanded ? UI.collapse : UI.expand}
-              aria-pressed={expanded}
-              onClick={() => setExpanded((v) => !v)}
-            >
-              {expanded ? (
-                <Minimize2 size={17} aria-hidden="true" />
-              ) : (
-                <Maximize2 size={17} aria-hidden="true" />
-              )}
-            </button>
-            <button
-              type="button"
-              className="icon-btn close"
-              aria-label={UI.close}
-              title={UI.close}
-              onClick={() => engine.closePoi()}
-            >
-              <X size={18} aria-hidden="true" />
-            </button>
-          </div>
-          <div className="project-jump">
-            <label htmlFor="project-jump">{UI.projectJump}</label>
-            <div className="project-jump-control">
-              <select
-                id="project-jump"
-                aria-label={UI.projectJump}
-                value={openKey}
-                onChange={(event) => {
-                  const entry = entries.find(
-                    (item) => item.key === event.target.value,
-                  );
-                  if (entry)
-                    engine.openPoiRef(entry.company.slug, entry.poi.slug);
-                }}
-              >
-                {[...companies].reverse().map((company) => (
-                  <optgroup key={company.slug} label={company.name}>
-                    {company.pois.map((poi) => (
-                      <option
-                        key={poi.slug}
-                        value={`${company.slug}/${poi.slug}`}
-                      >
-                        {poi.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <ChevronDown
-                className="project-jump-caret"
-                size={16}
+        <div
+          className={expanded ? 'modal poi-modal expanded' : 'modal poi-modal'}
+        >
+          <div className="modal-header">
+            <div className="modal-title">
+              <span
+                className="accent-bar"
+                style={{ background: activeCompany?.palette.high }}
                 aria-hidden="true"
               />
+              <span className="company-name">{activeCompany?.name}</span>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label={expanded ? UI.collapse : UI.expand}
+                title={expanded ? UI.collapse : UI.expand}
+                aria-pressed={expanded}
+                onClick={() => setExpanded((v) => !v)}
+              >
+                {expanded ? (
+                  <Minimize2 size={17} aria-hidden="true" />
+                ) : (
+                  <Maximize2 size={17} aria-hidden="true" />
+                )}
+              </button>
+              <button
+                type="button"
+                className="icon-btn close"
+                aria-label={UI.close}
+                title={UI.close}
+                onClick={() => engine.closePoi()}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="project-jump">
+              <label htmlFor="project-jump">{UI.projectJump}</label>
+              <div className="project-jump-control">
+                <select
+                  id="project-jump"
+                  aria-label={UI.projectJump}
+                  value={openKey}
+                  onChange={(event) => {
+                    const entry = entries.find(
+                      (item) => item.key === event.target.value,
+                    );
+                    if (entry)
+                      engine.openPoiRef(entry.company.slug, entry.poi.slug);
+                  }}
+                >
+                  {[...companies].reverse().map((company) => (
+                    <optgroup key={company.slug} label={company.name}>
+                      {company.pois.map((poi) => (
+                        <option
+                          key={poi.slug}
+                          value={`${company.slug}/${poi.slug}`}
+                        >
+                          {poi.title}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="project-jump-caret"
+                  size={16}
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="poi-content-frame">
+            <div
+              className="modal-content poi-list"
+              ref={listRef}
+              onScroll={onScroll}
+              tabIndex={-1}
+              aria-label={UI.poiList}
+            >
+              {entries.map((entry) => (
+                <section
+                  className="poi-section"
+                  key={entry.key}
+                  aria-labelledby={titleId(entry.key)}
+                  aria-current={entry.key === openKey ? 'true' : undefined}
+                  ref={(el) => {
+                    if (el) sectionRefs.current.set(entry.key, el);
+                    else sectionRefs.current.delete(entry.key);
+                  }}
+                >
+                  <div className="poi-copy">
+                    <h2 id={titleId(entry.key)}>
+                      <span>
+                        <span className="poi-index">{entry.ordinal}.</span>{' '}
+                        {entry.poi.title}
+                      </span>
+                    </h2>
+                    <div className="body">
+                      <p className="story-meta">
+                        {entry.company.name} ·{' '}
+                        {tenureLabel(entry.company.start, entry.company.end)}
+                      </p>
+                      <Markdown text={entry.poi.body} />
+                    </div>
+                  </div>
+                  {entry.poi.media.length > 0 && (
+                    <div className="media">
+                      {entry.poi.media.map((m, i) => {
+                        const images = entry.poi.media.filter(
+                          (item) => item.type === 'image',
+                        );
+                        const imageIndex = images.indexOf(m);
+                        return (
+                          <MediaItem
+                            key={i}
+                            m={m}
+                            onOpen={
+                              imageIndex < 0
+                                ? undefined
+                                : () =>
+                                    setLightbox({
+                                      images: images.map((item, j) => ({
+                                        id: `${entry.key}-${j}`,
+                                        src: item.src,
+                                        alt: item.alt ?? entry.poi.title,
+                                      })),
+                                      index: imageIndex,
+                                    })
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              ))}
             </div>
           </div>
         </div>
-
-        <div className="poi-content-frame">
-          <div
-            className="modal-content poi-list"
-            ref={listRef}
-            onScroll={onScroll}
-            tabIndex={-1}
-            aria-label={UI.poiList}
-          >
-            {entries.map((entry) => (
-              <section
-                className="poi-section"
-                key={entry.key}
-                aria-labelledby={titleId(entry.key)}
-                aria-current={entry.key === openKey ? 'true' : undefined}
-                ref={(el) => {
-                  if (el) sectionRefs.current.set(entry.key, el);
-                  else sectionRefs.current.delete(entry.key);
-                }}
-              >
-                <div className="poi-copy">
-                  <h2 id={titleId(entry.key)}>
-                    <span>
-                      <span className="poi-index">{entry.ordinal}.</span>{' '}
-                      {entry.poi.title}
-                    </span>
-                  </h2>
-                  <div className="body">
-                    <p className="story-meta">
-                      {entry.company.name} ·{' '}
-                      {tenureLabel(entry.company.start, entry.company.end)}
-                    </p>
-                    <Markdown text={entry.poi.body} />
-                  </div>
-                </div>
-                {entry.poi.media.length > 0 && (
-                  <div className="media">
-                    {entry.poi.media.map((m, i) => (
-                      <MediaItem key={i} m={m} />
-                    ))}
-                  </div>
-                )}
-              </section>
-            ))}
-          </div>
-        </div>
-      </div>
-    </dialog>
+      </dialog>
+      {lightbox && (
+        <PhotoLightbox
+          photos={lightbox.images}
+          index={lightbox.index}
+          label={UI.imageViewer}
+          onClose={() => setLightbox(null)}
+          onNavigate={(index) =>
+            setLightbox((current) =>
+              current ? { ...current, index } : current,
+            )
+          }
+        />
+      )}
+    </>
   );
 }

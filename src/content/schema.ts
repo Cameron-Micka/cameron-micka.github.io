@@ -120,7 +120,9 @@ export const companiesSchema = z.array(companySchema);
 export const photosSchema = z.array(photoSchema);
 
 // Resolve a /public-relative asset path against the deployed base path.
+// Absolute URLs (https:, data:, …) are returned unchanged.
 export function assetUrl(path: string): string {
+  if (/^[a-z][a-z\d+.-]*:/i.test(path)) return path;
   return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
 }
 

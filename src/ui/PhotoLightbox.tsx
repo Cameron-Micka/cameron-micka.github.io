@@ -3,6 +3,10 @@ import { ArrowLeft, ArrowRight, X } from 'lucide-react';
 import { assetUrl, type Photo } from '@/content/schema';
 import { PHOTOGRAPHY, UI } from './strings';
 
+/** The subset of a photo the lightbox needs, so other images can reuse it. */
+export type LightboxImage = Pick<Photo, 'id' | 'src' | 'alt'> &
+  Partial<Pick<Photo, 'width' | 'height' | 'caption' | 'location'>>;
+
 /**
  * Full-screen photo viewer: swipe or use arrows to navigate,
  * Escape / scrim / ✕ to close, focus trapped while open and
@@ -15,12 +19,15 @@ export function PhotoLightbox({
   index,
   onClose,
   onNavigate,
+  label = PHOTOGRAPHY.lightboxLabel,
 }: {
-  /** Photos of the active section, in grid order. */
-  photos: Photo[];
+  /** Images to page through, in display order. */
+  photos: LightboxImage[];
   index: number;
   onClose: () => void;
   onNavigate: (index: number) => void;
+  /** Accessible name for the viewer dialog. */
+  label?: string;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -91,7 +98,7 @@ export function PhotoLightbox({
     <dialog
       ref={dialogRef}
       className="modal-scrim lightbox-scrim"
-      aria-label={PHOTOGRAPHY.lightboxLabel}
+      aria-label={label}
       onCancel={(e) => {
         e.preventDefault();
         onClose();
@@ -171,7 +178,7 @@ export function PhotoLightbox({
           ))}
         </div>
 
-        <nav className="lightbox-nav" aria-label={PHOTOGRAPHY.lightboxLabel}>
+        <nav className="lightbox-nav" aria-label={label}>
           {photos.length > 1 && (
             <button
               type="button"

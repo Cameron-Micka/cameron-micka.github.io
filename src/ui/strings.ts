@@ -55,6 +55,8 @@ export const UI = {
   expand: 'Expand',
   collapse: 'Collapse',
   poiList: 'Project stories',
+  viewLarger: 'View larger',
+  imageViewer: 'Image viewer',
   projectJump: 'Jump to a story',
   projects: (count: number) => `${count} ${count === 1 ? 'story' : 'stories'}`,
   earlier: 'Earlier chapter',

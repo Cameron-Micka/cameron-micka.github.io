@@ -95,7 +95,9 @@ const raw: CompanyInput[] = [
         body:
           'Led work on Graphics Tools, delivering production-ready shaders and ' +
           'rendering utilities tuned for the tight performance budgets of ' +
-          'mobile mixed reality hardware.',
+          'mobile mixed reality hardware, available for ' +
+          '[Unity](https://github.com/microsoft/MixedReality-GraphicsTools-Unity) and ' +
+          '[Unreal Engine](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal).',
         media: [
           {
             type: 'video',
@@ -107,6 +109,26 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/GfeG_ZFzL1g',
             alt: 'Graphics Tools demonstration video',
           },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/lighting.webp',
+            alt: 'Three metallic spheres showing physically based lighting with varying roughness',
+          },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/spatial-perception.webp',
+            alt: 'Spatial mesh of a room rendered with wireframe and normal-based shading',
+          },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/ui-tooling.webp',
+            alt: 'Mixed reality UI slider and button group with glowing gradient backplates',
+          },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/clipping-primitives.webp',
+            alt: 'Models cut by clipping box, clipping plane, and clipping sphere primitives',
+          },
         ],
       },
       {
@@ -114,7 +136,8 @@ const raw: CompanyInput[] = [
         title: 'Performance Tooling',
         accent: '#5dd39e',
         body:
-          "Built Mesh's Content Performance Analyzer and helped shape Visual Profiler " +
+          "Built Mesh's Content Performance Analyzer and helped shape " +
+          '[Visual Profiler](https://github.com/microsoft/VisualProfiler-Unity) ' +
           'capabilities, giving mixed reality developers actionable insight into content ' +
           'bottlenecks, frame cost, rendering hot spots, and performance tradeoffs.',
         media: [
@@ -193,6 +216,11 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://youtu.be/FripHuBd9ZY',
             alt: 'Fat Princess Adventures gameplay',
+          },
+          {
+            type: 'image',
+            src: '/media/fun-bits/fat-princess-adventures-booth.webp',
+            alt: 'Players wearing cardboard Fat Princess Adventures helmets at a PlayStation event demo booth',
           },
         ],
       },
@@ -405,17 +433,16 @@ const raw: CompanyInput[] = [
         body:
           'Instructed "Video Game Creation Extreme," teaching the Torque game ' +
           'builder and game scripting to classes averaging six middle school ' +
-          'and high school students.',
-        media: [],
-      },
-      {
-        slug: 'curriculum-teaching',
-        title: 'Curriculum & Teaching',
-        accent: '#ff8a7a',
-        body:
-          'Created an original course curriculum, prepared lesson plans, and ' +
-          'supervised students through hands-on game-building projects.',
-        media: [],
+          'and high school students. Created an original course curriculum, ' +
+          'prepared lesson plans, and supervised students through hands-on ' +
+          'game-building projects.',
+        media: [
+          {
+            type: 'image',
+            src: '/media/id-tech/video-game-creation-extreme-class.webp',
+            alt: 'Students giving a thumbs up at their workstations during an iD Tech game creation class',
+          },
+        ],
       },
     ],
   },
@@ -442,7 +469,10 @@ const raw: CompanyInput[] = [
           'Earned a Bachelor of Science in Computer Science with a minor in ' +
           'Mathematics. Studied real-time interactive simulation, mathematics, ' +
           'physics, and game design. Shipped a new game engine and game from ' +
-          'scratch each year.',
+          'scratch each year.\n\n' +
+          'Took multiple real-time computer graphics courses each year, ' +
+          'starting with custom software rasterizers and progressing through ' +
+          'OpenGL, DirectX, shaders, and a variety of graphics algorithms.',
         media: [
           {
             type: 'video',
@@ -452,6 +482,21 @@ const raw: CompanyInput[] = [
               'My junior capstone project, ' +
               '[Kabloom](https://games.digipen.edu/games/kabloom), was a ' +
               'finalist at the Independent Games Festival (IGF).',
+          },
+          {
+            type: 'image',
+            src: '/media/digipen/kabloom-1.webp',
+            alt: 'Kabloom screenshot: an elephant character standing in a field of pink daisies',
+          },
+          {
+            type: 'image',
+            src: '/media/digipen/kabloom-2.webp',
+            alt: 'Kabloom screenshot: a floating garden island suspended from an airship',
+          },
+          {
+            type: 'image',
+            src: '/media/digipen/kabloom-3.webp',
+            alt: 'Kabloom screenshot: the elephant exploring a grassy meadow among trees',
           },
           {
             type: 'video',
@@ -471,16 +516,6 @@ const raw: CompanyInput[] = [
               "that utilized the Wii's Texture Environment Unit (TEV).",
           },
         ],
-      },
-      {
-        slug: 'graphics-foundations',
-        title: 'Graphics Foundations',
-        accent: '#a8ffce',
-        body:
-          'Took multiple real-time computer graphics courses each year, ' +
-          'starting with custom software rasterizers and progressing through ' +
-          'OpenGL, DirectX, shaders, and a variety of graphics algorithms.',
-        media: [],
       },
     ],
   },
