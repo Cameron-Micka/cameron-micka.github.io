@@ -202,7 +202,7 @@ the scene at 85% resolution and composites at native output resolution.
 
 ### 4.2 Scrubbing
 
-- **Desktop:** Mouse wheel + trackpad vertical scroll scrubs the camera along Z. Down travels into earlier work, up toward the present. Side ruler is also clickable to jump.
+- **Desktop:** Mouse wheel + trackpad vertical scroll scrubs the camera along Z. Up travels into earlier work, down toward the present. Side ruler is also clickable to jump.
 - **Mobile:** Two-finger drag scrubs; the lower ribbon provides explicit previous/next chapter buttons. One-finger drag rotates the planet.
 - **Keyboard:** Up moves toward the present; Down moves into earlier work. Home / PageUp → "Now"; End / PageDown → oldest. Shortcuts ignore interactive controls, editable content, and dialogs.
 - **Snap behavior:** During input, scrub is free and continuous. **On release**, the camera eases (cubic out, ~400ms) to the **nearest planet**. URL hash updates only on snap settling.

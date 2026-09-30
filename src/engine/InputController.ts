@@ -220,7 +220,7 @@ export class InputController {
     const deltaPixels =
       e.deltaY *
       (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? this.el!.clientHeight : 1);
-    this.h.onScrub(-deltaPixels * WHEEL_SCALE);
+    this.h.onScrub(deltaPixels * WHEEL_SCALE);
     this.scheduleScrubEnd();
   };
 

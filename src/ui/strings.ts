@@ -28,7 +28,7 @@ export const SOCIAL = {
 
 export const HINTS = {
   scrubDesktop:
-    'Scroll down for earlier work · drag to rotate · select a glowing point',
+    'Scroll up for earlier work · drag to rotate · select a glowing point',
   scrubTouch: 'Use the arrows to travel · drag to rotate · tap a glowing point',
   freeCameraDesktop: [
     { action: 'WASD', detail: ' to fly' },

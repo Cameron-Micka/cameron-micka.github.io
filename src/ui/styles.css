@@ -1414,6 +1414,18 @@ main:focus {
 .modal.poi-modal.expanded .modal-content {
   padding-bottom: 0;
 }
+.modal.poi-modal.expanded .poi-section {
+  width: 100%;
+  max-width: none;
+}
+.modal.poi-modal.expanded .poi-section:not(:has(> .media)) .poi-copy {
+  max-width: 1040px;
+  margin-inline: auto;
+}
+.modal.poi-modal.expanded .media,
+.modal.poi-modal.expanded .media-item:only-child {
+  max-width: none;
+}
 
 /* ---- Settings panel ---- */
 .settings {
