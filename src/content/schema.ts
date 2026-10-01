@@ -16,6 +16,9 @@ export const poiSchema = z.object({
   accent: z.string().regex(/^#([0-9a-fA-F]{6})$/),
   // Short markdown body shown in the modal.
   body: z.string(),
+  // Optional date label (e.g. "2010") shown instead of the company's tenure
+  // when a project spans only part of it.
+  dates: z.string().optional(),
   media: z.array(mediaSchema).default([]),
 });
 

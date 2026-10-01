@@ -395,7 +395,8 @@ export function PoiModal({ companies }: { companies: Company[] }) {
                     <div className="body">
                       <p className="story-meta">
                         {entry.company.name} ·{' '}
-                        {tenureLabel(entry.company.start, entry.company.end)}
+                        {entry.poi.dates ??
+                          tenureLabel(entry.company.start, entry.company.end)}
                       </p>
                       <Markdown text={entry.poi.body} />
                     </div>

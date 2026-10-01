@@ -199,13 +199,47 @@ const raw: CompanyInput[] = [
     features: { rings: true, ringTilt: 0.5, flowMap: true, moons: 1 },
     pois: [
       {
+        slug: 'vr-titles',
+        title: 'Virtual Reality Titles',
+        accent: '#ffb866',
+        dates: '2016',
+        body:
+          '**Virtually Live: Soccer** (HTC Vive, Unity 5 & UE4) — Integrated ' +
+          'the SteamVR plugin and built the camera and input ' +
+          'system used by designers, keeping the experience above 90fps in ' +
+          'collaboration with art and design.\n\n' +
+          'Authored a procedural crowd ' +
+          'tool that let the team drop large, varied stadium audiences in ' +
+          'place — with automatic texture atlasing, mesh combining, and LOD ' +
+          'handling under the hood.\n\n' +
+          '**HALP** (Oculus Touch & HTC Vive, UE4) — Stood up a custom ' +
+          'Unreal Engine 4 build to run against prototype ' +
+          'Oculus Touch hardware, and built and maintained the working ' +
+          'relationship with Facebook/Oculus throughout the project.',
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/A3XenbMHPY8',
+            alt: 'Virtually Live soccer video',
+          },
+          {
+            type: 'video',
+            src: 'https://www.youtube.com/watch?v=oLzqZyqDMOU',
+            alt: 'HALP gameplay video',
+          },
+        ],
+      },
+      {
         slug: 'fat-princess-adventures',
         title: 'Fat Princess Adventures & DLC (PS4, C4 Engine)',
         accent: '#ff9f43',
+        dates: '2012 – 2015',
         body:
-          'As Technical Director, led a team of up to 12 engineers — ' +
+          'As Technical Director, led a team of up to 12 engineers to ship ' +
+          'Fat Princess Adventures and its DLC expansion — ' +
           'scheduling deliverables, mitigating risk, screening candidates, ' +
-          'and running the 60fps@1080p profiling effort. Personally owned ' +
+          'and running the 60fps@1080p profiling effort.\n\n' +
+          'Personally owned ' +
           'key systems: layered animation, Havok integration and the ' +
           'kinematic character controller, AI pathfinding and scripted ' +
           'behavior, networked gameplay, character state machine, character ' +
@@ -225,52 +259,20 @@ const raw: CompanyInput[] = [
         ],
       },
       {
-        slug: 'virtually-live',
-        title: 'Virtually Live: Soccer (HTC Vive, Unity 5 & UE4)',
-        accent: '#ffb866',
-        body:
-          'Integrated the SteamVR plugin and built the camera and input ' +
-          'system used by designers, keeping the experience above 90fps in ' +
-          'collaboration with art and design. Authored a procedural crowd ' +
-          'tool that let the team drop large, varied stadium audiences in ' +
-          'place — with automatic texture atlasing, mesh combining, and LOD ' +
-          'handling under the hood.',
-        media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/A3XenbMHPY8',
-            alt: 'Virtually Live soccer video',
-          },
-        ],
-      },
-      {
-        slug: 'halp',
-        title: 'HALP (Oculus Touch & HTC Vive, UE4)',
-        accent: '#ffd27a',
-        body:
-          'Stood up a custom Unreal Engine 4 build to run against prototype ' +
-          'Oculus Touch hardware, and built and maintained the working ' +
-          'relationship with Facebook/Oculus throughout the project.',
-        media: [
-          {
-            type: 'video',
-            src: 'https://www.youtube.com/watch?v=oLzqZyqDMOU',
-            alt: 'HALP gameplay video',
-          },
-        ],
-      },
-      {
         slug: 'escape-plan',
         title: 'Escape Plan & DLC (PS Vita & PS4, Unity 3.x)',
         accent: '#ffe1a8',
+        dates: '2011',
         body:
           'Helped port portions of Unity to PlayStation Vita while shipping ' +
-          'Escape Plan — the Vita\u2019s #1 selling downloadable game. ' +
+          'Escape Plan — the Vita\u2019s #1 selling downloadable game — ' +
+          'along with four DLC expansions.\n\n' +
           'Implemented Vita platform services (trophies, save data, store ' +
           'entitlements), scripted most gameplay systems, and built a ' +
           'custom UI implementation, localization system, character state ' +
           'machine, root-motion system, character controller, and editor ' +
-          'tools. Identified slow C# scripts and ported them to native, ' +
+          'tools.\n\n' +
+          'Identified slow C# scripts and ported them to native, ' +
           'exposing additional engine methods to script along the way.',
         media: [
           {
@@ -308,10 +310,12 @@ const raw: CompanyInput[] = [
         slug: 'force-unleashed-ii',
         title: 'The Force Unleashed II & DLC',
         accent: '#e6c35c',
+        dates: '2010',
         body:
           'Programmed and scripted gameplay systems on Star Wars: The Force ' +
           'Unleashed II for PlayStation 3 and Xbox 360, with an emphasis on ' +
-          'boss battles. Collaborated with the LucasArts Singapore team to ' +
+          'boss battles.\n\n' +
+          'Collaborated with the LucasArts Singapore team to ' +
           'fix bugs and ship a polished DLC release.',
         media: [
           {
@@ -330,12 +334,24 @@ const raw: CompanyInput[] = [
         slug: 'ronin-engine-tools',
         title: 'Ronin Engine Tools & Telemetry',
         accent: '#fff1c1',
+        dates: '2009',
         body:
           'During an internship on The Force Unleashed I & II, wrote the ' +
           'networked gameplay data logging system, a heat-map generation ' +
           'tool, and a gameplay replay system — and chased down sources of ' +
           'non-determinism inside the Ronin Engine.',
-        media: [],
+        media: [
+          {
+            type: 'image',
+            src: '/media/lucasarts/lucasarts-team.webp',
+            alt: 'Four people sitting on a lawn in front of a large white Victorian-style house',
+          },
+          {
+            type: 'image',
+            src: '/media/lucasarts/boba-fett-costume.webp',
+            alt: 'Posing beside a Boba Fett costume display in front of a Rebel Alliance banner',
+          },
+        ],
       },
     ],
   },
@@ -362,7 +378,8 @@ const raw: CompanyInput[] = [
         body:
           'Handled every aspect of programming and development. Wrote a ' +
           'proprietary mobile game engine from scratch using OpenGL ES 1.0 ' +
-          'and 2.0, OpenAL, and Box2D. One of the first games submitted to ' +
+          'and 2.0, OpenAL, and Box2D.\n\n' +
+          'One of the first games submitted to ' +
           'the iTunes App Store in August 2008, then partnered with ' +
           'Microsoft to port Hairball from iOS to Zune HD using XNA.',
         media: [
@@ -376,6 +393,16 @@ const raw: CompanyInput[] = [
             src: 'https://youtube.com/shorts/vc2ZDdOg7Zw?is=EmNwoELJn3KuEM-2',
             alt: 'Hairball gameplay video',
           },
+          {
+            type: 'image',
+            src: '/media/micka-studios/hairball-gameplay.webp',
+            alt: 'Hairball gameplay on an iPhone showing a fuzzy ball bouncing between wooden platforms',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/hairball-menu.webp',
+            alt: 'Hairball title screen with Start, How to play, and Quit buttons on an iPhone held in a hand',
+          },
         ],
       },
       {
@@ -384,19 +411,57 @@ const raw: CompanyInput[] = [
         accent: '#c98bff',
         body:
           'Ported Snowball from PC to iOS to sell on the iTunes App Store, ' +
-          'where it landed on Apple\u2019s "Featured" page. Collaborated ' +
-          'with Zynga on cross-promotion advertisements.',
-        media: [],
+          'where it landed on Apple\u2019s "Featured" page.\n\n' +
+          'Collaborated with Zynga on cross-promotion advertisements.',
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/DF7fIixZLwM',
+            alt: 'Snowball 2.0 trailer',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/snowball-menu.webp',
+            alt: 'Snowball title screen with Play and Quit buttons on an iPod touch held in a hand',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/snowball-gameplay.webp',
+            alt: 'Snowball gameplay on an iPod touch showing an icy tile maze and score counters',
+          },
+        ],
       },
       {
         slug: 'iventure-hd',
         title: 'iVenture HD (iOS)',
         accent: '#d9b3ff',
+        dates: '2010',
         body:
-          'One of the first universal games available for iPad and iPhone. ' +
+          'One of the first universal games available for iPad and iPhone.\n\n' +
           'Wrote all game and engine features from scratch, including an ' +
           'in-game level editor that shipped with the final game.',
-        media: [],
+        media: [
+          {
+            type: 'image',
+            src: '/media/micka-studios/iventure-hd-menu.webp',
+            alt: 'iVenture HD main menu with Play, Editor, Options, and Help buttons',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/iventure-hd-game-center.webp',
+            alt: 'iVenture HD gameplay in a moonlit pagoda world with Game Center high scores',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/iventure-hd-editor.webp',
+            alt: 'iVenture HD built-in level editor placing blocks on graph paper',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/iventure-hd-space.webp',
+            alt: 'iVenture HD gameplay in an outer space world among stars',
+          },
+        ],
       },
     ],
   },
@@ -433,7 +498,8 @@ const raw: CompanyInput[] = [
         body:
           'Instructed "Video Game Creation Extreme," teaching the Torque game ' +
           'builder and game scripting to classes averaging six middle school ' +
-          'and high school students. Created an original course curriculum, ' +
+          'and high school students.\n\n' +
+          'Created an original course curriculum, ' +
           'prepared lesson plans, and supervised students through hands-on ' +
           'game-building projects.',
         media: [
