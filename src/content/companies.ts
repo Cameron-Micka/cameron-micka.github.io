@@ -24,6 +24,7 @@ const raw: CompanyInput[] = [
         slug: 'hololens-pocs',
         title: 'HoloLens POCs',
         accent: '#3aa0ff',
+        dates: '2016 – 2018',
         body:
           'Built early HoloLens proof-of-concepts to explore interaction, ' +
           'rendering, and product scenarios, helping teams quickly validate ' +
@@ -38,6 +39,11 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://youtu.be/vuRzUjlrALw?is=aBbEGPcBX07y_OnN',
             alt: 'HoloLens proof-of-concept video',
+          },
+          {
+            type: 'image',
+            src: '/media/microsoft/launch-vector-labs.webp',
+            alt: 'Launch Vector Labs logo printed on the back of a Microsoft Surface device',
           },
         ],
       },
@@ -60,16 +66,25 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/FWYcuHUgcng?is=VyvJhUkEM0hljDaN',
             alt: 'HoloLens 2 ISV partner video',
           },
+          {
+            type: 'image',
+            src: '/media/microsoft/hololens-2-workbench.webp',
+            alt: 'Surface Book next to HoloLens 2 headsets and an anatomical heart model on a lab bench',
+          },
         ],
       },
       {
         slug: 'mrtk2',
         title: 'MRTK2',
         accent: '#58c4dd',
+        dates: '2018 – 2020',
         body:
-          'Contributed to MRTK2 efforts spanning developer workflow, ' +
-          'rendering, and platform integration so teams could build polished ' +
-          'mixed reality experiences faster on HoloLens in both Unity and Unreal Engine 4.',
+          'Contributed to Mixed Reality Toolkit 2 (MRTK2) efforts spanning ' +
+          'developer workflow, rendering, and platform integration so teams ' +
+          'could build polished mixed reality experiences faster on HoloLens ' +
+          'in both Unity and Unreal Engine 4.\n\n' +
+          'Took learnings from engagements with HoloLens 2 ISVs and turned ' +
+          'their needs into real toolkit features.',
         media: [
           {
             type: 'video',
@@ -89,9 +104,28 @@ const raw: CompanyInput[] = [
         ],
       },
       {
+        slug: 'visual-profiler',
+        title: 'Performance Tooling',
+        accent: '#5dd39e',
+        dates: '2020 – 2026',
+        body:
+          "Built Mesh's Content Performance Analyzer and helped shape " +
+          '[Visual Profiler](https://github.com/microsoft/VisualProfiler-Unity) ' +
+          'capabilities, giving mixed reality developers actionable insight into content ' +
+          'bottlenecks, frame cost, rendering hot spots, and performance tradeoffs.',
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/tO9GrqpmiYk?is=yEuv2fMGsqrYQqxl',
+            alt: 'Visual Profiler demonstration video',
+          },
+        ],
+      },
+      {
         slug: 'graphics-tools',
         title: 'Graphics Tools',
         accent: '#4ec0ff',
+        dates: '2020 – 2026',
         body:
           'Led work on Graphics Tools, delivering production-ready shaders and ' +
           'rendering utilities tuned for the tight performance budgets of ' +
@@ -132,26 +166,10 @@ const raw: CompanyInput[] = [
         ],
       },
       {
-        slug: 'visual-profiler',
-        title: 'Performance Tooling',
-        accent: '#5dd39e',
-        body:
-          "Built Mesh's Content Performance Analyzer and helped shape " +
-          '[Visual Profiler](https://github.com/microsoft/VisualProfiler-Unity) ' +
-          'capabilities, giving mixed reality developers actionable insight into content ' +
-          'bottlenecks, frame cost, rendering hot spots, and performance tradeoffs.',
-        media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/tO9GrqpmiYk?is=yEuv2fMGsqrYQqxl',
-            alt: 'Visual Profiler demonstration video',
-          },
-        ],
-      },
-      {
         slug: 'mesh',
         title: 'Microsoft Mesh & Teams Immersive Events',
         accent: '#4fd1c5',
+        dates: '2020 – 2026',
         body:
           'Contributed to rendering, avatar, scene, and user experience technology for ' +
           'Microsoft Mesh and Teams Immersive Events, bringing shared 3D presence ' +
@@ -176,6 +194,20 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://youtu.be/9jG4cPfjYuQ?is=ODIGWLVsZoGJsa_D',
             alt: 'Teams Immersive Events project video',
+          },
+        ],
+      },
+      {
+        slug: 'secret-project',
+        title: '???',
+        accent: '#9ae6ff',
+        dates: '2026 – Present',
+        body: "It has to do with Teams... but it's a secret.",
+        media: [
+          {
+            type: 'image',
+            src: '/media/microsoft/teams.webp',
+            alt: 'Microsoft Teams logo on a purple gradient background',
           },
         ],
       },
@@ -204,6 +236,10 @@ const raw: CompanyInput[] = [
         accent: '#ffb866',
         dates: '2016',
         body:
+          '**HALP** (Oculus Touch & HTC Vive, UE4) — Stood up a custom ' +
+          'Unreal Engine 4 build to run against prototype ' +
+          'Oculus Touch hardware, and built and maintained the working ' +
+          'relationship with Facebook/Oculus throughout the project.\n\n' +
           '**Virtually Live: Soccer** (HTC Vive, Unity 5 & UE4) — Integrated ' +
           'the SteamVR plugin and built the camera and input ' +
           'system used by designers, keeping the experience above 90fps in ' +
@@ -211,21 +247,17 @@ const raw: CompanyInput[] = [
           'Authored a procedural crowd ' +
           'tool that let the team drop large, varied stadium audiences in ' +
           'place — with automatic texture atlasing, mesh combining, and LOD ' +
-          'handling under the hood.\n\n' +
-          '**HALP** (Oculus Touch & HTC Vive, UE4) — Stood up a custom ' +
-          'Unreal Engine 4 build to run against prototype ' +
-          'Oculus Touch hardware, and built and maintained the working ' +
-          'relationship with Facebook/Oculus throughout the project.',
+          'handling under the hood.',
         media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/A3XenbMHPY8',
-            alt: 'Virtually Live soccer video',
-          },
           {
             type: 'video',
             src: 'https://www.youtube.com/watch?v=oLzqZyqDMOU',
             alt: 'HALP gameplay video',
+          },
+          {
+            type: 'video',
+            src: 'https://youtu.be/A3XenbMHPY8',
+            alt: 'Virtually Live soccer video',
           },
         ],
       },
@@ -260,7 +292,7 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'escape-plan',
-        title: 'Escape Plan & DLC (PS Vita & PS4, Unity 3.x)',
+        title: 'Escape Plan & DLC (PS Vita & PS4, Unity 3)',
         accent: '#ffe1a8',
         dates: '2011',
         body:
@@ -314,7 +346,8 @@ const raw: CompanyInput[] = [
         body:
           'Programmed and scripted gameplay systems on Star Wars: The Force ' +
           'Unleashed II for PlayStation 3 and Xbox 360, with an emphasis on ' +
-          'boss battles.\n\n' +
+          'boss battles, and fixed bugs to prepare the game for shipping ' +
+          'under a tight deadline.\n\n' +
           'Collaborated with the LucasArts Singapore team to ' +
           'fix bugs and ship a polished DLC release.',
         media: [
@@ -375,23 +408,28 @@ const raw: CompanyInput[] = [
         slug: 'hairball',
         title: 'Hairball (iOS & Zune HD)',
         accent: '#b768ff',
+        dates: '2008 – 2013',
         body:
           'Handled every aspect of programming and development. Wrote a ' +
           'proprietary mobile game engine from scratch using OpenGL ES 1.0 ' +
           'and 2.0, OpenAL, and Box2D.\n\n' +
           'One of the first games submitted to ' +
-          'the iTunes App Store in August 2008, then partnered with ' +
-          'Microsoft to port Hairball from iOS to Zune HD using XNA.',
+          'the iTunes App Store in August 2008.\n\n' +
+          'Microsoft reached out about bringing Hairball to Zune HD, so ' +
+          'ported it from iOS using XNA.',
         media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/AaIiTEN6Hzw',
-            alt: 'Hairball gameplay video',
-          },
           {
             type: 'video',
             src: 'https://youtube.com/shorts/vc2ZDdOg7Zw?is=EmNwoELJn3KuEM-2',
             alt: 'Hairball gameplay video',
+            description: 'The first version of Hairball, released in 2008.',
+          },
+          {
+            type: 'video',
+            src: 'https://youtu.be/AaIiTEN6Hzw',
+            alt: 'Hairball gameplay video',
+            description:
+              'The Zune HD version of Hairball, built using XNA in 2010.',
           },
           {
             type: 'image',
@@ -407,18 +445,13 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'snowball',
-        title: 'Snowball (iOS & Zune HD)',
+        title: 'Snowball (iOS)',
         accent: '#c98bff',
         body:
           'Ported Snowball from PC to iOS to sell on the iTunes App Store, ' +
           'where it landed on Apple\u2019s "Featured" page.\n\n' +
           'Collaborated with Zynga on cross-promotion advertisements.',
         media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/DF7fIixZLwM',
-            alt: 'Snowball 2.0 trailer',
-          },
           {
             type: 'image',
             src: '/media/micka-studios/snowball-menu.webp',
