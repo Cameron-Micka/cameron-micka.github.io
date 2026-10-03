@@ -29,9 +29,7 @@ test('Microsoft has separate Graphics Tools stories for Unity and Unreal', () =>
     unity.media.map((media) => media.src),
     [
       'https://youtu.be/rXbkJRhaBqE',
-      '/media/graphics-tools/lighting.webp',
-      '/media/graphics-tools/spatial-perception.webp',
-      '/media/graphics-tools/ui-tooling.webp',
+      '/media/graphics-tools/unity-showcase.webp',
       '/media/graphics-tools/clipping-primitives.webp',
     ],
   );
@@ -40,7 +38,13 @@ test('Microsoft has separate Graphics Tools stories for Unity and Unreal', () =>
   assert.match(unreal.body, /MixedReality-GraphicsTools-Unreal/);
   assert.deepEqual(
     unreal.media.map((media) => media.src),
-    ['https://youtu.be/GfeG_ZFzL1g'],
+    [
+      'https://youtu.be/GfeG_ZFzL1g',
+      '/media/graphics-tools/unreal-lighting.webp',
+      '/media/graphics-tools/unreal-effects.webp',
+      '/media/graphics-tools/unreal-clipping.webp',
+      '/media/graphics-tools/unreal-profiling.webp',
+    ],
   );
   assert.equal(
     microsoft.pois.some((poi) => poi.slug === 'graphics-tools'),
