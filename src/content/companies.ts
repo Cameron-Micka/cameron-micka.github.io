@@ -122,26 +122,20 @@ const raw: CompanyInput[] = [
         ],
       },
       {
-        slug: 'graphics-tools',
-        title: 'Graphics Tools',
+        slug: 'graphics-tools-unity',
+        title: 'Graphics Tools for Unity',
         accent: '#4ec0ff',
         dates: '2020 – 2026',
         body:
-          'Led work on Graphics Tools, delivering production-ready shaders and ' +
+          'Led work on Graphics Tools for Unity, delivering production-ready shaders and ' +
           'rendering utilities tuned for the tight performance budgets of ' +
-          'mobile mixed reality hardware, available for ' +
-          '[Unity](https://github.com/microsoft/MixedReality-GraphicsTools-Unity) and ' +
-          '[Unreal Engine](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal).',
+          'mobile mixed reality hardware through ' +
+          '[Mixed Reality Graphics Tools for Unity](https://github.com/microsoft/MixedReality-GraphicsTools-Unity).',
         media: [
           {
             type: 'video',
             src: 'https://youtu.be/rXbkJRhaBqE',
             alt: 'Graphics Tools for Unity overview',
-          },
-          {
-            type: 'video',
-            src: 'https://youtu.be/GfeG_ZFzL1g',
-            alt: 'Graphics Tools demonstration video',
           },
           {
             type: 'image',
@@ -162,6 +156,24 @@ const raw: CompanyInput[] = [
             type: 'image',
             src: '/media/graphics-tools/clipping-primitives.webp',
             alt: 'Models cut by clipping box, clipping plane, and clipping sphere primitives',
+          },
+        ],
+      },
+      {
+        slug: 'graphics-tools-unreal',
+        title: 'Graphics Tools for Unreal',
+        accent: '#3aa0ff',
+        dates: '2020 – 2026',
+        body:
+          'Led work on Graphics Tools for Unreal, delivering production-ready shaders and ' +
+          'rendering utilities tuned for the tight performance budgets of ' +
+          'mobile mixed reality hardware through ' +
+          '[Mixed Reality Graphics Tools for Unreal](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal).',
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/GfeG_ZFzL1g',
+            alt: 'Graphics Tools for Unreal demonstration video',
           },
         ],
       },
