@@ -16,8 +16,12 @@ after(async () => {
 
 test('Microsoft has separate Graphics Tools stories for Unity and Unreal', () => {
   const microsoft = companies.find((company) => company.slug === 'microsoft');
-  const unity = microsoft.pois.find((poi) => poi.slug === 'graphics-tools-unity');
-  const unreal = microsoft.pois.find((poi) => poi.slug === 'graphics-tools-unreal');
+  const unity = microsoft.pois.find(
+    (poi) => poi.slug === 'graphics-tools-unity',
+  );
+  const unreal = microsoft.pois.find(
+    (poi) => poi.slug === 'graphics-tools-unreal',
+  );
 
   assert.equal(unity.title, 'Graphics Tools for Unity');
   assert.match(unity.body, /MixedReality-GraphicsTools-Unity/);
