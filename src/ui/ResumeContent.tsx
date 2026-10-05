@@ -76,7 +76,12 @@ export function ResumeContent({
                 key={p.slug}
                 id={printOnly ? undefined : `/${c.slug}/${p.slug}`}
               >
-                <h4>{p.title}</h4>
+                <h4>
+                  {p.title}
+                  {p.platforms || p.engine
+                    ? ` (${[p.platforms, p.engine].filter(Boolean).join(' · ')})`
+                    : ''}
+                </h4>
                 <Markdown text={p.body} />
               </section>
             ))}

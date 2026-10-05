@@ -23,6 +23,8 @@ const raw: CompanyInput[] = [
       {
         slug: 'hololens-pocs',
         title: 'HoloLens POCs',
+        platforms: 'HoloLens',
+        engine: 'Unity',
         accent: '#3aa0ff',
         dates: '2016 – 2018',
         body:
@@ -55,7 +57,10 @@ const raw: CompanyInput[] = [
       {
         slug: 'hololens-2-isvs',
         title: 'HoloLens 2 ISVs',
+        platforms: 'HoloLens 2',
+        engine: 'Unity',
         accent: '#7ad6ff',
+        dates: '2018 – 2020',
         body:
           'Partnered with HoloLens 2 independent software vendors to unblock ' +
           'graphics and platform challenges, improve quality, and accelerate ' +
@@ -84,10 +89,75 @@ const raw: CompanyInput[] = [
         ],
       },
       {
+        slug: 'mrtk-unity',
+        title: 'MRTK-Unity',
+        platforms: 'Open Source Toolkit',
+        engine: 'Unity',
+        accent: '#58c4dd',
+        dates: '2018 – 2020',
+        body:
+          'Contributed to ' +
+          '[Mixed Reality Toolkit for Unity (MRTK-Unity)](https://github.com/microsoft/mixedrealitytoolkit-unity), ' +
+          'spanning developer workflow, rendering, and platform integration ' +
+          'so teams could build polished mixed reality experiences faster on ' +
+          'HoloLens.\n\n' +
+          'Took learnings from engagements with HoloLens 2 ISVs and turned ' +
+          'their needs into real toolkit features.',
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/qfONlUCSWdg',
+            alt: 'MRTK-Unity 2.6.0 release overview',
+          },
+        ],
+      },
+      {
+        slug: 'graphics-tools-unreal',
+        title: 'Graphics Tools for Unreal',
+        platforms: 'Open Source Toolkit',
+        engine: 'Unreal Engine',
+        accent: '#3aa0ff',
+        dates: '2020 – 2021',
+        body:
+          'Led work on Graphics Tools for Unreal, delivering production-ready shaders and ' +
+          'rendering utilities tuned for the tight performance budgets of ' +
+          'mobile mixed reality hardware through ' +
+          '[Mixed Reality Graphics Tools for Unreal](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal).',
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/GfeG_ZFzL1g',
+            alt: 'Graphics Tools for Unreal demonstration video',
+          },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/unreal-lighting.webp',
+            alt: 'Unreal material graph using the Graphics Tools default lit function, rendering metallic spheres with varying roughness',
+          },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/unreal-effects.webp',
+            alt: 'Graphics Tools effects including a proximity light, spatial mesh shading, and wireframe materials',
+          },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/unreal-clipping.webp',
+            alt: 'Models cut by clipping plane, sphere, box, and cone primitives',
+          },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/unreal-profiling.webp',
+            alt: 'In-headset profiler showing frame, game, draw, and GPU times against a target frame time',
+          },
+        ],
+      },
+      {
         slug: 'mrtk-unreal',
         title: 'MRTK-Unreal',
+        platforms: 'Open Source Toolkit',
+        engine: 'Unreal Engine',
         accent: '#6fa8ff',
-        dates: '2018 – 2020',
+        dates: '2020 – 2021',
         body:
           'Contributed to ' +
           '[Mixed Reality Toolkit for Unreal (MRTK-Unreal)](https://github.com/microsoft/MixedRealityToolkit-Unreal), ' +
@@ -123,102 +193,12 @@ const raw: CompanyInput[] = [
         ],
       },
       {
-        slug: 'mrtk-unity',
-        title: 'MRTK-Unity',
-        accent: '#58c4dd',
-        dates: '2018 – 2020',
-        body:
-          'Contributed to ' +
-          '[Mixed Reality Toolkit for Unity (MRTK-Unity)](https://github.com/microsoft/mixedrealitytoolkit-unity), ' +
-          'spanning developer workflow, rendering, and platform integration ' +
-          'so teams could build polished mixed reality experiences faster on ' +
-          'HoloLens.\n\n' +
-          'Took learnings from engagements with HoloLens 2 ISVs and turned ' +
-          'their needs into real toolkit features.',
-        media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/qfONlUCSWdg',
-            alt: 'MRTK-Unity 2.6.0 release overview',
-          },
-        ],
-      },
-      {
-        slug: 'visual-profiler',
-        title: 'Performance Tooling',
-        accent: '#5dd39e',
-        dates: '2020 – 2026',
-        body:
-          "Built Mesh's Content Performance Analyzer and created and maintain " +
-          'the [Visual Profiler](https://github.com/microsoft/VisualProfiler-Unity) ' +
-          'repo, giving mixed reality developers actionable insight into content ' +
-          'bottlenecks, frame cost, rendering hot spots, and performance tradeoffs.',
-        media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/tO9GrqpmiYk?is=yEuv2fMGsqrYQqxl',
-            alt: 'Visual Profiler demonstration video',
-          },
-          {
-            type: 'video',
-            src: 'https://youtu.be/pbe3mx_bFTA',
-            alt: 'Content Performance Analyzer demonstration video',
-          },
-          {
-            type: 'image',
-            src: '/media/microsoft/visual-profiler-guide.webp',
-            alt: 'Annotated Visual Profiler guide explaining frame rate, frame history, draw calls, vertex count, and memory usage',
-          },
-          {
-            type: 'image',
-            src: '/media/microsoft/content-performance-analyzer.webp',
-            alt: 'Content Performance Analyzer window in Unity listing passed, warning, and failed analyzers with suggested fixes',
-          },
-        ],
-      },
-      {
-        slug: 'graphics-tools-unreal',
-        title: 'Graphics Tools for Unreal',
-        accent: '#3aa0ff',
-        dates: '2020 – 2026',
-        body:
-          'Led work on Graphics Tools for Unreal, delivering production-ready shaders and ' +
-          'rendering utilities tuned for the tight performance budgets of ' +
-          'mobile mixed reality hardware through ' +
-          '[Mixed Reality Graphics Tools for Unreal](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal).',
-        media: [
-          {
-            type: 'video',
-            src: 'https://youtu.be/GfeG_ZFzL1g',
-            alt: 'Graphics Tools for Unreal demonstration video',
-          },
-          {
-            type: 'image',
-            src: '/media/graphics-tools/unreal-lighting.webp',
-            alt: 'Unreal material graph using the Graphics Tools default lit function, rendering metallic spheres with varying roughness',
-          },
-          {
-            type: 'image',
-            src: '/media/graphics-tools/unreal-effects.webp',
-            alt: 'Graphics Tools effects including a proximity light, spatial mesh shading, and wireframe materials',
-          },
-          {
-            type: 'image',
-            src: '/media/graphics-tools/unreal-clipping.webp',
-            alt: 'Models cut by clipping plane, sphere, box, and cone primitives',
-          },
-          {
-            type: 'image',
-            src: '/media/graphics-tools/unreal-profiling.webp',
-            alt: 'In-headset profiler showing frame, game, draw, and GPU times against a target frame time',
-          },
-        ],
-      },
-      {
         slug: 'graphics-tools-unity',
         title: 'Graphics Tools for Unity',
+        platforms: 'Open Source Toolkit',
+        engine: 'Unity',
         accent: '#4ec0ff',
-        dates: '2020 – 2026',
+        dates: '2021 – 2026',
         body:
           'Led work on Graphics Tools for Unity, delivering production-ready shaders and ' +
           'rendering utilities tuned for the tight performance budgets of ' +
@@ -243,10 +223,82 @@ const raw: CompanyInput[] = [
         ],
       },
       {
+        slug: 'visual-profiler',
+        title: 'Performance Tooling',
+        platforms: 'Open Source Toolkit',
+        engine: 'Unity',
+        accent: '#5dd39e',
+        dates: '2017 – 2026',
+        body:
+          "Built Mesh's Content Performance Analyzer and created and maintain " +
+          'the [Visual Profiler](https://github.com/microsoft/VisualProfiler-Unity) ' +
+          'repo, giving mixed reality developers actionable insight into content ' +
+          'bottlenecks, frame cost, rendering hot spots, and performance tradeoffs.',
+        media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/tO9GrqpmiYk?is=yEuv2fMGsqrYQqxl',
+            alt: 'Visual Profiler demonstration video',
+            description: 'Overview of profiling tools in the Mesh Toolkit.',
+          },
+          {
+            type: 'video',
+            src: 'https://youtu.be/pbe3mx_bFTA',
+            alt: 'Content Performance Analyzer demonstration video',
+          },
+          {
+            type: 'image',
+            src: '/media/microsoft/visual-profiler-guide.webp',
+            alt: 'Annotated Visual Profiler guide explaining frame rate, frame history, draw calls, vertex count, and memory usage',
+          },
+          {
+            type: 'image',
+            src: '/media/microsoft/content-performance-analyzer.webp',
+            alt: 'Content Performance Analyzer window in Unity listing passed, warning, and failed analyzers with suggested fixes',
+          },
+        ],
+      },
+      {
+        slug: 'mesh-toolkit',
+        title: 'Microsoft Mesh Toolkit',
+        engine: 'Unity',
+        accent: '#38b2ac',
+        body:
+          'Led the team that built all of the samples in the ' +
+          '[Mesh Toolkit](https://github.com/microsoft/mesh-toolkit-unity) ' +
+          'repo — tutorial and sample projects that give creators a starting ' +
+          'point for building custom 3D environments and experiences in ' +
+          'Microsoft Mesh.',
+        media: [
+          {
+            type: 'image',
+            src: '/media/microsoft/mesh-campfire.webp',
+            alt: 'Mesh campfire social activity with a fire pit and marshmallow sticks in a pavilion',
+          },
+          {
+            type: 'image',
+            src: '/media/microsoft/mesh-icebreaker.webp',
+            alt: 'Mesh pavilion with Ice Breaker conversation spheres, a radio, and a screen share station',
+          },
+          {
+            type: 'image',
+            src: '/media/microsoft/mesh-beanbag-toss.webp',
+            alt: 'Mesh beanbag toss game demonstrating throwable interactables',
+          },
+          {
+            type: 'image',
+            src: '/media/microsoft/mesh-physics.webp',
+            alt: 'Mesh Physics gravity demo with planets floating in a pavilion',
+          },
+        ],
+      },
+      {
         slug: 'mesh',
         title: 'Microsoft Mesh & Teams Immersive Events',
+        platforms: 'Windows, Web & Meta Quest',
+        engine: 'Unity',
         accent: '#4fd1c5',
-        dates: '2020 – 2026',
+        dates: '2021 – 2026',
         body:
           'Contributed to rendering, avatar, scene, and user experience technology for ' +
           'Microsoft Mesh and Teams Immersive Events, bringing shared 3D presence ' +
@@ -271,26 +323,6 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://youtu.be/9jG4cPfjYuQ?is=ODIGWLVsZoGJsa_D',
             alt: 'Teams Immersive Events project video',
-          },
-          {
-            type: 'image',
-            src: '/media/microsoft/mesh-campfire.webp',
-            alt: 'Mesh campfire social activity with a fire pit and marshmallow sticks in a pavilion',
-          },
-          {
-            type: 'image',
-            src: '/media/microsoft/mesh-icebreaker.webp',
-            alt: 'Mesh pavilion with Ice Breaker conversation spheres, a radio, and a screen share station',
-          },
-          {
-            type: 'image',
-            src: '/media/microsoft/mesh-beanbag-toss.webp',
-            alt: 'Mesh beanbag toss game demonstrating throwable interactables',
-          },
-          {
-            type: 'image',
-            src: '/media/microsoft/mesh-physics.webp',
-            alt: 'Mesh Physics gravity demo with planets floating in a pavilion',
           },
         ],
       },
@@ -346,7 +378,9 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'fat-princess-adventures',
-        title: 'Fat Princess Adventures & DLC (PS4, C4 Engine)',
+        title: 'Fat Princess Adventures & DLC',
+        platforms: 'PS4',
+        engine: 'C4 Engine',
         accent: '#ff9f43',
         dates: '2012 – 2015',
         body:
@@ -380,7 +414,9 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'escape-plan',
-        title: 'Escape Plan & DLC (PS Vita & PS4, Unity 3)',
+        title: 'Escape Plan & DLC',
+        platforms: 'PS Vita & PS4',
+        engine: 'Unity 3 (Custom Port)',
         accent: '#ffe1a8',
         dates: '2011',
         body:
@@ -429,6 +465,8 @@ const raw: CompanyInput[] = [
       {
         slug: 'force-unleashed-ii',
         title: 'The Force Unleashed II & DLC',
+        platforms: 'PS3 & X360',
+        engine: 'Ronin Engine',
         accent: '#e6c35c',
         dates: '2010',
         body:
@@ -453,7 +491,9 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'ronin-engine-tools',
-        title: 'Ronin Engine Tools & Telemetry',
+        title: 'Tools & Telemetry',
+        platforms: 'PS3 & X360',
+        engine: 'Ronin Engine',
         accent: '#fff1c1',
         dates: '2009',
         body:
@@ -495,7 +535,9 @@ const raw: CompanyInput[] = [
     pois: [
       {
         slug: 'hairball',
-        title: 'Hairball (iOS & Zune HD)',
+        title: 'Hairball',
+        platforms: 'iOS',
+        engine: 'Custom Engine',
         accent: '#b768ff',
         dates: '2008 – 2013',
         body:
@@ -504,10 +546,7 @@ const raw: CompanyInput[] = [
           '(later 2.0), OpenAL, and Box2D.\n\n' +
           'Submitted to the iTunes App Store in August 2008 — just weeks ' +
           'after it opened — making Hairball one of the very first games on ' +
-          'the platform, at the dawn of the mobile gaming era.\n\n' +
-          'Microsoft then reached out to bring Hairball to the Zune HD, ' +
-          'leading to a port from iOS to XNA that took the game to a second ' +
-          'mobile platform.',
+          'the platform, at the dawn of the mobile gaming era.',
         media: [
           {
             type: 'video',
@@ -519,19 +558,7 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://youtube.com/shorts/hUBL8_sYVQI?si=vKI0Gbj-D_CGLf3L',
             alt: 'Hairball for iOS gameplay video',
-            description: 'Hairball gameplay on iOS.',
-          },
-          {
-            type: 'video',
-            src: 'https://youtu.be/AaIiTEN6Hzw',
-            alt: 'Hairball gameplay video',
-            description:
-              'The Zune HD version of Hairball, built using XNA in 2010.',
-          },
-          {
-            type: 'image',
-            src: '/media/micka-studios/hairball-character-select.webp',
-            alt: 'Hairball character selection screen showing Hairball, Metaball, Oddball, Flappyball, Appleball, and Snowball',
+            description: 'The updated version of Hairball, released in 2014.',
           },
           {
             type: 'image',
@@ -540,8 +567,8 @@ const raw: CompanyInput[] = [
           },
           {
             type: 'image',
-            src: '/media/micka-studios/hairball-game-over.webp',
-            alt: 'Hairball game over screen showing a final score of 222 and a high score of 1796',
+            src: '/media/micka-studios/hairball-character-select.webp',
+            alt: 'Hairball character selection screen showing Hairball, Metaball, Oddball, Flappyball, Appleball, and Snowball',
           },
           {
             type: 'image',
@@ -550,13 +577,29 @@ const raw: CompanyInput[] = [
           },
           {
             type: 'image',
-            src: '/media/micka-studios/hairball-gameplay.webp',
-            alt: 'Hairball gameplay on an iPhone showing a fuzzy ball bouncing between wooden platforms',
+            src: '/media/micka-studios/hairball-game-over.webp',
+            alt: 'Hairball game over screen showing a final score of 222 and a high score of 1796',
           },
+        ],
+      },
+      {
+        slug: 'hairball-zune-hd',
+        title: 'Hairball for Zune HD',
+        platforms: 'Zune HD',
+        engine: 'XNA',
+        accent: '#9d5cff',
+        dates: '2010',
+        body:
+          'Microsoft reached out to bring Hairball to the Zune HD, leading ' +
+          'to a port from iOS to XNA that took the game to a second mobile ' +
+          'platform.',
+        media: [
           {
-            type: 'image',
-            src: '/media/micka-studios/hairball-menu.webp',
-            alt: 'Hairball title screen with Start, How to play, and Quit buttons on an iPhone held in a hand',
+            type: 'video',
+            src: 'https://youtu.be/AaIiTEN6Hzw',
+            alt: 'Hairball gameplay video',
+            description:
+              'The Zune HD version of Hairball, built using XNA in 2010.',
           },
           {
             type: 'image',
@@ -567,7 +610,9 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'snowball',
-        title: 'Snowball (iOS)',
+        title: 'Snowball',
+        platforms: 'iOS',
+        engine: 'Custom Engine',
         accent: '#c98bff',
         body:
           'Ported Snowball from PC to iOS to sell on the iTunes App Store, ' +
@@ -589,7 +634,9 @@ const raw: CompanyInput[] = [
       },
       {
         slug: 'iventure-hd',
-        title: 'iVenture HD (iOS)',
+        title: 'iVenture HD',
+        platforms: 'iOS',
+        engine: 'Custom Engine',
         accent: '#d9b3ff',
         dates: '2010',
         body:
@@ -650,6 +697,8 @@ const raw: CompanyInput[] = [
       {
         slug: 'video-game-creation-extreme',
         title: 'Video Game Creation Extreme',
+        platforms: 'Windows',
+        engine: 'Torque Game Builder',
         accent: '#ff7a6a',
         body:
           'Instructed "Video Game Creation Extreme," teaching the Torque game ' +
@@ -686,6 +735,8 @@ const raw: CompanyInput[] = [
       {
         slug: 'student-games',
         title: 'Student Game Projects',
+        platforms: 'Windows, Wii & Game Boy Advance',
+        engine: 'Custom Engine',
         accent: '#4fe08a',
         body:
           'Earned a Bachelor of Science in Computer Science with a minor in ' +

@@ -19,6 +19,10 @@ export const poiSchema = z.object({
   // Optional date label (e.g. "2010") shown instead of the company's tenure
   // when a project spans only part of it.
   dates: z.string().optional(),
+  // Optional platforms (e.g. "PS Vita & PS4") and engine (e.g. "Unity 3")
+  // shown beneath the company and date line in the POI modal.
+  platforms: z.string().optional(),
+  engine: z.string().optional(),
   media: z.array(mediaSchema).default([]),
 });
 

@@ -397,6 +397,13 @@ export function PoiModal({ companies }: { companies: Company[] }) {
                         {entry.company.name} ·{' '}
                         {entry.poi.dates ??
                           tenureLabel(entry.company.start, entry.company.end)}
+                        {(entry.poi.platforms || entry.poi.engine) && (
+                          <span className="story-platforms">
+                            {[entry.poi.platforms, entry.poi.engine]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        )}
                       </p>
                       <Markdown text={entry.poi.body} />
                     </div>

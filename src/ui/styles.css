@@ -1340,6 +1340,9 @@ main:focus {
   color: var(--muted);
   font: 11px/1.6 var(--font);
 }
+.modal.poi-modal .story-platforms {
+  display: block;
+}
 .modal.poi-modal .modal-header .modal-actions {
   --focus: var(--accent-ink);
   position: static;
