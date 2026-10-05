@@ -517,10 +517,36 @@ const raw: CompanyInput[] = [
           },
           {
             type: 'video',
+            src: 'https://youtube.com/shorts/hUBL8_sYVQI?si=vKI0Gbj-D_CGLf3L',
+            alt: 'Hairball for iOS gameplay video',
+            description: 'Hairball gameplay on iOS.',
+          },
+          {
+            type: 'video',
             src: 'https://youtu.be/AaIiTEN6Hzw',
             alt: 'Hairball gameplay video',
             description:
               'The Zune HD version of Hairball, built using XNA in 2010.',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/hairball-character-select.webp',
+            alt: 'Hairball character selection screen showing Hairball, Metaball, Oddball, Flappyball, Appleball, and Snowball',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/hairball-title-screen.webp',
+            alt: 'Hairball title screen with the main play, help, appearance, and character selection buttons',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/hairball-game-over.webp',
+            alt: 'Hairball game over screen showing a final score of 222 and a high score of 1796',
+          },
+          {
+            type: 'image',
+            src: '/media/micka-studios/hairball-ipad-gameplay.webp',
+            alt: 'Hairball gameplay showing the fuzzy character jumping between wooden platforms',
           },
           {
             type: 'image',
