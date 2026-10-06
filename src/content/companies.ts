@@ -290,6 +290,11 @@ const raw: CompanyInput[] = [
             src: '/media/microsoft/mesh-physics.webp',
             alt: 'Mesh Physics gravity demo with planets floating in a pavilion',
           },
+          {
+            type: 'video',
+            src: 'https://youtu.be/Owq4kHLIVsw?is=6I-jTo_Pdogfsgbo',
+            alt: 'Microsoft Mesh project video',
+          },
         ],
       },
       {
@@ -313,16 +318,6 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://youtu.be/esBzumV_59Q?is=q3QIkV73tt1w8-zA',
             alt: 'Microsoft Mesh project video',
-          },
-          {
-            type: 'video',
-            src: 'https://youtu.be/Owq4kHLIVsw?is=6I-jTo_Pdogfsgbo',
-            alt: 'Microsoft Mesh project video',
-          },
-          {
-            type: 'video',
-            src: 'https://youtu.be/9jG4cPfjYuQ?is=ODIGWLVsZoGJsa_D',
-            alt: 'Teams Immersive Events project video',
           },
         ],
       },
