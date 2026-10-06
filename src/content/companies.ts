@@ -44,11 +44,6 @@ const raw: CompanyInput[] = [
           },
           {
             type: 'image',
-            src: '/media/microsoft/launch-vector-labs.webp',
-            alt: 'Launch Vector Labs logo printed on the back of a Microsoft Surface device',
-          },
-          {
-            type: 'image',
             src: '/media/microsoft/hololens-demo-event.webp',
             alt: 'An attendee wearing a HoloLens during a demo at a Microsoft event',
           },
