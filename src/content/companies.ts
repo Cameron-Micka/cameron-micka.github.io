@@ -292,7 +292,7 @@ const raw: CompanyInput[] = [
           },
           {
             type: 'video',
-            src: 'https://youtu.be/Owq4kHLIVsw?is=6I-jTo_Pdogfsgbo',
+            src: 'https://youtu.be/Q5LUtwjobgA?is=DzBl65edf8Ww2rB9',
             alt: 'Microsoft Mesh project video',
           },
         ],
