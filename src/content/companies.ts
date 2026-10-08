@@ -114,7 +114,7 @@ const raw: CompanyInput[] = [
         accent: '#3aa0ff',
         dates: '2020 – 2021',
         body:
-          'Led work on Graphics Tools for Unreal, delivering production-ready shaders and ' +
+          'Led and maintained Graphics Tools for Unreal, delivering production-ready shaders and ' +
           'rendering utilities tuned for the tight performance budgets of ' +
           'mobile mixed reality hardware through ' +
           '[Mixed Reality Graphics Tools for Unreal](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal).',
@@ -589,7 +589,7 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/AaIiTEN6Hzw',
             alt: 'Hairball gameplay video',
             description:
-              'The Zune HD version of Hairball, built using XNA in 2010.',
+              'The Zune HD version of Hairball, released in 2010.',
           },
           {
             type: 'image',
