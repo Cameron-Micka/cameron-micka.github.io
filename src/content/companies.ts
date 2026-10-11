@@ -303,7 +303,7 @@ const raw: CompanyInput[] = [
           'United States and Nigeria that helped build the tutorials and ' +
           'samples in the ' +
           '[Mesh Toolkit](https://github.com/microsoft/mesh-toolkit-unity), ' +
-          'including Mesh 101 and 201 and the Pavilion. They give creators ' +
+          'including Mesh 101 and 201 and the Pavilion. They gave creators ' +
           'starting points for custom onboarding, training, guided tours, ' +
           'and social gatherings in Microsoft Mesh.\n\n' +
           'Also integrated the Content Performance Analyzer and Visual ' +
