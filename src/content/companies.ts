@@ -547,7 +547,7 @@ const raw: CompanyInput[] = [
         accent: '#fff1c1',
         dates: '2009',
         body:
-          'As an intern on The Force Unleashed I & II, built a networked ' +
+          'As an intern on The Force Unleashed I, built a networked ' +
           'gameplay data logging system, a heat-map generator, and a ' +
           'gameplay replay system, and tracked down sources of ' +
           'non-determinism in Ronin, LucasArts\u2019 proprietary game ' +
