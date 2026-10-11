@@ -464,6 +464,7 @@ export function instanceFromModel(
     cityLights: f.cityLights,
     flowMap: f.flowMap,
     aurora: f.aurora,
+    craters: f.craters,
     cloudTime,
     moons: model.moonSpecs.map((m) => ({
       seed: m.seed,

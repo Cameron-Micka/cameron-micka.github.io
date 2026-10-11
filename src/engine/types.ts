@@ -59,6 +59,8 @@ export interface PlanetInstance {
   // When true, an additive emissive shell above the atmosphere paints animated
   // auroral curtains over both poles (see aurora shader).
   aurora: boolean;
+  // When true, exposed land gets meteorite impact craters (planet shader).
+  craters: boolean;
   // Per-planet time used by cloud rotation (planet body cloud-shadow sampling
   // + cloud shell). Eases to a halt when the planet's spin is paused (e.g.
   // user just orbited it) so clouds visibly slow with the surface instead of
