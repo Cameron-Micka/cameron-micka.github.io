@@ -860,7 +860,7 @@ const raw: CompanyInput[] = [
       'and in print advertising.',
     seed: 'screen-actors-guild-spotlight',
     palette: { low: '#2a0a12', mid: '#b8323f', high: '#ffd98a' },
-    features: { rings: true, thinRing: true, ringTilt: 0.3, moons: 2 },
+    features: { rings: true, thinRing: true, ringTilt: 0.3, cityLights: true, moons: 2 },
     pois: [
       {
         slug: 'the-sixth-sense',
