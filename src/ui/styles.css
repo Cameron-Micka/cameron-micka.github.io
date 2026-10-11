@@ -896,7 +896,6 @@ main:focus {
   text-shadow: var(--text-glow);
 }
 .ribbon-readout {
-  --focus: var(--phosphor);
   min-width: 0;
   min-height: 84px;
   padding: 8px 16px;
@@ -907,8 +906,12 @@ main:focus {
 .ribbon-readout:disabled {
   cursor: default;
 }
-.ribbon-readout:hover:not(:disabled) {
+.ribbon-readout:hover:not(:disabled),
+.ribbon-readout:focus-visible {
   border-color: var(--muted);
+}
+.ribbon-readout:focus-visible {
+  outline: none;
 }
 .ribbon-identity {
   display: flex;
