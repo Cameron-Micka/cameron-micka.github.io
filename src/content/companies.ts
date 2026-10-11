@@ -52,6 +52,11 @@ const raw: CompanyInput[] = [
             src: '/media/microsoft/hololens-demo-event.webp',
             alt: 'An attendee wearing a HoloLens during a demo at a Microsoft event',
           },
+          {
+            type: 'image',
+            src: '/media/microsoft/hololens-pocs-team.webp',
+            alt: 'Five team members standing in front of a large Microsoft logo sign outside a striped event tent',
+          },
         ],
       },
       {
@@ -446,6 +451,11 @@ const raw: CompanyInput[] = [
             src: '/media/fun-bits/fat-princess-adventures-cosplay.webp',
             alt: 'A Fat Princess cosplayer holding a cake beside players at the Fat Princess Adventures demo stations',
           },
+          {
+            type: 'image',
+            src: '/media/fun-bits/fat-princess-adventures-team-party.webp',
+            alt: 'Fun Bits team members in party props and feather boas lifting a teammate at a studio celebration',
+          },
         ],
       },
       {
@@ -470,6 +480,11 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://www.youtube.com/embed/c10vfQtNzjI',
             alt: 'Escape Plan PS Vita trailer',
+          },
+          {
+            type: 'image',
+            src: '/media/fun-bits/escape-plan-team.webp',
+            alt: 'The Fun Bits Interactive team posing on a rooftop in downtown Seattle',
           },
         ],
       }
