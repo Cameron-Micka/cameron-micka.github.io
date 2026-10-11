@@ -64,8 +64,8 @@ export const companySchema = z.object({
     // Extra tilt (radians) applied to the second ring, relative to the
     // primary ring's plane. Only used when `secondRing` is true.
     secondRingTilt: z.number().default(1.1),
-    // When true, the ring's bands are tinted with vivid spectral colors
-    // instead of the muted ice/dust palette.
+    // When true, the ring is tinted with a muted shade of the planet palette
+    // instead of the default ice/dust colors.
     coloredRings: z.boolean().default(false),
     // When true, low-elevation terrain is rendered as smooth water with
     // depth-graded blue and a tight specular highlight, instead of the

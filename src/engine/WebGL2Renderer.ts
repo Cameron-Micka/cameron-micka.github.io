@@ -1038,10 +1038,11 @@ void main(){
   vec3 pal01=mix(uLow,uMid,smoothstep(0.0,0.55,density));
   vec3 paletteCol=mix(pal01,uHigh,smoothstep(0.50,1.0,density));
   vec3 baseCol0=mix(saturnCol,paletteCol,mix(0.12,0.75,isThin));
-  // Colored rings: vivid spectral bands, matching ring.wgsl.
-  float hue=t*1.25+h1;
-  vec3 spectral=0.5+0.5*cos(6.2831853*(vec3(hue)+vec3(0.0,0.33,0.67)));
-  vec3 coloredCol=spectral*(0.45+0.55*ice);
+  // Colored rings: muted planet-palette tint, matching ring.wgsl.
+  vec3 tint=mix(uMid,uHigh,smoothstep(0.35,0.95,ice));
+  float tintLum=dot(tint,vec3(0.299,0.587,0.114));
+  vec3 muted=mix(vec3(tintLum),tint,0.5);
+  vec3 coloredCol=mix(saturnCol,muted*(0.6+0.4*ice),0.7);
   vec3 baseCol=mix(baseCol0,coloredCol,uColored);
   // Optical depth controls opacity; macro gaps remain transparent at grazing angles.
   vec3 N=normalize((uModel*vec4(0.0,1.0,0.0,0.0)).xyz);
