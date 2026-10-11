@@ -52,6 +52,24 @@ test('Microsoft has separate Graphics Tools stories for Unity and Unreal', () =>
   );
 });
 
+test('Screen Actors Guild is the oldest planet with its five POIs', () => {
+  assert.equal(companies[0].slug, 'screen-actors-guild');
+  const sag = companies[0];
+  assert.equal(sag.name, 'Screen Actors Guild');
+  assert.equal(sag.start, '1988');
+  assert.equal(sag.end, '2004');
+  assert.deepEqual(
+    sag.pois.map((poi) => poi.title),
+    [
+      'The Sixth Sense',
+      'Beloved',
+      'Broadway Brawler',
+      'TV Commercials',
+      'Print Work',
+    ],
+  );
+});
+
 test('Volunteering planet follows DigiPen with its three POIs', () => {
   const slugs = companies.map((company) => company.slug);
   assert.equal(slugs.indexOf('volunteering'), slugs.indexOf('digipen') - 1);
