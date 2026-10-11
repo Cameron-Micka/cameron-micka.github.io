@@ -173,11 +173,12 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let pal01 = mix(obj.palLow.rgb, obj.palMid.rgb, smoothstep(0.0, 0.55, density));
   let paletteCol = mix(pal01, obj.palHigh.rgb, smoothstep(0.50, 1.0, density));
   let baseCol0 = mix(saturnCol, paletteCol, mix(0.12, 0.75, isThin));
-  // Colored rings (obj.p1.y): vivid spectral bands across the disk, offset
-  // per planet by the seed and shaded by the ringlet density.
-  let hue = t * 1.25 + h1;
-  let spectral = 0.5 + 0.5 * cos(6.2831853 * (vec3<f32>(hue) + vec3<f32>(0.0, 0.33, 0.67)));
-  let coloredCol = spectral * (0.45 + 0.55 * ice);
+  // Colored rings (obj.p1.y): a muted tint drawn from the planet's own
+  // mid/high palette, desaturated toward its luminance and shaded by ice.
+  let tint = mix(obj.palMid.rgb, obj.palHigh.rgb, smoothstep(0.35, 0.95, ice));
+  let tintLum = dot(tint, vec3<f32>(0.299, 0.587, 0.114));
+  let muted = mix(vec3<f32>(tintLum), tint, 0.5);
+  let coloredCol = mix(saturnCol, muted * (0.6 + 0.4 * ice), 0.7);
   let baseCol = mix(baseCol0, coloredCol, obj.p1.y);
 
   // Optical depth increases at grazing view angles. Keep gaps as coverage

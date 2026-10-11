@@ -50,7 +50,7 @@ export interface PlanetInstance {
   // ring, rotated by `secondRingTilt` radians about a perpendicular axis.
   secondRing: boolean;
   secondRingTilt: number;
-  // When true, ring bands use vivid spectral colors (see ring shader).
+  // When true, rings use a muted planet-palette tint (see ring shader).
   coloredRings: boolean;
   oceans: boolean;
   clouds: boolean;
