@@ -459,6 +459,7 @@ export function instanceFromModel(
     thinRing: f.thinRing,
     secondRing: f.secondRing,
     secondRingTilt: f.secondRingTilt,
+    coloredRings: f.coloredRings,
     oceans: f.oceans,
     clouds: f.clouds,
     cityLights: f.cityLights,

@@ -958,7 +958,7 @@ out vec4 frag;
 uniform mat4 uModel;
 uniform vec3 uCamera;uniform vec3 uLight;
 uniform vec3 uSunColor;
-uniform float uSeed;uniform float uThin;uniform float uFocus;
+uniform float uSeed;uniform float uThin;uniform float uFocus;uniform float uColored;
 uniform vec3 uLow;uniform vec3 uMid;uniform vec3 uHigh;
 uniform int uShadowCount;uniform vec4 uShadowSpheres[8];
 float hash1(float p){return fract(sin(p*127.1)*43758.5453);}
@@ -1037,7 +1037,12 @@ void main(){
   vec3 saturnCol=mix(vec3(0.32,0.25,0.17),vec3(0.88,0.82,0.68),ice);
   vec3 pal01=mix(uLow,uMid,smoothstep(0.0,0.55,density));
   vec3 paletteCol=mix(pal01,uHigh,smoothstep(0.50,1.0,density));
-  vec3 baseCol=mix(saturnCol,paletteCol,mix(0.12,0.75,isThin));
+  vec3 baseCol0=mix(saturnCol,paletteCol,mix(0.12,0.75,isThin));
+  // Colored rings: vivid spectral bands, matching ring.wgsl.
+  float hue=t*1.25+h1;
+  vec3 spectral=0.5+0.5*cos(6.2831853*(vec3(hue)+vec3(0.0,0.33,0.67)));
+  vec3 coloredCol=spectral*(0.45+0.55*ice);
+  vec3 baseCol=mix(baseCol0,coloredCol,uColored);
   // Optical depth controls opacity; macro gaps remain transparent at grazing angles.
   vec3 N=normalize((uModel*vec4(0.0,1.0,0.0,0.0)).xyz);
   vec3 L=normalize(uLight);
@@ -1942,7 +1947,7 @@ export class WebGL2Renderer implements SceneRenderer {
     ]);
     this.ring = this.makeProgram(RING_VERT, RING_FRAG, [
       'uViewProj', 'uModel', 'uCamera', 'uLight', 'uSunColor', 'uLow', 'uMid', 'uHigh',
-      'uSeed', 'uThin', 'uFocus',
+      'uSeed', 'uThin', 'uFocus', 'uColored',
       'uShadowCount', 'uShadowSpheres[0]',
     ]);
     this.flight = this.makeProgram(FLIGHT_VERT, FLIGHT_FRAG, [
@@ -2936,6 +2941,7 @@ export class WebGL2Renderer implements SceneRenderer {
             gl.uniform3fv(this.ring.uniforms.uHigh!, p.paletteHigh);
             gl.uniform1f(this.ring.uniforms.uSeed!, (p.seed + r * 7919) % 100000);
             gl.uniform1f(this.ring.uniforms.uThin!, p.thinRing ? 1 : 0);
+            gl.uniform1f(this.ring.uniforms.uColored!, p.coloredRings ? 1 : 0);
             gl.uniform1f(this.ring.uniforms.uFocus!, p.focus);
             gl.drawElements(gl.TRIANGLES, this.ringCount, ringIdxType, 0);
             this.stats.triangles += this.ringCount / 3;
