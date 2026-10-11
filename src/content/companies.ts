@@ -49,11 +49,6 @@ const raw: CompanyInput[] = [
           },
           {
             type: 'image',
-            src: '/media/microsoft/launch-vector-labs.webp',
-            alt: 'Launch Vector Labs logo printed on the back of a Microsoft Surface device',
-          },
-          {
-            type: 'image',
             src: '/media/microsoft/hololens-demo-event.webp',
             alt: 'An attendee wearing a HoloLens during a demo at a Microsoft event',
           },
@@ -132,7 +127,7 @@ const raw: CompanyInput[] = [
         accent: '#3aa0ff',
         dates: '2020 – 2021',
         body:
-          'Led development of ' +
+          'Led and maintained ' +
           '[Mixed Reality Graphics Tools for Unreal](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal), ' +
           'giving Unreal developers production-ready shaders, blueprints, ' +
           'and examples tuned for the tight performance budgets of mobile ' +
@@ -312,11 +307,6 @@ const raw: CompanyInput[] = [
           'below).',
         media: [
           {
-            type: 'video',
-            src: 'https://youtu.be/Owq4kHLIVsw?is=6I-jTo_Pdogfsgbo',
-            alt: 'Mesh 101: move objects and trigger animations',
-          },
-          {
             type: 'image',
             src: '/media/microsoft/mesh-campfire.webp',
             alt: 'Mesh campfire social activity with a fire pit and marshmallow sticks in a pavilion',
@@ -335,6 +325,11 @@ const raw: CompanyInput[] = [
             type: 'image',
             src: '/media/microsoft/mesh-physics.webp',
             alt: 'Mesh Physics gravity demo with planets floating in a pavilion',
+          },
+          {
+            type: 'video',
+            src: 'https://youtu.be/Q5LUtwjobgA?is=DzBl65edf8Ww2rB9',
+            alt: 'Creating immersive 3D solutions with Microsoft Mesh',
           },
         ],
       },
@@ -364,11 +359,6 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://youtu.be/esBzumV_59Q?is=q3QIkV73tt1w8-zA',
             alt: 'How to explore immersive spaces in Microsoft Teams',
-          },
-          {
-            type: 'video',
-            src: 'https://youtu.be/9jG4cPfjYuQ?is=ODIGWLVsZoGJsa_D',
-            alt: 'Introducing the new Microsoft Teams events experience',
           },
         ],
       },
@@ -645,7 +635,7 @@ const raw: CompanyInput[] = [
             src: 'https://youtu.be/AaIiTEN6Hzw',
             alt: 'Hairball gameplay video',
             description:
-              'The Zune HD version of Hairball, built using XNA in 2010.',
+              'The Zune HD version of Hairball, released in 2010.',
           },
           {
             type: 'image',
