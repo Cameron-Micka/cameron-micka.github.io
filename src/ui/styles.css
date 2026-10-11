@@ -2078,6 +2078,7 @@ main:focus {
   scroll-snap-type: x mandatory;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
+  outline: none;
 }
 .lightbox-carousel::-webkit-scrollbar {
   display: none;
