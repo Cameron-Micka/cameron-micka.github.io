@@ -837,6 +837,56 @@ const raw: CompanyInput[] = [
       },
     ],
   },
+  {
+    slug: 'volunteering',
+    name: 'Volunteering',
+    role: 'Community Volunteer',
+    start: '2010',
+    end: null,
+    location: 'Puget Sound, WA',
+    summary:
+      'Giving back outside of work — teaching kids tennis and soccer, and ' +
+      'helping maintain the hiking trails around Washington State.',
+    seed: 'volunteering-community',
+    palette: { low: '#3a2a08', mid: '#c9932a', high: '#ffe08a' },
+    features: { rings: false, oceans: true, clouds: true, moons: 1 },
+    pois: [
+      {
+        slug: 'youth-tennis-instructor',
+        title: 'Youth Tennis Instructor',
+        accent: '#ffd23f',
+        body:
+          'Volunteered as a youth tennis instructor, introducing kids to ' +
+          'the fundamentals of the game — grips, footwork, and strokes — ' +
+          'through drills and games.\n\n' +
+          'The focus was on building confidence, sportsmanship, and a love ' +
+          'of staying active that lasts well beyond the court.',
+      },
+      {
+        slug: 'washington-trails-association',
+        title: 'Washington Trails Association',
+        accent: '#7bc96f',
+        body:
+          'Joined work parties with the ' +
+          '[Washington Trails Association (WTA)](https://www.wta.org/), ' +
+          'the nation\u2019s largest state-based hiking nonprofit, which ' +
+          'relies on volunteers to maintain trails across Washington.\n\n' +
+          'Crews clear brush and downed trees, repair tread, and build ' +
+          'drainage so the trails stay safe and accessible for everyone ' +
+          'who explores them.',
+      },
+      {
+        slug: 'youth-soccer-coaching',
+        title: 'Youth Soccer Coaching',
+        accent: '#ff9f43',
+        body:
+          'Coached youth soccer as a volunteer, running practices and ' +
+          'game days that teach passing, dribbling, and positioning.\n\n' +
+          'Above all, the goal was for every player to have fun, learn to ' +
+          'work as a team, and grow as both an athlete and a teammate.',
+      },
+    ],
+  },
 ];
 
 // Validate at module load so malformed content fails fast in dev and build.
