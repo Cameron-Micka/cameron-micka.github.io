@@ -28,19 +28,24 @@ const raw: CompanyInput[] = [
         accent: '#3aa0ff',
         dates: '2016 – 2018',
         body:
-          'Built early HoloLens proof-of-concepts for key Microsoft customers to explore interaction, ' +
-          'rendering, and product scenarios, helping teams quickly validate ' +
-          'mixed reality ideas before they became larger investments.',
+          'Built early HoloLens proof-of-concepts with key Microsoft ' +
+          'customers, helping them validate mixed reality ideas before ' +
+          'committing to larger investments.\n\n' +
+          'Projects included Boeing and Insitu\u2019s wildfire response ' +
+          'demo, which turned ScanEagle drone feeds into shared holographic ' +
+          'tactical maps, and Oyanagi Construction\u2019s ' +
+          '[Holostruction](https://news.microsoft.com/apac/2017/05/03/oyanagi-construction-microsoft-japan-partner-holostruction-project-using-microsoft-hololens/), ' +
+          'which brought 3D construction plans onto job sites in Japan.',
         media: [
           {
             type: 'video',
             src: 'https://youtu.be/omGoz66xHU8?is=HH6e4SwEQqgJKaMe',
-            alt: 'HoloLens proof-of-concept video',
+            alt: 'Boeing: UAVs. Holograms. Wildfire.',
           },
           {
             type: 'video',
             src: 'https://youtu.be/vuRzUjlrALw?is=aBbEGPcBX07y_OnN',
-            alt: 'HoloLens proof-of-concept video',
+            alt: 'Oyanagi Construction Holostruction with Microsoft HoloLens',
           },
           {
             type: 'image',
@@ -62,19 +67,23 @@ const raw: CompanyInput[] = [
         accent: '#7ad6ff',
         dates: '2018 – 2020',
         body:
-          'Partnered with HoloLens 2 independent software vendors to unblock ' +
-          'graphics and platform challenges, improve quality, and accelerate ' +
-          'delivery of production mixed reality applications and platform features.',
+          'Worked hands-on with HoloLens 2 launch partners, including ' +
+          'Bentley, Philips, and PTC, to solve graphics and performance ' +
+          'challenges so their production apps were ready for the ' +
+          'device\u2019s 2019 debut.\n\n' +
+          'Fed those lessons back into MRTK, turning recurring partner ' +
+          'needs into reusable features like hand-attached UI and slider ' +
+          'controls.',
         media: [
           {
             type: 'video',
             src: 'https://youtu.be/eqFqtAJMtYE?is=kgVaWKT4L51SYxHh',
-            alt: 'HoloLens 2 ISV partner video',
+            alt: 'Introducing Microsoft HoloLens 2',
           },
           {
             type: 'video',
             src: 'https://youtu.be/FWYcuHUgcng?is=VyvJhUkEM0hljDaN',
-            alt: 'HoloLens 2 ISV partner video',
+            alt: 'Industry partner solutions for HoloLens 2 from Bentley, Philips, and PTC',
           },
           {
             type: 'video',
@@ -94,15 +103,19 @@ const raw: CompanyInput[] = [
         platforms: 'Open Source Toolkit',
         engine: 'Unity',
         accent: '#58c4dd',
-        dates: '2018 – 2020',
+        dates: '2018 – 2021',
         body:
-          'Contributed to ' +
+          'Core graphics contributor to ' +
           '[Mixed Reality Toolkit for Unity (MRTK-Unity)](https://github.com/microsoft/mixedrealitytoolkit-unity), ' +
-          'spanning developer workflow, rendering, and platform integration ' +
-          'so teams could build polished mixed reality experiences faster on ' +
-          'HoloLens.\n\n' +
-          'Took learnings from engagements with HoloLens 2 ISVs and turned ' +
-          'their needs into real toolkit features.',
+          'Microsoft\u2019s open-source toolkit for building HoloLens apps, ' +
+          'spanning rendering, UX controls, and developer tooling.\n\n' +
+          '**HoloLens shell parity.** Brought the HoloLens 2 shell\u2019s ' +
+          'look and feel to developers out of the box with compressible ' +
+          'buttons, proximity lighting, and the finger-tip cursor.\n\n' +
+          '**Components & tools.** Built the Hand Constraint solver for ' +
+          'hand-attached UI, MaterialInstance, and the Dependency Window, ' +
+          'and improved the in-headset Visual Profiler. Many of these grew ' +
+          'directly out of HoloLens 2 partner needs.',
         media: [
           {
             type: 'video',
@@ -119,10 +132,14 @@ const raw: CompanyInput[] = [
         accent: '#3aa0ff',
         dates: '2020 – 2021',
         body:
-          'Led work on Graphics Tools for Unreal, delivering production-ready shaders and ' +
-          'rendering utilities tuned for the tight performance budgets of ' +
-          'mobile mixed reality hardware through ' +
-          '[Mixed Reality Graphics Tools for Unreal](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal).',
+          'Led development of ' +
+          '[Mixed Reality Graphics Tools for Unreal](https://github.com/microsoft/MixedReality-GraphicsTools-Unreal), ' +
+          'giving Unreal developers production-ready shaders, blueprints, ' +
+          'and examples tuned for the tight performance budgets of mobile ' +
+          'mixed reality hardware.\n\n' +
+          'Shipped mixed reality–optimized lighting, proximity lights, ' +
+          'clipping primitives, spatial mesh effects, mesh outlines, and ' +
+          'in-headset profiling across HoloLens 2, Windows, and Android.',
         media: [
           {
             type: 'video',
@@ -159,16 +176,17 @@ const raw: CompanyInput[] = [
         accent: '#6fa8ff',
         dates: '2020 – 2021',
         body:
-          'Contributed to ' +
+          'Sole graphics engineer on ' +
           '[Mixed Reality Toolkit for Unreal (MRTK-Unreal)](https://github.com/microsoft/MixedRealityToolkit-Unreal), ' +
-          'spanning developer workflow, rendering, and platform integration ' +
-          'so teams could build polished mixed reality experiences faster on ' +
-          'HoloLens.\n\n' +
-          'Served as the sole graphics engineer and bridged the gap between ' +
-          'design and engineering for the organization.\n\n' +
-          'Evangelized the platform by helping release Kippy\u2019s Escape, a ' +
-          'sample game built with Framestore, and partnered with Epic Games ' +
-          'to release a webinar on developing for HoloLens 2 in Unreal Engine.',
+          'bridging design and engineering. In ' +
+          '[UX Tools for Unreal](https://github.com/microsoft/MixedReality-UXTools-Unreal), ' +
+          'built HoloLens 2–style pressable, toggle, and radio buttons, the ' +
+          'finger-tip cursor, bounds control visuals, and near menus.\n\n' +
+          'Championed Unreal on HoloLens 2 by helping release ' +
+          '[Kippy\u2019s Escape](https://github.com/microsoft/MixedReality-Unreal-KippysEscape), ' +
+          'an open-source sample game built with Framestore, and partnering ' +
+          'with Epic Games on a webinar about building for HoloLens 2 in ' +
+          'Unreal Engine.',
         media: [
           {
             type: 'video',
@@ -200,10 +218,22 @@ const raw: CompanyInput[] = [
         accent: '#4ec0ff',
         dates: '2021 – 2026',
         body:
-          'Led work on Graphics Tools for Unity, delivering production-ready shaders and ' +
-          'rendering utilities tuned for the tight performance budgets of ' +
-          'mobile mixed reality hardware through ' +
-          '[Mixed Reality Graphics Tools for Unity](https://github.com/microsoft/MixedReality-GraphicsTools-Unity).',
+          'Lead developer of ' +
+          '[Mixed Reality Graphics Tools for Unity](https://github.com/microsoft/MixedReality-GraphicsTools-Unity), ' +
+          'the ' +
+          '[MRTK3 graphics package](https://learn.microsoft.com/en-us/windows/mixed-reality/mrtk-unity/mrtk3-graphicstools/) ' +
+          'of shaders, tools, and samples that raise the visual fidelity of ' +
+          'mixed reality apps within tight performance budgets.\n\n' +
+          '**Origins in MRTK.** Created the ' +
+          '[MRTK Standard shader](https://learn.microsoft.com/en-us/windows/mixed-reality/mrtk-unity/mrtk2/features/rendering/mrtk-standard-shader), ' +
+          'a flexible Fluent Design shading system with clipping, proximity ' +
+          'and hover lights, and mesh outlines. It became the foundation of ' +
+          'Graphics Tools.\n\n' +
+          '**Features.** Built the canvas shaders behind MRTK3\u2019s UI, ' +
+          'acrylic blur, a magnifier, Shader Graph targets, area lights, ' +
+          'and editor tools for combining textures, meshes, and lights. ' +
+          'Kept it all current through Unity 6 across HoloLens 2, URP, and ' +
+          'WebGL.',
         media: [
           {
             type: 'video',
@@ -230,15 +260,20 @@ const raw: CompanyInput[] = [
         accent: '#5dd39e',
         dates: '2017 – 2026',
         body:
-          "Built Mesh's Content Performance Analyzer and created and maintain " +
-          'the [Visual Profiler](https://github.com/microsoft/VisualProfiler-Unity) ' +
-          'repo, giving mixed reality developers actionable insight into content ' +
-          'bottlenecks, frame cost, rendering hot spots, and performance tradeoffs.',
+          'Created and maintain the ' +
+          '[Visual Profiler](https://github.com/microsoft/VisualProfiler-Unity), ' +
+          'a drop-in Unity profiler that shows frame rate, scene ' +
+          'complexity, and memory at a glance. It renders in a single draw ' +
+          'call with no per-frame allocations and runs on HoloLens, Meta ' +
+          'Quest, OpenXR, and WebGL.\n\n' +
+          'Built Mesh\u2019s Content Performance Analyzer, which flags ' +
+          'costly content and suggests fixes so creators can cut download ' +
+          'times, improve comfort, and extend battery life.',
         media: [
           {
             type: 'video',
             src: 'https://youtu.be/tO9GrqpmiYk?is=yEuv2fMGsqrYQqxl',
-            alt: 'Visual Profiler demonstration video',
+            alt: 'Microsoft Mesh performance tools video',
             description: 'Overview of profiling tools in the Mesh Toolkit.',
           },
           {
@@ -264,12 +299,23 @@ const raw: CompanyInput[] = [
         engine: 'Unity',
         accent: '#38b2ac',
         body:
-          'Led the team that built all of the samples in the ' +
-          '[Mesh Toolkit](https://github.com/microsoft/mesh-toolkit-unity) ' +
-          'repo — tutorial and sample projects that give creators a starting ' +
-          'point for building custom 3D environments and experiences in ' +
-          'Microsoft Mesh.',
+          'Managed a five-person team of engineers and designers across the ' +
+          'United States and Nigeria that helped build the tutorials and ' +
+          'samples in the ' +
+          '[Mesh Toolkit](https://github.com/microsoft/mesh-toolkit-unity), ' +
+          'including Mesh 101 and 201 and the Pavilion. They give creators ' +
+          'starting points for custom onboarding, training, guided tours, ' +
+          'and social gatherings in Microsoft Mesh.\n\n' +
+          'Also integrated the Content Performance Analyzer and Visual ' +
+          'Profiler into the toolkit so creators could find and fix ' +
+          'performance issues before publishing (more on these tools ' +
+          'below).',
         media: [
+          {
+            type: 'video',
+            src: 'https://youtu.be/Owq4kHLIVsw?is=6I-jTo_Pdogfsgbo',
+            alt: 'Mesh 101: move objects and trigger animations',
+          },
           {
             type: 'image',
             src: '/media/microsoft/mesh-campfire.webp',
@@ -300,29 +346,29 @@ const raw: CompanyInput[] = [
         accent: '#4fd1c5',
         dates: '2021 – 2026',
         body:
-          'Contributed to rendering, avatar, scene, and user experience technology for ' +
-          'Microsoft Mesh and Teams Immersive Events, bringing shared 3D presence ' +
-          'across devices and into familiar Microsoft collaboration workflows.',
+          'Worked on ' +
+          '[Microsoft Mesh](https://www.microsoft.com/en-us/microsoft-teams/microsoft-mesh) ' +
+          'from its 2021 debut through its 2024 launch in Microsoft Teams ' +
+          'and its evolution into Teams immersive events, contributing ' +
+          'rendering, avatar, scene, and user experience technology.\n\n' +
+          'The result is shared 3D spaces where colleagues gather as ' +
+          'avatars for all-hands, training, and team building, right inside ' +
+          'Teams with no new devices required.',
         media: [
           {
             type: 'video',
             src: 'https://youtu.be/_0InCXA13L8?is=vflFpiEVH0-lb9qE',
-            alt: 'Microsoft Mesh project video',
+            alt: 'Microsoft Mesh overview',
           },
           {
             type: 'video',
             src: 'https://youtu.be/esBzumV_59Q?is=q3QIkV73tt1w8-zA',
-            alt: 'Microsoft Mesh project video',
-          },
-          {
-            type: 'video',
-            src: 'https://youtu.be/Owq4kHLIVsw?is=6I-jTo_Pdogfsgbo',
-            alt: 'Microsoft Mesh project video',
+            alt: 'How to explore immersive spaces in Microsoft Teams',
           },
           {
             type: 'video',
             src: 'https://youtu.be/9jG4cPfjYuQ?is=ODIGWLVsZoGJsa_D',
-            alt: 'Teams Immersive Events project video',
+            alt: 'Introducing the new Microsoft Teams events experience',
           },
         ],
       },
@@ -351,28 +397,28 @@ const raw: CompanyInput[] = [
         accent: '#ffb866',
         dates: '2016',
         body:
-          '**HALP** (Oculus Touch & HTC Vive, UE4) — Stood up a custom ' +
-          'Unreal Engine 4 build to run against prototype ' +
-          'Oculus Touch hardware, and built and maintained the working ' +
-          'relationship with Facebook/Oculus throughout the project.\n\n' +
-          '**Virtually Live: Soccer** (HTC Vive, Unity 5 & UE4) — Integrated ' +
-          'the SteamVR plugin and built the camera and input ' +
-          'system used by designers, keeping the experience above 90fps in ' +
-          'collaboration with art and design.\n\n' +
-          'Authored a procedural crowd ' +
-          'tool that let the team drop large, varied stadium audiences in ' +
-          'place — with automatic texture atlasing, mesh combining, and LOD ' +
-          'handling under the hood.',
+          '**HALP** (Oculus Touch & HTC Vive, UE4) — A VR sandbox puzzle ' +
+          'game released on Steam in 2016. Stood up a custom Unreal Engine ' +
+          '4 build for prototype Oculus Touch hardware and owned the ' +
+          'working relationship with Facebook/Oculus.\n\n' +
+          '**Virtually Live: Soccer** (HTC Vive, Unity 5 & UE4) — A ' +
+          'platform for virtually attending live matches, shown at GDC ' +
+          '2016. Integrated SteamVR, built the camera and input systems ' +
+          'designers relied on, and partnered with art and design to hold ' +
+          'above 90fps.\n\n' +
+          'Also built a procedural crowd tool that filled stadiums with ' +
+          'large, varied audiences, handling texture atlasing, mesh ' +
+          'combining, and LODs automatically.',
         media: [
           {
             type: 'video',
             src: 'https://www.youtube.com/watch?v=oLzqZyqDMOU',
-            alt: 'HALP gameplay video',
+            alt: 'HALP! Oculus Rift + Touch prototype',
           },
           {
             type: 'video',
             src: 'https://youtu.be/A3XenbMHPY8',
-            alt: 'Virtually Live soccer video',
+            alt: 'How Virtually Live works',
           },
         ],
       },
@@ -384,21 +430,21 @@ const raw: CompanyInput[] = [
         accent: '#ff9f43',
         dates: '2012 – 2015',
         body:
-          'As Technical Director, led a team of up to 12 engineers to ship ' +
-          'Fat Princess Adventures and its DLC expansion — ' +
-          'scheduling deliverables, mitigating risk, screening candidates, ' +
-          'and running the 60fps@1080p profiling effort.\n\n' +
-          'Personally owned ' +
-          'key systems: layered animation, Havok integration and the ' +
-          'kinematic character controller, AI pathfinding and scripted ' +
-          'behavior, networked gameplay, character state machine, character ' +
-          'customization, camera system, editor and debugging tools, and ' +
-          'visual-scripting improvements.',
+          'As Technical Director, led up to 12 engineers to ship Fat ' +
+          'Princess Adventures, a four-player co-op action RPG published by ' +
+          'Sony for PS4 in December 2015, and its DLC expansion. Ran ' +
+          'scheduling, risk management, candidate screening, and the push ' +
+          'to hit 60fps at 1080p.\n\n' +
+          'Stayed hands-on, personally owning layered animation, Havok ' +
+          'integration and the kinematic character controller, AI ' +
+          'pathfinding and scripted behavior, networked gameplay, the ' +
+          'character state machine and customization, the camera system, ' +
+          'editor and debugging tools, and visual-scripting improvements.',
         media: [
           {
             type: 'video',
             src: 'https://youtu.be/FripHuBd9ZY',
-            alt: 'Fat Princess Adventures gameplay',
+            alt: 'Fat Princess Adventures trailer',
           },
           {
             type: 'image',
@@ -420,21 +466,20 @@ const raw: CompanyInput[] = [
         accent: '#ffe1a8',
         dates: '2011',
         body:
-          'Helped port portions of Unity to PlayStation Vita while shipping ' +
-          'Escape Plan — the Vita\u2019s #1 selling downloadable game — ' +
-          'along with four DLC expansions.\n\n' +
-          'Implemented Vita platform services (trophies, save data, store ' +
-          'entitlements), scripted most gameplay systems, and built a ' +
-          'custom UI implementation, localization system, character state ' +
-          'machine, root-motion system, character controller, and editor ' +
-          'tools.\n\n' +
-          'Identified slow C# scripts and ported them to native, ' +
-          'exposing additional engine methods to script along the way.',
+          'Shipped Escape Plan, a PS Vita launch title built around the ' +
+          'system\u2019s front touch, rear touch, and motion controls that ' +
+          'became the Vita\u2019s #1 selling downloadable game, plus four ' +
+          'DLC expansions.\n\n' +
+          'Helped port portions of Unity to the Vita, implemented platform ' +
+          'services (trophies, save data, store entitlements), and scripted ' +
+          'most gameplay systems. Built the UI and localization systems, ' +
+          'character state machine, root motion, character controller, and ' +
+          'editor tools, and moved slow C# scripts to native code.',
         media: [
           {
             type: 'video',
             src: 'https://www.youtube.com/embed/c10vfQtNzjI',
-            alt: 'Escape Plan gameplay',
+            alt: 'Escape Plan PS Vita trailer',
           },
         ],
       }
@@ -470,22 +515,22 @@ const raw: CompanyInput[] = [
         accent: '#e6c35c',
         dates: '2010',
         body:
-          'Programmed and scripted gameplay systems on Star Wars: The Force ' +
-          'Unleashed II for PlayStation 3 and Xbox 360, with an emphasis on ' +
-          'boss battles, and fixed bugs to prepare the game for shipping ' +
-          'under a tight deadline.\n\n' +
-          'Collaborated with the LucasArts Singapore team to ' +
-          'fix bugs and ship a polished DLC release.',
+          'Programmed and scripted gameplay on Star Wars: The Force ' +
+          'Unleashed II (PS3 & Xbox 360, October 2010), focusing on boss ' +
+          'battles, and helped land the game under a tight shipping ' +
+          'deadline.\n\n' +
+          'After launch, worked with LucasArts Singapore to fix bugs and ' +
+          'ship the Endor mission DLC.',
         media: [
           {
             type: 'video',
             src: 'https://youtu.be/puvH9OmQ4fc',
-            alt: 'Star Wars: The Force Unleashed II gameplay',
+            alt: 'Star Wars: The Force Unleashed II announce trailer',
           },
           {
             type: 'video',
             src: 'https://youtu.be/huT1ZyuOeHE?is=SxVcGRU-IQhoIfQ5',
-            alt: 'Star Wars: The Force Unleashed II DLC gameplay',
+            alt: 'Star Wars: The Force Unleashed II Endor DLC trailer',
           },
         ],
       },
@@ -497,11 +542,11 @@ const raw: CompanyInput[] = [
         accent: '#fff1c1',
         dates: '2009',
         body:
-          'During an internship on The Force Unleashed I & II, wrote the ' +
-          'networked gameplay data logging system, a heat-map generation ' +
-          'tool, and a gameplay replay system — and chased down sources of ' +
-          'non-determinism inside Ronin, LucasArts\u2019 proprietary in-house ' +
-          'game engine.',
+          'As an intern on The Force Unleashed I & II, built a networked ' +
+          'gameplay data logging system, a heat-map generator, and a ' +
+          'gameplay replay system, and tracked down sources of ' +
+          'non-determinism in Ronin, LucasArts\u2019 proprietary game ' +
+          'engine.',
         media: [
           {
             type: 'image',
@@ -541,12 +586,13 @@ const raw: CompanyInput[] = [
         accent: '#b768ff',
         dates: '2008 – 2013',
         body:
-          'Handled every aspect of programming and development. Wrote a ' +
-          'proprietary mobile game engine from scratch using OpenGL ES 1.0 ' +
-          '(later 2.0), OpenAL, and Box2D.\n\n' +
-          'Submitted to the iTunes App Store in August 2008 — just weeks ' +
-          'after it opened — making Hairball one of the very first games on ' +
-          'the platform, at the dawn of the mobile gaming era.',
+          'One of the very first games on the iPhone App Store, submitted ' +
+          'in August 2008, just weeks after the store opened. A ' +
+          'tilt-controlled endless arcade game where you guide a hairball ' +
+          'down a clogged pipe.\n\n' +
+          'Handled all programming and development, including a proprietary ' +
+          'mobile engine written from scratch on OpenGL ES 1.0 (later 2.0), ' +
+          'OpenAL, and Box2D.',
         media: [
           {
             type: 'video',
@@ -590,8 +636,8 @@ const raw: CompanyInput[] = [
         accent: '#9d5cff',
         dates: '2010',
         body:
-          'Microsoft reached out to bring Hairball to the Zune HD, leading ' +
-          'to a port from iOS to XNA that took the game to a second mobile ' +
+          'After Microsoft reached out to bring Hairball to the Zune HD, ' +
+          'ported the game from iOS to XNA, taking it to a second mobile ' +
           'platform.',
         media: [
           {
@@ -615,10 +661,9 @@ const raw: CompanyInput[] = [
         engine: 'Custom Engine',
         accent: '#c98bff',
         body:
-          'Ported Snowball from PC to iOS to sell on the iTunes App Store, ' +
-          'where it landed on Apple\u2019s "Featured" page — selling over ' +
-          '8,000 copies in a month.\n\n' +
-          'Collaborated with Zynga on cross-promotion advertisements.',
+          'Ported Snowball from PC to iOS, where Apple featured it on the ' +
+          'App Store and it sold over 8,000 copies in a month.\n\n' +
+          'Also partnered with Zynga on cross-promotion.',
         media: [
           {
             type: 'image',
@@ -640,9 +685,9 @@ const raw: CompanyInput[] = [
         accent: '#d9b3ff',
         dates: '2010',
         body:
-          'One of the first universal games available for iPad and iPhone.\n\n' +
-          'Wrote all game and engine features from scratch, including an ' +
-          'in-game level editor that shipped with the final game.',
+          'One of the first universal games for iPad and iPhone.\n\n' +
+          'Wrote every game and engine feature from scratch, including a ' +
+          'level editor that shipped in the final game.',
         media: [
           {
             type: 'image',
@@ -701,12 +746,11 @@ const raw: CompanyInput[] = [
         engine: 'Torque Game Builder',
         accent: '#ff7a6a',
         body:
-          'Instructed "Video Game Creation Extreme," teaching the Torque game ' +
-          'builder and game scripting to classes averaging six middle school ' +
-          'and high school students.\n\n' +
-          'Created an original course curriculum, ' +
-          'prepared lesson plans, and supervised students through hands-on ' +
-          'game-building projects.',
+          'Taught “Video Game Creation Extreme” to middle and high school ' +
+          'students in classes of about six, covering Torque Game Builder ' +
+          'and game scripting.\n\n' +
+          'Designed an original curriculum, prepared lesson plans, and ' +
+          'guided students through hands-on game-building projects.',
         media: [
           {
             type: 'image',
@@ -739,13 +783,13 @@ const raw: CompanyInput[] = [
         engine: 'Custom Engine',
         accent: '#4fe08a',
         body:
-          'Earned a Bachelor of Science in Computer Science with a minor in ' +
-          'Mathematics. Studied real-time interactive simulation, mathematics, ' +
-          'physics, and game design. Shipped a new game engine and game from ' +
-          'scratch each year.\n\n' +
-          'Took multiple real-time computer graphics courses each year, ' +
-          'starting with custom software rasterizers and progressing through ' +
-          'OpenGL, DirectX, shaders, and a variety of graphics algorithms.',
+          'Earned a BS in Computer Science in Real-Time Interactive ' +
+          'Simulation with a minor in Mathematics, studying math, physics, ' +
+          'and game design while building a new game engine and game from ' +
+          'scratch every year.\n\n' +
+          'Took real-time graphics courses every year, progressing from ' +
+          'custom software rasterizers through OpenGL, DirectX, shaders, ' +
+          'and a wide range of graphics algorithms.',
         media: [
           {
             type: 'video',
@@ -753,7 +797,8 @@ const raw: CompanyInput[] = [
             alt: 'Gameplay footage from a DigiPen student game project (video 1 of 3)',
             description:
               'My junior capstone project, ' +
-              '[Kabloom](https://games.digipen.edu/games/kabloom), was a ' +
+              '[Kabloom](https://games.digipen.edu/games/kabloom), a poetic ' +
+              'puzzle game about an elephant reviving a dying island, was a ' +
               'finalist at the Independent Games Festival (IGF).',
           },
           {
