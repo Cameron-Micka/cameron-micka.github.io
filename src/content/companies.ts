@@ -313,11 +313,6 @@ const raw: CompanyInput[] = [
         media: [
           {
             type: 'image',
-            src: '/media/microsoft/mesh-campfire.webp',
-            alt: 'Mesh campfire social activity with a fire pit and marshmallow sticks in a pavilion',
-          },
-          {
-            type: 'image',
             src: '/media/microsoft/mesh-icebreaker.webp',
             alt: 'Mesh pavilion with Ice Breaker conversation spheres, a radio, and a screen share station',
           },
