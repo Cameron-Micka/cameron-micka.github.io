@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, ArrowRight, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { assetUrl, type Photo } from '@/content/schema';
-import { PHOTOGRAPHY, UI } from './strings';
+import { PHOTOGRAPHY } from './strings';
 
 /** The subset of a photo the lightbox needs, so other images can reuse it. */
 export type LightboxImage = Pick<Photo, 'id' | 'src' | 'alt'> &
@@ -9,7 +9,7 @@ export type LightboxImage = Pick<Photo, 'id' | 'src' | 'alt'> &
 
 /**
  * Full-screen photo viewer: swipe or use arrows to navigate,
- * Escape / scrim / ✕ (beside the arrows) to close, focus trapped while open and
+ * Escape or a click anywhere outside the image to close, focus trapped while open and
  * restored to the opening tile on close.
  *
  * Rendered only when a photo is selected, so nothing here runs during SSG.
@@ -31,7 +31,6 @@ export function PhotoLightbox({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const scrollIndex = useRef<number | null>(null);
   const photo = photos[index];
 
@@ -58,7 +57,7 @@ export function PhotoLightbox({
     const dialog = dialogRef.current;
     const previousOverflow = document.body.style.overflow;
     dialog?.showModal();
-    closeRef.current?.focus();
+    carouselRef.current?.focus({ preventScroll: true });
     document.body.style.overflow = 'hidden';
     return () => {
       dialog?.close();
@@ -118,8 +117,13 @@ export function PhotoLightbox({
           goNext();
         }
       }}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      onClick={(e) => {
+        // Any click on the dark backdrop closes; the photo and controls don't.
+        // Click (not pointerdown) so swiping the carousel never dismisses it.
+        const target = e.target as Element;
+        if (!target.closest('.lightbox-figure img, .lightbox-control')) {
+          onClose();
+        }
       }}
     >
       <div className="lightbox">
@@ -203,16 +207,6 @@ export function PhotoLightbox({
               <ArrowRight size={19} aria-hidden="true" />
             </button>
           )}
-          <button
-            ref={closeRef}
-            type="button"
-            className="lightbox-control lightbox-close"
-            aria-label={UI.close}
-            title={UI.close}
-            onClick={onClose}
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
         </nav>
       </div>
     </dialog>

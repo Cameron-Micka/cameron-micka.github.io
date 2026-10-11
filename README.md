@@ -335,7 +335,8 @@ differs slightly in debug wireframe mode; disabling MSAA closely matches it.
   available. Important company labels no longer animate or glitch.
 - Story and photo viewers use native modal dialogs for background inertness,
   focus containment, and focus restoration. Esc / backdrop / Close dismiss
-  them; the story selector remains accessibly named when its visible narrow-
+  story modals, while the photo viewer closes on Esc or a click anywhere
+  outside the image; the story selector remains accessibly named when its visible narrow-
   screen label is hidden, and the lightbox adds ← / → paging and native touch
   swiping.
 - All current photos have image-specific descriptions. The lightbox displays
