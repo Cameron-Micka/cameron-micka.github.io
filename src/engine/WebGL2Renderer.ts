@@ -2618,7 +2618,7 @@ export class WebGL2Renderer implements SceneRenderer {
       // body slows in lockstep with the cloud shell when the planet pauses.
       gl.uniform1f(this.planet.uniforms.uTime!, p.cloudTime);
       const planetLod = selectSphereLod(p.center, er, frame.cameraPos);
-      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, planetLod, p.cityLights, p.flowMap && tier === 0);
+      this.drawSphere(p, p.center, er, p.orientation, p.paletteLow, p.paletteMid, p.paletteHigh, p.oceans, cloudShadow, model, planetLod, p.cityLights, p.flowMap && tier === 0, p.craters);
     }
     for (const m of frame.moons) {
       const cullRadius = m.radius * (m.atmosphere ? ATMOSPHERE_SHELL_SCALE : 1);

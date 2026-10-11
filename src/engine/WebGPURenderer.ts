@@ -1369,6 +1369,8 @@ export class WebGPURenderer implements SceneRenderer {
         p.oceans ? 1 : 0,
         p.cityLights ? 1 : 0,
         p.flowMap ? 1 : 0,
+        p.craters ? 1 : 0,
+        p.oceans ? 1 : 0,
       );
       objects.push({ kind: 0, index: objIndex, lod: planetLod });
       objIndex++;

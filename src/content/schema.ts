@@ -85,6 +85,10 @@ export const companySchema = z.object({
     // IQ domain warping and read green low / red-magenta high, brightest on
     // the night side and at the limb. Implemented in the aurora shader.
     aurora: z.boolean().default(false),
+    // When true, the planet's exposed land is pockmarked with meteorite
+    // impact craters (the same shader path airless moons use), giving the
+    // surface a rockier, more rugged relief.
+    craters: z.boolean().default(false),
     moons: z.number().int().min(0).max(32),
     // Radial spacing between moon orbits, in planet radii.
     moonOrbitSpacing: z.number().finite().positive().default(0.5),
