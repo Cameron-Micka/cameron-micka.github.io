@@ -9,7 +9,7 @@ export type LightboxImage = Pick<Photo, 'id' | 'src' | 'alt'> &
 
 /**
  * Full-screen photo viewer: swipe or use arrows to navigate,
- * Escape / scrim / ✕ to close, focus trapped while open and
+ * Escape / scrim / ✕ (beside the arrows) to close, focus trapped while open and
  * restored to the opening tile on close.
  *
  * Rendered only when a photo is selected, so nothing here runs during SSG.
@@ -31,6 +31,7 @@ export function PhotoLightbox({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const scrollIndex = useRef<number | null>(null);
   const photo = photos[index];
 
@@ -57,6 +58,7 @@ export function PhotoLightbox({
     const dialog = dialogRef.current;
     const previousOverflow = document.body.style.overflow;
     dialog?.showModal();
+    closeRef.current?.focus();
     document.body.style.overflow = 'hidden';
     return () => {
       dialog?.close();
@@ -121,15 +123,6 @@ export function PhotoLightbox({
       }}
     >
       <div className="lightbox">
-        <button
-          type="button"
-          className="lightbox-control lightbox-close"
-          aria-label={UI.close}
-          title={UI.close}
-          onClick={onClose}
-        >
-          <X size={18} aria-hidden="true" />
-        </button>
         <div
           className="lightbox-carousel"
           ref={carouselRef}
@@ -210,6 +203,16 @@ export function PhotoLightbox({
               <ArrowRight size={19} aria-hidden="true" />
             </button>
           )}
+          <button
+            ref={closeRef}
+            type="button"
+            className="lightbox-control lightbox-close"
+            aria-label={UI.close}
+            title={UI.close}
+            onClick={onClose}
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
         </nav>
       </div>
     </dialog>
