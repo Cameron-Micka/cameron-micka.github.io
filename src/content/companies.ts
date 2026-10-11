@@ -835,6 +835,17 @@ const raw: CompanyInput[] = [
           },
         ],
       },
+      {
+        slug: 'corporate-partnerships-intern',
+        title: 'Corporate Partnerships Intern',
+        engine: 'Flash & ActionScript',
+        accent: '#a8ffce',
+        body:
+          "Interned with DigiPen's Corporate Partnerships group while " +
+          'studying.\n\n' +
+          'Helped implement Flash and ActionScript based applications used ' +
+          'for corporate training.',
+      },
     ],
   },
 ];
