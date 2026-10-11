@@ -232,8 +232,8 @@ const raw: CompanyInput[] = [
           '**Features.** Built the canvas shaders behind MRTK3\u2019s UI, ' +
           'acrylic blur, a magnifier, Shader Graph targets, area lights, ' +
           'and editor tools for combining textures, meshes, and lights. ' +
-          'Kept it all current through Unity 6 across HoloLens 2, URP, and ' +
-          'WebGL.',
+          'Kept it all current through Unity 6 supporting the URP and built ' +
+          'in renderer.',
         media: [
           {
             type: 'video',
