@@ -1480,7 +1480,7 @@ export class WebGPURenderer implements SceneRenderer {
             p.paletteMid,
             p.paletteHigh,
             p.focus,
-            0,
+            p.coloredRings ? 1 : 0, // p1.y = colored rings
             0,
             p.thinRing ? 1 : 0,
           );
