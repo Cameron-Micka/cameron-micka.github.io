@@ -898,6 +898,78 @@ const raw: CompanyInput[] = [
       },
     ],
   },
+  {
+    slug: 'screen-actors-guild',
+    name: 'Screen Actors Guild',
+    role: 'Child Actor & Print Model',
+    start: '1988',
+    end: '2004',
+    summary:
+      'Long before writing code, worked as a child movie actor and print ' +
+      'model — appearing as an extra in feature films, in TV commercials, ' +
+      'and in print advertising.',
+    seed: 'screen-actors-guild-spotlight',
+    palette: { low: '#2a0a12', mid: '#b8323f', high: '#ffd98a' },
+    features: { rings: true, thinRing: true, ringTilt: 0.3, moons: 2 },
+    pois: [
+      {
+        slug: 'the-sixth-sense',
+        title: 'The Sixth Sense',
+        dates: '1999',
+        accent: '#9fb4ff',
+        body:
+          'Appeared as an extra in ' +
+          '[The Sixth Sense](https://www.imdb.com/title/tt0167404/), M. ' +
+          'Night Shyamalan\u2019s supernatural thriller starring Bruce ' +
+          'Willis and Haley Joel Osment.\n\n' +
+          'The film was shot on location in Philadelphia and went on to ' +
+          'earn six Academy Award nominations, including Best Picture.',
+      },
+      {
+        slug: 'beloved',
+        title: 'Beloved',
+        dates: '1998',
+        accent: '#d9a066',
+        body:
+          'Appeared as an extra in ' +
+          '[Beloved](https://www.imdb.com/title/tt0120603/), Jonathan ' +
+          'Demme\u2019s adaptation of Toni Morrison\u2019s Pulitzer ' +
+          'Prize-winning novel, starring Oprah Winfrey and Danny Glover.',
+      },
+      {
+        slug: 'broadway-brawler',
+        title: 'Broadway Brawler',
+        dates: '1997',
+        accent: '#ff6b6b',
+        body:
+          'Appeared as an extra in ' +
+          '[Broadway Brawler](https://en.wikipedia.org/wiki/Broadway_Brawler), ' +
+          'a romantic comedy starring Bruce Willis as a retired hockey ' +
+          'player, filmed in Wilmington, Delaware.\n\n' +
+          'Production was famously shut down after about 20 days of ' +
+          'filming and the movie was never finished. To make up for it, ' +
+          'Willis agreed to star in several Disney films at a reduced ' +
+          'rate \u2014 one of which was The Sixth Sense.',
+      },
+      {
+        slug: 'tv-commercials',
+        title: 'TV Commercials',
+        accent: '#ffcf5c',
+        body:
+          'Booked roles in television commercials, learning to hit marks, ' +
+          'take direction, and deliver the same scene take after take on ' +
+          'a professional set.',
+      },
+      {
+        slug: 'print-work',
+        title: 'Print Work',
+        accent: '#f2f2f2',
+        body:
+          'Worked as a child print model, posing for photo shoots used in ' +
+          'catalogs and print advertising.',
+      },
+    ],
+  },
 ];
 
 // Validate at module load so malformed content fails fast in dev and build.
