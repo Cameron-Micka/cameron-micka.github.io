@@ -151,8 +151,7 @@ function normalizeYawDeg(deg: number): number {
 }
 
 // Open focused on the current role rather than the first planet in the
-// sequence. Several entries may be ongoing (e.g. Volunteering alongside
-// Microsoft), so pick the one closest to "Now" — the last ongoing entry in the
+// sequence. Several entries may be ongoing, so pick the one closest to "Now" — the last ongoing entry in the
 // Past -> Now sequence. Falls back to the first planet if none is current.
 export function initialPlanetIndex(companies: readonly Company[]): number {
   for (let i = companies.length - 1; i >= 0; i--) {
