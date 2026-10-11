@@ -382,10 +382,12 @@ fn craterProfile(t : f32) -> f32 {
 const CRATER_REACH : f32 = 1.6; // profile support, in crater radii
 const CRATER_DT : f32 = 0.04;   // finite-difference step for the radial slope
 // Size range in cell units. The upper bound is capped so the widest crater,
-// including edge wobble, still fits inside the 3x3x3 neighborhood
-// (CRATER_MAX_R * (1 + CRATER_WOBBLE) * CRATER_REACH < 1).
+// including edge wobble and ejecta apron, fits inside half a cell
+// (CRATER_MAX_R * (1 + CRATER_WOBBLE) * CRATER_REACH < 0.5). Each center is
+// then inset from the cell walls by its own footprint, so craters within a
+// layer never overlap and basins stay modest.
 const CRATER_MIN_R : f32 = 0.10;
-const CRATER_MAX_R : f32 = 0.52;
+const CRATER_MAX_R : f32 = 0.28;
 const CRATER_WOBBLE : f32 = 0.11; // peak fractional radius jitter (wob is +-0.5, hence the 2x)
 
 // One size class of craters. `p` is the unit-sphere local position, `n` the
@@ -403,14 +405,17 @@ fn craterLayer(p : vec3<f32>, n : vec3<f32>, freq : f32, threshold : f32, amp : 
         let off = vec3<f32>(f32(dx), f32(dy), f32(dz));
         let h = hash3(cellId + off);
         if (h < threshold) { continue; }
-        let center = off + vec3<f32>(fract(h * 1.7), fract(h * 7.3), fract(h * 13.1));
-        let delta = sub - center;
         // Radius in cell units; the same hash drives size so a cell's crater
         // is stable frame to frame. The cubed hash biases the distribution
         // toward small pits with the occasional wide basin, widening the size
         // spread without letting the largest crater outgrow its cell.
         let hr = fract(h * 23.7);
         let radius = mix(CRATER_MIN_R, CRATER_MAX_R, hr * hr * hr);
+        // Keep the whole footprint inside the cell so neighbors cannot overlap.
+        let margin = radius * (1.0 + CRATER_WOBBLE) * CRATER_REACH;
+        let jitter = vec3<f32>(fract(h * 1.7), fract(h * 7.3), fract(h * 13.1));
+        let center = off + vec3<f32>(margin) + jitter * (1.0 - 2.0 * margin);
+        let delta = sub - center;
         let d = length(delta);
         // Perfect circles read as machine-made, so the effective radius is
         // modulated by value noise: lobe size tracks the crater radius, so

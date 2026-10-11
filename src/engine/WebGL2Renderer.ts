@@ -293,9 +293,10 @@ float craterProfile(float t){
 const float CRATER_REACH=1.6;
 const float CRATER_DT=0.04;
 // Size range in cell units; the upper bound keeps the widest crater (plus
-// edge wobble) inside the 3x3x3 neighborhood.
+// edge wobble and ejecta apron) within half a cell so inset centers never
+// let craters in one layer overlap.
 const float CRATER_MIN_R=0.10;
-const float CRATER_MAX_R=0.52;
+const float CRATER_MAX_R=0.28;
 const float CRATER_WOBBLE=0.11; // peak fractional radius jitter (wob is +-0.5, hence the 2x)
 Crater craterLayer(vec3 p,vec3 n,float freq,float threshold,float amp){
   vec3 q=p*freq;
@@ -310,11 +311,14 @@ Crater craterLayer(vec3 p,vec3 n,float freq,float threshold,float amp){
         vec3 off=vec3(float(dx),float(dy),float(dz));
         float h=hash3(cellId+off);
         if(h<threshold)continue;
-        vec3 center=off+vec3(fract(h*1.7),fract(h*7.3),fract(h*13.1));
-        vec3 delta=sub-center;
         // Cubed hash biases sizes toward small pits with the odd wide basin.
         float hr=fract(h*23.7);
         float radius=mix(CRATER_MIN_R,CRATER_MAX_R,hr*hr*hr);
+        // Keep the whole footprint inside the cell so neighbors cannot overlap.
+        float margin=radius*(1.0+CRATER_WOBBLE)*CRATER_REACH;
+        vec3 jitter=vec3(fract(h*1.7),fract(h*7.3),fract(h*13.1));
+        vec3 center=off+vec3(margin)+jitter*(1.0-2.0*margin);
+        vec3 delta=sub-center;
         float d=length(delta);
         // Value-noise radius modulation so rims are ragged, not perfect
         // circles; lobe size tracks the crater radius.
