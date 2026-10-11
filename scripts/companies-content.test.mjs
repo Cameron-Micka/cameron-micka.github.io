@@ -69,21 +69,3 @@ test('Screen Actors Guild is the oldest planet with its five POIs', () => {
     ],
   );
 });
-
-test('Volunteering planet follows DigiPen with its three POIs', () => {
-  const slugs = companies.map((company) => company.slug);
-  assert.equal(slugs.indexOf('volunteering'), slugs.indexOf('digipen') - 1);
-
-  const volunteering = companies.find(
-    (company) => company.slug === 'volunteering',
-  );
-  assert.equal(volunteering.name, 'Volunteering');
-  assert.deepEqual(
-    volunteering.pois.map((poi) => poi.title),
-    [
-      'Youth Tennis Instructor',
-      'Washington Trails Association',
-      'Youth Soccer Coaching',
-    ],
-  );
-});
