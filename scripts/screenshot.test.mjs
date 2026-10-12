@@ -41,27 +41,34 @@ test('only Ctrl+Alt+Shift+S triggers the screenshot shortcut', () => {
   assert.equal(shot.isScreenshotShortcut(key({ code: 'KeyP' })), false);
 });
 
-test('stage fits a 16:9 1920x1080 frame inside the window', () => {
+test('stage fits a 16:9 1920x1080 frame below the bar', () => {
   const s = shot.stageScale(1512, 900);
   assert.ok(shot.SHOT_WIDTH * s <= 1512 - 16 + 1e-9);
-  assert.ok(shot.SHOT_HEIGHT * s <= 900 - 36 - 16 + 1e-9);
-  assert.ok(s > 0.7 && s < 0.8);
+  assert.ok(shot.SHOT_HEIGHT * s <= 900 - 40 - 8 + 1e-9);
+  assert.ok(s > 0.75 && s < 0.8);
+  assert.equal(shot.stageScale(4000, 3000), 1);
 });
 
-test('crop maps CSS pixels into the captured frame', () => {
-  const crop = shot.cropToVideo(
-    { left: 100, top: 50, width: 1280, height: 720 },
-    { width: 1500, height: 900 },
-    { width: 3000, height: 1800 },
-  );
-  assert.deepEqual(crop, { left: 200, top: 100, width: 2560, height: 1440 });
-
-  const clamped = shot.cropToVideo(
-    { left: -10, top: 0, width: 1600, height: 900 },
-    { width: 1500, height: 900 },
-    { width: 1500, height: 900 },
-  );
-  assert.deepEqual(clamped, { left: 0, top: 0, width: 1500, height: 900 });
+test('downsample2x box-filters 2x2 blocks in linear light', () => {
+  const px = (r, g, b) => [r, g, b, 255];
+  // 4x2 source: a flat block and a black/white checker block.
+  const src = new Uint8ClampedArray([
+    ...px(10, 20, 30),
+    ...px(10, 20, 30),
+    ...px(0, 0, 0),
+    ...px(255, 255, 255),
+    ...px(10, 20, 30),
+    ...px(10, 20, 30),
+    ...px(255, 255, 255),
+    ...px(0, 0, 0),
+  ]);
+  const out = shot.downsample2x(src, 4, 2);
+  assert.equal(out.width, 2);
+  assert.equal(out.height, 1);
+  // Flat colors survive exactly: no softening or shift.
+  assert.deepEqual([...out.data.slice(0, 4)], [10, 20, 30, 255]);
+  // 50% linear coverage is sRGB 188, not the gamma-naive 128.
+  assert.deepEqual([...out.data.slice(4, 8)], [188, 188, 188, 255]);
 });
 
 test('filenames include the page and a sortable timestamp', () => {

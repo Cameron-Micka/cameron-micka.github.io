@@ -128,14 +128,18 @@ Sound effects are opt-in in Settings and never start before a user gesture.
 ### Screenshots
 
 On desktop browsers with a fine pointer, the unlisted **Ctrl+Alt+Shift+S**
-shortcut opens a screenshot stage: the current page reloads inside a true
-1920×1080 frame, scaled to fit the window, so viewport units and media queries
-match a 1080p display. Compose the shot, then press the shortcut again and share
-**This tab** when prompted. The stage is cropped to a 1920×1080 PNG; **Save to
-Desktop** opens a save dialog that starts in the Desktop folder (Chrome and
-Edge), or downloads the file where the File System Access API is unavailable.
-Esc or **Cancel** closes the stage. Tab capture requires a Chromium-based
-browser; output is sharpest when the window's device pixels exceed 1920×1080.
+shortcut turns the current page into a live 1920×1080 stage, scaled to fit the
+window. Nothing reloads: the camera, selected chapter, open dialogs and scroll
+position are kept, and viewport units and media queries resolve as on a 1080p
+display. Press the shortcut again (or **Capture**) to save a lossless PNG: the
+3D scene is re-rendered at the high quality preset with 2× supersampling and
+downsampled in linear light, and the interface is rasterized at exactly one
+pixel per CSS pixel, so the image stays sharp regardless of the window's size
+or pixel density. **Save to Desktop** opens a save dialog that starts in the
+Desktop folder (Chrome and Edge), or downloads the file where the File System
+Access API is unavailable. The stage stays open for further shots; Esc or
+**Exit** returns to the normal layout. Keep the window at least 981×501 so
+the window-height media queries match 1080p.
 
 ### Free camera
 
