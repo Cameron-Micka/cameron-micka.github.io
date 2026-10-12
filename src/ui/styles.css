@@ -1368,9 +1368,8 @@ main:focus {
 .modal.poi-modal .modal-content {
   /* Account for the thumb's own inset from the native track edge. */
   margin-right: var(--poi-scrollbar-inset);
-  padding:
-    0 max(10px, calc(var(--modal-pad) - var(--poi-scrollbar-inset)))
-    0 var(--modal-pad);
+  padding: 0 max(10px, calc(var(--modal-pad) - var(--poi-scrollbar-inset))) 0
+    var(--modal-pad);
 }
 /* The header already reserves the space the absolutely-positioned buttons
    needed, so POI headings can use the full width. */
@@ -2795,6 +2794,94 @@ main:focus {
 }
 
 /* ---- Print: show the resume, hide the experience ---- */
+/* ---- Secret screenshot stage (src/ui/screenshot.ts) ---- */
+.screenshot-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 8px;
+  background: #000;
+  font: 500 12px/1.4 var(--font);
+  color: var(--fg);
+}
+.screenshot-stage-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  height: 28px;
+  margin-top: 4px;
+}
+.screenshot-stage.is-capturing .screenshot-stage-bar {
+  color: var(--accent-2);
+}
+.screenshot-stage-viewport {
+  position: relative;
+  overflow: hidden;
+  flex: none;
+}
+.screenshot-stage-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  border: 0;
+  transform-origin: 0 0;
+}
+.screenshot-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  display: grid;
+  gap: 10px;
+  width: 320px;
+  padding: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-control);
+  background: var(--glass);
+  font: 500 12px/1.4 var(--font);
+  color: var(--fg);
+}
+.screenshot-toast-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+}
+.screenshot-toast-actions {
+  display: flex;
+  gap: 8px;
+}
+.screenshot-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.screenshot-btn.is-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.screenshot-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.screenshot-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 @media print {
   .scene-canvas,
   .body-selection-outline,

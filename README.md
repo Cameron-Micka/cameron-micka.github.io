@@ -125,6 +125,18 @@ links to every story. Writing is currently a coming-soon page, and Photography
 provides separate Nature and Automotive galleries with a native lightbox.
 Sound effects are opt-in in Settings and never start before a user gesture.
 
+### Screenshots
+
+On desktop browsers with a fine pointer, the unlisted **Ctrl+Alt+Shift+S**
+shortcut opens a screenshot stage: the current page reloads inside a true
+1920×1080 frame, scaled to fit the window, so viewport units and media queries
+match a 1080p display. Compose the shot, then press the shortcut again and share
+**This tab** when prompted. The stage is cropped to a 1920×1080 PNG; **Save to
+Desktop** opens a save dialog that starts in the Desktop folder (Chrome and
+Edge), or downloads the file where the File System Access API is unavailable.
+Esc or **Cancel** closes the stage. Tab capture requires a Chromium-based
+browser; output is sharpest when the window's device pixels exceed 1920×1080.
+
 ### Free camera
 
 Use the camera button to enter free camera. On desktop, WASD flies, Shift
