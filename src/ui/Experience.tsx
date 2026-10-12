@@ -6,6 +6,7 @@ import { Engine } from '@/engine/Engine';
 import { WebGPUCanvasError } from '@/engine/types';
 import { EngineContext, useEngine, useEngineValue } from './EngineContext';
 import { SoundManager } from './SoundManager';
+import { registerScreenshotScene } from './screenshot';
 import { TopNav } from './TopNav';
 import { SideRuler } from './SideRuler';
 import { BottomRibbon } from './BottomRibbon';
@@ -24,6 +25,12 @@ function SoundBridge() {
     sound.setEnabled(true);
     return () => sound.destroy();
   }, [engine, enabled]);
+  return null;
+}
+
+function ScreenshotBridge() {
+  const engine = useEngine();
+  useEffect(() => registerScreenshotScene(engine), [engine]);
   return null;
 }
 
@@ -211,6 +218,7 @@ export function Experience({ companies }: { companies: Company[] }) {
             <DebugHud />
           </main>
           <SoundBridge />
+          <ScreenshotBridge />
           <HashBridge />
         </EngineContext.Provider>
       )}

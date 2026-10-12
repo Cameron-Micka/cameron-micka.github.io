@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Head } from 'vite-react-ssg';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
+import { installScreenshotShortcut } from '@/ui/screenshot';
 import { SITE, SOCIAL, UI } from '@/ui/strings';
 
 const PAGES: Record<string, { title: string; description: string }> = {
@@ -36,6 +37,8 @@ export default function RootLayout() {
     description:
       "This page drifted out of orbit. Return to Cameron Micka's portfolio.",
   };
+
+  useEffect(() => installScreenshotShortcut(), []);
 
   useEffect(() => {
     if (previousPath.current === pathname) return;

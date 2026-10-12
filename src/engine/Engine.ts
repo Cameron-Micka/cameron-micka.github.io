@@ -179,6 +179,7 @@ export class Engine {
     offset: Vec3;
   } | null = null;
   private quality = new QualityManager();
+  private screenshotMode = false;
   private input: InputController;
   private settings: PersistedSettings;
 
@@ -438,11 +439,7 @@ export class Engine {
         if (this.destroyed)
           throw new DOMException('Timeline unmounted', 'AbortError');
         candidate = new WebGPURenderer(this.activeQuality.msaa);
-        await candidate.init(
-          this.canvas,
-          onProgress,
-          this.startupAbort.signal,
-        );
+        await candidate.init(this.canvas, onProgress, this.startupAbort.signal);
         return candidate;
       } catch (err) {
         candidate?.destroy();
@@ -1206,9 +1203,58 @@ export class Engine {
     this.commit();
   }
 
+  // Screenshot staging: render live at the high preset so the preview matches
+  // the capture, without touching the saved quality preference.
+  setScreenshotMode(on: boolean): void {
+    if (on === this.screenshotMode) return;
+    this.screenshotMode = on;
+    if (on) {
+      this.quality.stop();
+      this.applyTier(QUALITY_PRESETS.high);
+    } else {
+      this.setQualityPreference(this.settings.quality);
+    }
+  }
+
+  // Renders the current state, frozen in time, at `supersample` times the
+  // canvas's CSS size using the high preset and returns a copy of the frame.
+  // Synchronous so the copy is taken before the browser presents (and, for
+  // WebGL without preserveDrawingBuffer, clears) the drawing buffer.
+  captureFrame(supersample: number): HTMLCanvasElement | null {
+    const r = this.renderer;
+    if (!r || !this.ready || this.destroyed) return null;
+    const cssW = this.canvas.clientWidth;
+    const cssH = this.canvas.clientHeight;
+    if (cssW <= 0 || cssH <= 0) return null;
+    const w = Math.round(cssW * supersample);
+    const h = Math.round(cssH * supersample);
+    const previousQuality = this.activeQuality;
+    this.activeQuality = QUALITY_PRESETS.high;
+    let out: HTMLCanvasElement | null = null;
+    try {
+      // Same CSS box, so the camera's aspect and matrices are unchanged.
+      r.resize(w, h, supersample);
+      void this.renderFrame(0);
+      out = document.createElement('canvas');
+      out.width = this.canvas.width;
+      out.height = this.canvas.height;
+      out.getContext('2d')?.drawImage(this.canvas, 0, 0);
+    } finally {
+      this.activeQuality = previousQuality;
+      this.resize();
+      this.renderDirty = true;
+      this.modalFrameRendered = false;
+    }
+    return out;
+  }
+
   setQualityPreference(pref: QualityPreference): void {
     this.settings.quality = pref;
     saveSettings(this.settings);
+    if (this.screenshotMode) {
+      this.commit();
+      return;
+    }
     if (pref === 'auto') {
       this.applyTier(QUALITY_PRESETS[AUTO_START_TIER]);
       this.quality.start(AUTO_START_TIER, (tier) =>
