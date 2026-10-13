@@ -610,7 +610,7 @@ The site is the resume — recruiters print from the browser. The interactive la
 - Each route ships:
   - `<title>` and `<meta name="description">` from front-matter or per-route config.
   - Canonical URL and absolute social-image URLs; unknown routes receive `noindex`.
-  - **Open Graph:** static `og.png` (1200×630), generated from the editable `public/og.svg`. Same card is used on all routes.
+  - **Open Graph:** static `og.png` (1920×1080). The same card is used on all routes.
 - The landing route prerenders the readable résumé. Its canvas and selected rendering backend load only on the client.
 - `public/robots.txt` allows crawling. `public/sitemap.xml` lists the four public content routes.
 

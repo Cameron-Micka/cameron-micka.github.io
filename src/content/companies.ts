@@ -341,14 +341,21 @@ const raw: CompanyInput[] = [
         accent: '#4fd1c5',
         dates: '2021 – 2026',
         body:
-          'Worked on ' +
-          '[Microsoft Mesh](https://www.microsoft.com/en-us/microsoft-teams/microsoft-mesh) ' +
-          'from its 2021 debut through its 2024 launch in Microsoft Teams ' +
-          'and its evolution into Teams immersive events, contributing ' +
-          'rendering, avatar, scene, and user experience technology.\n\n' +
-          'The result is shared 3D spaces where colleagues gather as ' +
-          'avatars for all-hands, training, and team building, right inside ' +
-          'Teams with no new devices required.',
+          'Combined hands-on graphics engineering, technical design, and ' +
+          'team leadership across AltspaceVR, Microsoft Mesh, and immersive ' +
+          'events in Teams to make shared 3D experiences richer and easier ' +
+          'to build.\n\n' +
+          'Led the team that shipped Lakehouse and Toybox. Guided ' +
+          '[Mesh 101 and Mesh 201](#/microsoft/mesh-toolkit), contributed ' +
+          'to Pavilion, and built reusable asset workflows that helped ' +
+          'creators build and maintain environments more efficiently.\n\n' +
+          'In Teams, partnered on adaptive quality and scalable rendering, ' +
+          'guided environment optimization, and helped prototype ' +
+          'custom-environment workflows. Improved lighting, embedded ' +
+          '[performance checks](#/microsoft/visual-profiler) into content ' +
+          'pipelines, and resolved graphics and integration issues for ' +
+          'release\u2014all while growing and mentoring multidisciplinary ' +
+          'teams.',
         media: [
           {
             type: 'video',
@@ -359,6 +366,16 @@ const raw: CompanyInput[] = [
             type: 'video',
             src: 'https://youtu.be/esBzumV_59Q?is=q3QIkV73tt1w8-zA',
             alt: 'How to explore immersive spaces in Microsoft Teams',
+          },
+          {
+            type: 'image',
+            src: '/media/microsoft/mesh-womens-day-team.webp',
+            alt: 'Six colleagues making heart shapes with their hands at a Women\u2019s Day event',
+          },
+          {
+            type: 'image',
+            src: '/media/microsoft/mesh-demo-team.webp',
+            alt: 'Team members gathered around laptops and monitors displaying Microsoft Mesh environments at a demo booth',
           },
         ],
       },
@@ -840,11 +857,19 @@ const raw: CompanyInput[] = [
         title: 'Corporate Partnerships Intern',
         engine: 'Flash & ActionScript',
         accent: '#a8ffce',
+        dates: '2009 – 2010',
         body:
           "Interned with DigiPen's Corporate Partnerships group while " +
           'studying.\n\n' +
           'Helped implement Flash and ActionScript based applications used ' +
           'for corporate training.',
+        media: [
+          {
+            type: 'image',
+            src: '/media/digipen/corporate-partnerships-team.webp',
+            alt: 'Four smiling students standing in front of the DigiPen Institute of Technology sign',
+          },
+        ],
       },
     ],
   },
@@ -874,6 +899,13 @@ const raw: CompanyInput[] = [
           'Willis and Haley Joel Osment.\n\n' +
           'The film was shot on location in Philadelphia and went on to ' +
           'earn six Academy Award nominations, including Best Picture.',
+        media: [
+          {
+            type: 'image',
+            src: '/media/screen-actors-guild/the-sixth-sense-set.webp',
+            alt: 'Cameron as a child posing with cast members on the set of The Sixth Sense',
+          },
+        ],
       },
       {
         slug: 'beloved',
@@ -885,6 +917,18 @@ const raw: CompanyInput[] = [
           '[Beloved](https://www.imdb.com/title/tt0120603/), Jonathan ' +
           'Demme\u2019s adaptation of Toni Morrison\u2019s Pulitzer ' +
           'Prize-winning novel, starring Oprah Winfrey and Danny Glover.',
+        media: [
+          {
+            type: 'image',
+            src: '/media/screen-actors-guild/beloved-set-friends.webp',
+            alt: 'Three children in 1870s period costumes sitting together under a tree on the Beloved set',
+          },
+          {
+            type: 'image',
+            src: '/media/screen-actors-guild/beloved-costume.webp',
+            alt: 'A smiling boy in a wool cap, vest, and period shirt on the Beloved set',
+          },
+        ],
       },
       {
         slug: 'broadway-brawler',
@@ -900,23 +944,46 @@ const raw: CompanyInput[] = [
           'filming and the movie was never finished. To make up for it, ' +
           'Willis agreed to star in several Disney films at a reduced ' +
           'rate \u2014 one of which was The Sixth Sense.',
+        media: [
+          {
+            type: 'image',
+            src: '/media/screen-actors-guild/broadway-brawler-set.webp',
+            alt: 'Cameron as a child posing with a cast member on the Broadway Brawler set',
+          },
+        ],
       },
       {
         slug: 'tv-commercials',
-        title: 'TV Commercials',
+        title: 'TV Commercials & Print Work',
         accent: '#ffcf5c',
+        dates: '1988 – 2000',
         body:
           'Booked roles in television commercials, learning to hit marks, ' +
           'take direction, and deliver the same scene take after take on ' +
-          'a professional set.',
-      },
-      {
-        slug: 'print-work',
-        title: 'Print Work',
-        accent: '#f2f2f2',
-        body:
-          'Worked as a child print model, posing for photo shoots used in ' +
-          'catalogs and print advertising.',
+          'a professional set. Also worked as a child print model, posing ' +
+          'for photo shoots used in catalogs and print advertising.',
+        media: [
+          {
+            type: 'image',
+            src: '/media/screen-actors-guild/child-actor-headshots.webp',
+            alt: 'Two black-and-white headshots of Cameron as a child actor',
+          },
+          {
+            type: 'image',
+            src: '/media/screen-actors-guild/fisher-price-nursery-monitor.webp',
+            alt: 'Cameron as a baby posing with a Fisher-Price nursery monitor in a November 1988 Philadelphia magazine clipping',
+          },
+          {
+            type: 'image',
+            src: '/media/screen-actors-guild/sesame-street-parents.webp',
+            alt: 'October 1994 Sesame Street Parents page featuring Cameron working beside an adult',
+          },
+          {
+            type: 'image',
+            src: '/media/screen-actors-guild/neshaminy-mall-columbus-day.webp',
+            alt: 'Neshaminy Mall Columbus Day weekend sale ad featuring Cameron with two adult models',
+          },
+        ],
       },
     ],
   },

@@ -361,17 +361,14 @@ differs slightly in debug wireframe mode; disabling MSAA closely matches it.
   without JavaScript still works.
 - POIs are deep-linkable via `#/{company}/{poi}`. Hash updates preserve router
   history state; malformed links cannot crash or freeze the experience.
+  POI descriptions can link to related stories with `[label](#/company/poi)`;
+  these links stay on the current page, while HTTP(S) links open in a new tab.
 - Every prerendered route has its own title, description, canonical URL, and
   absolute social-image URL. `public/robots.txt` and `public/sitemap.xml` cover
   the public routes. The generated `404.html` is a real not-found page, not a
   redirect loop.
   If the domain changes, update `SITE.url`, the robots file, and the sitemap.
-- `public/og.svg` is the editable source for the 1200×630 social card. Regenerate
-  the committed PNG after editing it:
-
-  ```bash
-  node --input-type=module -e "import sharp from 'sharp'; await sharp('public/og.svg').png().toFile('public/og.png')"
-  ```
+- `public/og.png` is the 1920×1080 social card shared by every route.
 
 ### Browser checks
 

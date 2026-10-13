@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { access } from 'node:fs/promises';
 import { after, before, test } from 'node:test';
 import { createModuleTestServer } from './lib/vite-test-server.mjs';
 
@@ -52,7 +53,60 @@ test('Microsoft has separate Graphics Tools stories for Unity and Unreal', () =>
   );
 });
 
-test('Screen Actors Guild is the oldest planet with its five POIs', () => {
+test('Mesh overview uses plain product text and links to its supporting stories', () => {
+  const microsoft = companies.find((company) => company.slug === 'microsoft');
+  const mesh = microsoft.pois.find((poi) => poi.slug === 'mesh');
+  const targets = [...mesh.body.matchAll(/\]\(#\/([^/]+)\/([a-z0-9-]+)\)/g)].map(
+    ([, company, poi]) => ({ company, poi }),
+  );
+
+  assert.match(mesh.body, /AltspaceVR, Microsoft Mesh, and immersive events in Teams/);
+  assert.doesNotMatch(mesh.body, /\[Microsoft Mesh\]\(/);
+  assert.deepEqual(targets, [
+    { company: 'microsoft', poi: 'mesh-toolkit' },
+    { company: 'microsoft', poi: 'visual-profiler' },
+  ]);
+  for (const target of targets) {
+    assert.ok(
+      companies
+        .find((company) => company.slug === target.company)
+        ?.pois.some((poi) => poi.slug === target.poi),
+      `Missing story: ${target.company}/${target.poi}`,
+    );
+  }
+});
+
+test('Mesh overview preserves its videos and includes both team photos', async () => {
+  const microsoft = companies.find((company) => company.slug === 'microsoft');
+  const mesh = microsoft.pois.find((poi) => poi.slug === 'mesh');
+
+  assert.deepEqual(
+    mesh.media.map(({ type, src }) => ({ type, src })),
+    [
+      { type: 'video', src: 'https://youtu.be/_0InCXA13L8?is=vflFpiEVH0-lb9qE' },
+      { type: 'video', src: 'https://youtu.be/esBzumV_59Q?is=q3QIkV73tt1w8-zA' },
+      { type: 'image', src: '/media/microsoft/mesh-womens-day-team.webp' },
+      { type: 'image', src: '/media/microsoft/mesh-demo-team.webp' },
+    ],
+  );
+  for (const media of mesh.media) {
+    assert.ok(media.alt?.trim(), `Missing media description: ${media.src}`);
+    if (media.type === 'image') {
+      await access(new URL(`../public${media.src}`, import.meta.url));
+    }
+  }
+});
+
+test('DigiPen internship is dated 2009-2010', () => {
+  const digipen = companies.find((company) => company.slug === 'digipen');
+  const internship = digipen.pois.find(
+    (poi) => poi.slug === 'corporate-partnerships-intern',
+  );
+
+  assert.equal(internship.dates, '2009 \u2013 2010');
+});
+
+test('Screen Actors Guild is the oldest planet with its four POIs', () => {
   assert.equal(companies[0].slug, 'screen-actors-guild');
   const sag = companies[0];
   assert.equal(sag.name, 'Screen Actors Guild');
@@ -64,8 +118,34 @@ test('Screen Actors Guild is the oldest planet with its five POIs', () => {
       'The Sixth Sense',
       'Beloved',
       'Broadway Brawler',
-      'TV Commercials',
-      'Print Work',
+      'TV Commercials & Print Work',
+    ],
+  );
+
+  const sixthSense = sag.pois.find((poi) => poi.slug === 'the-sixth-sense');
+  const broadwayBrawler = sag.pois.find(
+    (poi) => poi.slug === 'broadway-brawler',
+  );
+  const commercialsAndPrint = sag.pois.find(
+    (poi) => poi.slug === 'tv-commercials',
+  );
+
+  assert.equal(commercialsAndPrint.dates, '1988 \u2013 2000');
+  assert.deepEqual(
+    sixthSense.media.map((media) => media.src),
+    ['/media/screen-actors-guild/the-sixth-sense-set.webp'],
+  );
+  assert.deepEqual(
+    broadwayBrawler.media.map((media) => media.src),
+    ['/media/screen-actors-guild/broadway-brawler-set.webp'],
+  );
+  assert.deepEqual(
+    commercialsAndPrint.media.map((media) => media.src),
+    [
+      '/media/screen-actors-guild/child-actor-headshots.webp',
+      '/media/screen-actors-guild/fisher-price-nursery-monitor.webp',
+      '/media/screen-actors-guild/sesame-street-parents.webp',
+      '/media/screen-actors-guild/neshaminy-mall-columbus-day.webp',
     ],
   );
 });

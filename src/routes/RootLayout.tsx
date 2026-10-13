@@ -61,11 +61,11 @@ export default function RootLayout() {
         <meta property="og:description" content={metadata.description} />
         <meta property="og:url" content={`${SITE.url}${path}`} />
         <meta property="og:image" content={`${SITE.url}/og.png`} />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
+        <meta property="og:image:width" content="1920" />
+        <meta property="og:image:height" content="1080" />
         <meta
           property="og:image:alt"
-          content="Cameron Micka: design meets real-time engineering."
+          content="Cameron Micka's interactive career timeline with a series of planets in space."
         />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={metadata.title} />

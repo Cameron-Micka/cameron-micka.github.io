@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 
 // Tiny, safe inline renderer for the small markdown bodies used in POIs.
-// Supports **bold**, *italic*, and [text](url). No raw HTML is ever injected.
+// Supports **bold**, *italic*, and [text](url) for HTTP(S) or POI hash links.
+// No raw HTML is ever injected.
 function renderInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const regex = /\*\*(.+?)\*\*|\*(.+?)\*|\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g;
+  const regex =
+    /\*\*(.+?)\*\*|\*(.+?)\*|\[(.+?)\]\((https?:\/\/[^\s)]+|#\/[a-z0-9-]+\/[a-z0-9-]+)\)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   let i = 0;
@@ -15,8 +17,14 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
     } else if (m[2] !== undefined) {
       nodes.push(<em key={`${keyBase}-i${i}`}>{m[2]}</em>);
     } else if (m[3] !== undefined && m[4] !== undefined) {
+      const isStoryLink = m[4].startsWith('#/');
       nodes.push(
-        <a key={`${keyBase}-a${i}`} href={m[4]} target="_blank" rel="noreferrer">
+        <a
+          key={`${keyBase}-a${i}`}
+          href={m[4]}
+          target={isStoryLink ? undefined : '_blank'}
+          rel={isStoryLink ? undefined : 'noreferrer'}
+        >
           {m[3]}
         </a>,
       );
