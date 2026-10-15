@@ -522,17 +522,6 @@ main:focus {
   text-shadow: var(--text-glow);
   text-decoration: none;
 }
-.navlink.active::after {
-  content: '';
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 6px;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 2px;
-  box-shadow: var(--glow);
-}
 .icon-btn {
   pointer-events: auto;
   width: 44px;
