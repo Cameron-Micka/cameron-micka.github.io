@@ -220,11 +220,25 @@ if (duplicateId) {
   throw new Error(`Duplicate photo id: ${duplicateId}`);
 }
 
+// Optional per-category lead photo; the rest keep their generated order.
+const leadPhotoId: Partial<Record<PhotoCategory, string>> = {
+  automotive: 'img-0475',
+};
+
+function inCategory(category: PhotoCategory): Photo[] {
+  const list = photos.filter((p) => p.category === category);
+  const leadId = leadPhotoId[category];
+  if (!leadId) return list;
+  const lead = list.find((p) => p.id === leadId);
+  if (!lead) throw new Error(`Unknown lead photo for ${category}: ${leadId}`);
+  return [lead, ...list.filter((p) => p !== lead)];
+}
+
 // Grouped once at module load; the manifest is static, so callers can use the
 // returned arrays as stable references across renders.
 const byCategory: Record<PhotoCategory, Photo[]> = {
-  nature: photos.filter((p) => p.category === 'nature'),
-  automotive: photos.filter((p) => p.category === 'automotive'),
+  nature: inCategory('nature'),
+  automotive: inCategory('automotive'),
 };
 
 export function photosByCategory(category: PhotoCategory): Photo[] {
