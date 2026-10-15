@@ -15,7 +15,7 @@ after(async () => {
   await server?.close();
 });
 
-test('Microsoft has separate Graphics Tools stories for Unity and Unreal', () => {
+test('Microsoft has separate Graphics Tools stories for Unity and Unreal', async () => {
   const microsoft = companies.find((company) => company.slug === 'microsoft');
   const unity = microsoft.pois.find(
     (poi) => poi.slug === 'graphics-tools-unity',
@@ -32,8 +32,16 @@ test('Microsoft has separate Graphics Tools stories for Unity and Unreal', () =>
       'https://youtu.be/rXbkJRhaBqE',
       '/media/graphics-tools/unity-showcase.webp',
       '/media/graphics-tools/clipping-primitives.webp',
+      '/media/graphics-tools/unity-ui-tooling.webp',
     ],
   );
+
+  const uiTooling = unity.media.find(
+    (media) => media.src === '/media/graphics-tools/unity-ui-tooling.webp',
+  );
+  assert.equal(uiTooling.type, 'image');
+  assert.ok(uiTooling.alt?.trim());
+  await access(new URL(`../public${uiTooling.src}`, import.meta.url));
 
   assert.equal(unreal.title, 'Graphics Tools for Unreal');
   assert.match(unreal.body, /MixedReality-GraphicsTools-Unreal/);
@@ -43,7 +51,6 @@ test('Microsoft has separate Graphics Tools stories for Unity and Unreal', () =>
       'https://youtu.be/GfeG_ZFzL1g',
       '/media/graphics-tools/unreal-lighting.webp',
       '/media/graphics-tools/unreal-effects.webp',
-      '/media/graphics-tools/unreal-clipping.webp',
       '/media/graphics-tools/unreal-profiling.webp',
     ],
   );
@@ -74,6 +81,16 @@ test('Mesh overview uses plain product text and links to its supporting stories'
       `Missing story: ${target.company}/${target.poi}`,
     );
   }
+});
+
+test('Mesh overview covers the browser transition and custom environment imports', () => {
+  const microsoft = companies.find((company) => company.slug === 'microsoft');
+  const mesh = microsoft.pois.find((poi) => poi.slug === 'mesh');
+
+  assert.match(mesh.body, /\bnative app\b/);
+  assert.match(mesh.body, /\bWebGL-based\b/);
+  assert.match(mesh.body, /\bglTF files\b/);
+  assert.match(mesh.body, /\bmultidisciplinary, multinational teams\b/);
 });
 
 test('Mesh overview preserves its videos and includes both team photos', async () => {

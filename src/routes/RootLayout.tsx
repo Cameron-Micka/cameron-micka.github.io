@@ -61,8 +61,8 @@ export default function RootLayout() {
         <meta property="og:description" content={metadata.description} />
         <meta property="og:url" content={`${SITE.url}${path}`} />
         <meta property="og:image" content={`${SITE.url}/og.png`} />
-        <meta property="og:image:width" content="1920" />
-        <meta property="og:image:height" content="1080" />
+        <meta property="og:image:width" content="1451" />
+        <meta property="og:image:height" content="768" />
         <meta
           property="og:image:alt"
           content="Cameron Micka's interactive career timeline with a series of planets in space."

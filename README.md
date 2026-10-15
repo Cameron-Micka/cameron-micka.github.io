@@ -368,7 +368,7 @@ differs slightly in debug wireframe mode; disabling MSAA closely matches it.
   the public routes. The generated `404.html` is a real not-found page, not a
   redirect loop.
   If the domain changes, update `SITE.url`, the robots file, and the sitemap.
-- `public/og.png` is the 1920×1080 social card shared by every route.
+- `public/og.png` is the 1451×768 social card shared by every route.
 
 ### Browser checks
 

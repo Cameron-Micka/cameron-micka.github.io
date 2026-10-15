@@ -158,11 +158,6 @@ const raw: CompanyInput[] = [
           },
           {
             type: 'image',
-            src: '/media/graphics-tools/unreal-clipping.webp',
-            alt: 'Models cut by clipping plane, sphere, box, and cone primitives',
-          },
-          {
-            type: 'image',
             src: '/media/graphics-tools/unreal-profiling.webp',
             alt: 'In-headset profiler showing frame, game, draw, and GPU times against a target frame time',
           },
@@ -249,6 +244,11 @@ const raw: CompanyInput[] = [
             type: 'image',
             src: '/media/graphics-tools/clipping-primitives.webp',
             alt: 'Models cut by clipping box, clipping plane, and clipping sphere primitives',
+          },
+          {
+            type: 'image',
+            src: '/media/graphics-tools/unity-ui-tooling.webp',
+            alt: 'Translucent blue UI controls with a volume slider, a spherical handle, and overlapping user-icon buttons',
           },
         ],
       },
@@ -341,21 +341,25 @@ const raw: CompanyInput[] = [
         accent: '#4fd1c5',
         dates: '2021 – 2026',
         body:
-          'Combined hands-on graphics engineering, technical design, and ' +
-          'team leadership across AltspaceVR, Microsoft Mesh, and immersive ' +
-          'events in Teams to make shared 3D experiences richer and easier ' +
-          'to build.\n\n' +
-          'Led the team that shipped Lakehouse and Toybox. Guided ' +
-          '[Mesh 101 and Mesh 201](#/microsoft/mesh-toolkit), contributed ' +
-          'to Pavilion, and built reusable asset workflows that helped ' +
-          'creators build and maintain environments more efficiently.\n\n' +
-          'In Teams, partnered on adaptive quality and scalable rendering, ' +
-          'guided environment optimization, and helped prototype ' +
-          'custom-environment workflows. Improved lighting, embedded ' +
-          '[performance checks](#/microsoft/visual-profiler) into content ' +
-          'pipelines, and resolved graphics and integration issues for ' +
-          'release\u2014all while growing and mentoring multidisciplinary ' +
-          'teams.',
+          'Across AltspaceVR, Microsoft Mesh, and immersive events in Teams, ' +
+          'I\u2019ve combined hands-on graphics engineering and technical ' +
+          'design with growing and mentoring multidisciplinary, ' +
+          'multinational teams.\n\n' +
+          'I led a team that shipped the Lakehouse environment and Toybox ' +
+          'activities, coordinating design, art, and engineering. I also ' +
+          'guided [Mesh Toolkit tutorials and samples](#/microsoft/mesh-toolkit) ' +
+          'and built reusable asset workflows that made environments easier ' +
+          'to create and maintain.\n\n' +
+          'For Teams, I helped transition Mesh from a native app to a ' +
+          'WebGL-based experience, partnering on adaptive quality and ' +
+          'scalable rendering, guiding environment optimization, and ' +
+          'resolving graphics and integration issues.\n\n' +
+          'I also helped shape and prototype the workflow for bringing ' +
+          'custom 3D spaces into ' +
+          'Teams as glTF files. My team and I improved lighting and visual ' +
+          'quality and embedded [performance checks](#/microsoft/visual-profiler) ' +
+          'into content pipelines, helping teams ship richer environments ' +
+          'reliably and efficiently.',
         media: [
           {
             type: 'video',
