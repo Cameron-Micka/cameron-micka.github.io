@@ -154,7 +154,7 @@ state whether the live site scene changed.
 Read only the examples needed for the current asset, and reuse their patterns
 without copying the ring-specific geometry:
 
-- [Asset contract and iteration history](../../../README.md#broken-space-ring-asset)
+- [Asset contract and iteration history](../../../docs/3d-models.md#broken-space-ring-asset)
 - [Deterministic GLB builder and validator](../../../scripts/build-broken-ring.mjs)
 - [Binary, PBR, and budget tests](../../../scripts/build-broken-ring.test.mjs)
 - [Interactive preview page](../../../tools/broken-ring.html)

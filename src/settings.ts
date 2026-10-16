@@ -30,7 +30,7 @@ const DEFAULTS: PersistedSettings = {
   freeCamera: false,
   flightPath: false,
   crt: false,
-  sound: false,
+  sound: true,
 };
 
 function isValidQuality(q: unknown): q is QualityPreference {

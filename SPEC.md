@@ -8,7 +8,7 @@
 > is no `vite-imagetools` pipeline, deployment uses the Pages artifact rather
 > than a `gh-pages` branch, the referenced `timemachine.png` is not in the
 > repo, and the photo pipeline now has regression tests (`npm test`).
-> **[README.md](./README.md) is the source of truth for how the site works.**
+> **[README.md](./README.md) and [docs/](./docs/) are the source of truth for how the site works.**
 
 A personal portfolio for **Cameron Micka** (Principal Software Engineer @ Microsoft — Mesh / MRTK / HoloLens; previously Fun Bits Interactive, LucasArts Entertainment; DigiPen alumnus).
 

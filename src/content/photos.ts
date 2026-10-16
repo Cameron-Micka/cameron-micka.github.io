@@ -15,7 +15,7 @@ import { generatedPhotos } from './photos.generated';
 //
 // `width`/`height` are the intrinsic pixel dimensions of `src`; they let the
 // grid reserve space (no layout shift) and size the lightbox before load.
-// See the "Photography assets" section of README.md for the export recipe.
+// See docs/photography.md for the export recipe.
 const fallbackAlt: Record<PhotoCategory, string> = {
   nature: 'Nature photograph by Cameron Micka',
   automotive: 'Automotive photograph by Cameron Micka',
