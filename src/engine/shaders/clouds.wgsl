@@ -110,10 +110,9 @@ fn cloudCoverage(seedf : f32) -> f32 {
   return 0.40 + 0.30 * fract(seedf * 0.00091);
 }
 
-// Sample cloud density at a unit direction in the planet's local rotation
-// frame. `localDir` must be normalized. The same function lives in
-// planet.wgsl so cast shadows register with rendered cloud puffs.
-fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
+// Rotated, seed-shifted noise-domain position for a unit direction in the
+// planet's local rotation frame. `localDir` must be normalized.
+fn cloudNoisePos(localDir : vec3<f32>, time : f32, seedf : f32) -> vec3<f32> {
   let rot = cloudRotation(time, seedf);
   let cs = cos(rot);
   let sn = sin(rot);
@@ -123,7 +122,13 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
     -sn * localDir.x + cs * localDir.z,
   );
   let seedShift = vec3<f32>(seedf * 0.0017, seedf * 0.0023, seedf * 0.0029);
-  let p = rp * 4.8 + seedShift;
+  return rp * 4.8 + seedShift;
+}
+
+// Raw (pre-threshold) cloud noise. Split out so Low can reuse it for interior
+// shading without re-evaluating the domain-warped field.
+fn cloudNoise(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
+  let p = cloudNoisePos(localDir, time, seedf);
   // Domain warp (iq): two extra fbm samples form a warp vector, the final
   // sample re-evaluates the field at the warped position. Produces the
   // characteristic swirly, turbulent look that pure additive fbm lacks.
@@ -133,26 +138,39 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
   let warpOctaves = select(4, 2, frame.shadowMisc.y > 1.5);
   let qx = cFbm(p, warpOctaves);
   let qy = cFbm(p + vec3<f32>(5.2, 1.3, 2.8), warpOctaves);
-  let n = cFbm(p + 0.85 * vec3<f32>(qx - 0.5, qy - 0.5, (qx - qy) * 0.7), 4);
-  let cov = cloudCoverage(seedf);
-  // Higher coverage lowers the smoothstep window, so more of the noise
-  // domain becomes cloud. Output in [0, 1].
-  let lo = 0.62 - cov * 0.30;
-  let hi = lo + 0.14;
-  return smoothstep(lo, hi, n);
+  return cFbm(p + 0.85 * vec3<f32>(qx - 0.5, qy - 0.5, (qx - qy) * 0.7), 4);
+}
+
+// Higher coverage lowers the smoothstep window, so more of the noise
+// domain becomes cloud.
+fn cloudThreshold(seedf : f32) -> f32 {
+  return 0.62 - cloudCoverage(seedf) * 0.30;
+}
+
+// Output in [0, 1]. The same density field lives in planet.wgsl so cast
+// shadows register with rendered cloud puffs.
+fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
+  let lo = cloudThreshold(seedf);
+  return smoothstep(lo, lo + 0.14, cloudNoise(localDir, time, seedf));
+}
+
+// Low-tier self-shadow. Density saturates to 1 a short way inside each cloud,
+// so shading from it alone leaves flat grey interiors. The raw noise keeps
+// climbing toward cloud cores, giving a thickness cue for free; a 2-tap grain
+// that drifts with the clouds adds billow-scale break-up.
+fn cloudSelfShadowLow(localDir : vec3<f32>, time : f32, seedf : f32, noise : f32) -> f32 {
+  let lo = cloudThreshold(seedf);
+  let thick = smoothstep(lo + 0.02, lo + 0.30, noise);
+  let grain = cFbm(cloudNoisePos(localDir, time, seedf) * 3.1 + vec3<f32>(11.3, 4.7, 8.1), 2);
+  let occ = clamp(thick * mix(0.55, 1.30, grain), 0.0, 1.0);
+  return 1.0 - occ * 0.75;
 }
 
 // Cheap directional self-shadowing for cloud depth detail. We sample density a
 // few short steps toward the sun in cloud-local space and darken where upstream
 // density is high. A tiny high-frequency modulation keeps the shadow break-up
 // organic instead of uniformly soft.
-fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf : f32, density : f32) -> f32 {
-  // Low reuses the visible density instead of evaluating another complete
-  // domain-warped field. At this tier the broad depth cue matters more than
-  // the small directional offset, and this nearly halves cloud-noise work.
-  if (frame.shadowMisc.y > 1.5) {
-    return 1.0 - clamp(density * 0.85, 0.0, 1.0) * 0.70;
-  }
+fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf : f32) -> f32 {
   let r0 = normalize(obj.model[0].xyz);
   let r1 = normalize(obj.model[1].xyz);
   let r2 = normalize(obj.model[2].xyz);
@@ -255,8 +273,15 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let localDir = normalize(in.localPos);
   let seedf = obj.p1.y;
   let time = obj.p0.z;
-  let density = cloudDensity(localDir, time, seedf);
-  let selfShadow = cloudSelfShadow(localDir, sun, time, seedf, density);
+  let noise = cloudNoise(localDir, time, seedf);
+  let lo = cloudThreshold(seedf);
+  let density = smoothstep(lo, lo + 0.14, noise);
+  var selfShadow = 1.0;
+  if (frame.shadowMisc.y > 1.5) {
+    selfShadow = cloudSelfShadowLow(localDir, time, seedf, noise);
+  } else {
+    selfShadow = cloudSelfShadow(localDir, sun, time, seedf);
+  }
 
   // Direct sunlight stays neutral overhead but warms as it grazes the
   // atmosphere near the terminator. A separate cool atmospheric fill remains

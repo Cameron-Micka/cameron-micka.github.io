@@ -1377,22 +1377,35 @@ float cloudRotation(float time,float seedf){
   return time*(baseSpeed+jitter)*dir;
 }
 float cloudCoverage(float seedf){return 0.40+0.30*fract(seedf*0.00091);}
-float cloudDensity(vec3 localDir,float time,float seedf){
+vec3 cloudNoisePos(vec3 localDir,float time,float seedf){
   float rot=cloudRotation(time,seedf);
   float cs=cos(rot),sn=sin(rot);
   vec3 rp=vec3(cs*localDir.x+sn*localDir.z,localDir.y,-sn*localDir.x+cs*localDir.z);
   vec3 seedShift=vec3(seedf*0.0017,seedf*0.0023,seedf*0.0029);
-  vec3 p=rp*4.8+seedShift;
+  return rp*4.8+seedShift;
+}
+float cloudNoise(vec3 localDir,float time,float seedf){
+  vec3 p=cloudNoisePos(localDir,time,seedf);
   int warpOctaves=uTier>1.5?2:4;
   float qx=cFbm(p,warpOctaves);
   float qy=cFbm(p+vec3(5.2,1.3,2.8),warpOctaves);
-  float n=cFbm(p+0.85*vec3(qx-0.5,qy-0.5,(qx-qy)*0.7),4);
-  float cov=cloudCoverage(seedf);
-  float lo=0.62-cov*0.30;float hi=lo+0.14;
-  return smoothstep(lo,hi,n);
+  return cFbm(p+0.85*vec3(qx-0.5,qy-0.5,(qx-qy)*0.7),4);
 }
-float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf,float density){
-  if(uTier>1.5)return 1.0-clamp(density*0.85,0.0,1.0)*0.70;
+float cloudThreshold(float seedf){return 0.62-cloudCoverage(seedf)*0.30;}
+float cloudDensity(vec3 localDir,float time,float seedf){
+  float lo=cloudThreshold(seedf);
+  return smoothstep(lo,lo+0.14,cloudNoise(localDir,time,seedf));
+}
+// Low tier: raw noise gives interior thickness (density saturates to a flat 1)
+// plus a cheap 2-tap drifting grain. Mirrors cloudSelfShadowLow in clouds.wgsl.
+float cloudSelfShadowLow(vec3 localDir,float time,float seedf,float noise){
+  float lo=cloudThreshold(seedf);
+  float thick=smoothstep(lo+0.02,lo+0.30,noise);
+  float grain=cFbm(cloudNoisePos(localDir,time,seedf)*3.1+vec3(11.3,4.7,8.1),2);
+  float occ=clamp(thick*mix(0.55,1.30,grain),0.0,1.0);
+  return 1.0-occ*0.75;
+}
+float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf){
   vec3 r0=normalize(uModel[0].xyz);
   vec3 r1=normalize(uModel[1].xyz);
   vec3 r2=normalize(uModel[2].xyz);
@@ -1454,8 +1467,12 @@ void main(){
   // Interpolated vLocal isn't exactly unit length across triangle interiors;
   // normalize so the noise lookup lines up with the shadow projection.
   vec3 localDir=normalize(vLocal);
-  float density=cloudDensity(localDir,uTime,uSeed);
-  float selfShadow=cloudSelfShadow(localDir,sun,uTime,uSeed,density);
+  float noise=cloudNoise(localDir,uTime,uSeed);
+  float cloudLo=cloudThreshold(uSeed);
+  float density=smoothstep(cloudLo,cloudLo+0.14,noise);
+  float selfShadow=uTier>1.5
+    ?cloudSelfShadowLow(localDir,uTime,uSeed,noise)
+    :cloudSelfShadow(localDir,sun,uTime,uSeed);
   // Neutral overhead light, warm grazing sunlight, and cool atmospheric fill
   // in self-shadowed folds. Mirrors clouds.wgsl.
   float sunElevation=dot(n,sun);
