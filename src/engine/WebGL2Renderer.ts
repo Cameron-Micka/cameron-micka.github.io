@@ -378,7 +378,8 @@ void main(){
   vec3 water=mix(deepOcean,shallowOcean,depth);
   vec3 base=mix(land,water,waterMask);
   // Polar ice caps: tighter to the poles, with internal breakup, shallow blue
-  // ice tones, and directional crease darkening so the caps read less flat.
+  // ice tones, thin grey-blue margins, dusty strata, and albedo-only
+  // heightfield self-shadowing so the caps read less flat.
   // Two offset fbm passes form a domain-warp vector that distorts the edge
   // sampling position, producing wispy, tendril-like fronds at the boundary.
   // Mirror of planet.wgsl: nonnegative fbm bounds the cap edge at 0.66
@@ -408,10 +409,31 @@ void main(){
   vec3 iceRidgePhase=vec3(4.2,1.7,8.4);
   float iceRidges=ridgedFbm(iceDetailPos*0.8+iceRidgePhase);
   float iceBlue=smoothstep(0.44,0.78,iceDetail)*smoothstep(0.12,0.7,iceMask);
-  float iceCrease=smoothstep(0.34,0.72,iceRidges);
-  float iceSelfShadow=1.0-iceCrease*smoothstep(0.0,0.75,dot(localPos,localLightDir))*0.28;
-  vec3 iceColor=mix(vec3(0.88,0.93,0.98),vec3(0.48,0.70,0.92),iceBlue*0.85);
-  base=mix(base,iceColor*iceSelfShadow,iceMask);
+  // Heightfield self-shadowing in albedo (no normal perturbation). Mirrors planet.wgsl.
+  float sunElev=dot(localPos,localLightDir);
+  vec3 sunTangent=localLightDir-localPos*sunElev;
+  vec3 sunT=sunTangent*inversesqrt(max(dot(sunTangent,sunTangent),1e-6));
+  float shadowLight=smoothstep(-0.05,0.12,sunElev)*mix(1.0,0.45,clamp(sunElev,0.0,1.0));
+  float ridgesSun=ridgedFbm((iceDetailPos+sunT*0.28)*0.8+iceRidgePhase);
+  float ridgeShadow=smoothstep(0.0,0.12,ridgesSun-iceRidges);
+  // Layered deposits: strata parallel to the cap edge, gently spiralling.
+  float capDepth=lat-iceEdge;
+  float swirl=atan(localPos.z,localPos.x);
+  float strataK=200.0;
+  float trough=smoothstep(0.1,0.9,sin(capDepth*strataK+swirl));
+  float latSun=abs(normalize(localPos+sunT*0.012).y);
+  float troughSun=smoothstep(0.1,0.9,sin((latSun-iceEdge)*strataK+swirl));
+  float strataVis=smoothstep(0.012,0.045,capDepth)*(1.0-smoothstep(0.975,0.995,lat))*smoothstep(-0.2,0.15,iceWarpHiB);
+  float troughShadow=smoothstep(0.0,0.45,trough-troughSun)*strataVis;
+  float thick=smoothstep(0.0,0.09,capDepth);
+  vec3 thinIce=mix(vec3(0.60,0.70,0.79),base*0.6+vec3(0.32,0.38,0.44),0.35);
+  vec3 iceColor=mix(thinIce,vec3(0.93,0.95,0.97),thick);
+  iceColor=mix(iceColor,vec3(0.48,0.70,0.92),iceBlue*0.85);
+  iceColor*=(0.97+0.10*iceWarpHiA)*mix(0.88,1.04,iceDetail);
+  iceColor=mix(iceColor,land*0.9+vec3(0.08),trough*strataVis*0.22);
+  float iceOcc=clamp(shadowLight*(ridgeShadow*0.45+troughShadow*0.38),0.0,1.0);
+  iceColor*=mix(vec3(1.0),vec3(0.58,0.68,0.86),iceOcc);
+  base=mix(base,iceColor,iceMask);
   }
   // Meteorite impact craters (moons). Two size classes — sparse large basins
   // plus a denser field of small pits. Bowls darken toward shadowed regolith,

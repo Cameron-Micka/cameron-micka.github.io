@@ -375,7 +375,7 @@ below the frontmatter, allowing rich MDX (embedded React, code, etc.).
   strings.ts
   main.tsx
 /content                  # MDX content (see §6)
-/public                   # static, non-processed assets (favicon, og.png, CNAME)
+/public                   # static, non-processed assets (favicon, og.jpg, CNAME)
 /assets                   # imported assets (palettes, fonts) — processed by Vite
 ```
 
@@ -610,7 +610,7 @@ The site is the resume — recruiters print from the browser. The interactive la
 - Each route ships:
   - `<title>` and `<meta name="description">` from front-matter or per-route config.
   - Canonical URL and absolute social-image URLs; unknown routes receive `noindex`.
-  - **Open Graph:** static `og.png` (1451×768). The same card is used on all routes.
+  - **Open Graph:** static `og.jpg` (1514×768). The same card is used on all routes.
 - The landing route prerenders the readable résumé. Its canvas and selected rendering backend load only on the client.
 - `public/robots.txt` allows crawling. `public/sitemap.xml` lists the four public content routes.
 
@@ -663,7 +663,7 @@ PRs run steps 1–6 (no deploy). Branch protection: green CI required.
 ├── .github/workflows/
 │   └── deploy.yml
 ├── public/
-│   ├── og.png
+│   ├── og.jpg
 │   ├── favicon.svg
 │   ├── 404.html        ← SPA fallback for GH Pages
 │   └── CNAME           ← committed when custom domain ready

@@ -60,8 +60,8 @@ export default function RootLayout() {
         <meta property="og:title" content={metadata.title} />
         <meta property="og:description" content={metadata.description} />
         <meta property="og:url" content={`${SITE.url}${path}`} />
-        <meta property="og:image" content={`${SITE.url}/og.png`} />
-        <meta property="og:image:width" content="1451" />
+        <meta property="og:image" content={`${SITE.url}/og.jpg`} />
+        <meta property="og:image:width" content="1514" />
         <meta property="og:image:height" content="768" />
         <meta
           property="og:image:alt"
@@ -70,7 +70,7 @@ export default function RootLayout() {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={metadata.title} />
         <meta name="twitter:description" content={metadata.description} />
-        <meta name="twitter:image" content={`${SITE.url}/og.png`} />
+        <meta name="twitter:image" content={`${SITE.url}/og.jpg`} />
         {PAGES[path] ? (
           <link rel="canonical" href={`${SITE.url}${path}`} />
         ) : (

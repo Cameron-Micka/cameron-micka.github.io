@@ -511,8 +511,9 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let base = mix(land, water, waterMask);
 
   // Polar ice caps: keep them tighter to the poles, add breakup inside the
-  // sheet, and tint some of the denser ice toward blue. A directional detail
-  // mask darkens creases on the sun-facing side so the caps read less flat.
+  // sheet, and tint some of the denser ice toward blue. Interior detail is
+  // color-only: thin grey-blue margins, dusty layered strata, and cheap
+  // heightfield self-shadowing (sun-ward re-samples, no normal perturbation).
   // Two offset fbm passes form a domain-warp vector that distorts the edge
   // sampling position, producing wispy, tendril-like fronds at the boundary.
   // Mirror of PLANET_FRAG.
@@ -553,10 +554,47 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     let iceRidgePhase = vec3<f32>(4.2, 1.7, 8.4);
     let iceRidges = ridgedFbm(iceDetailPos * 0.8 + iceRidgePhase);
     let iceBlue = smoothstep(0.44, 0.78, iceDetail) * smoothstep(0.12, 0.7, iceMask);
-    let iceCrease = smoothstep(0.34, 0.72, iceRidges);
-    let iceSelfShadow = 1.0 - iceCrease * smoothstep(0.0, 0.75, dot(localPos, localLightDir)) * 0.28;
-    let iceColor = mix(vec3<f32>(0.88, 0.93, 0.98), vec3<f32>(0.48, 0.70, 0.92), iceBlue * 0.85);
-    base2 = mix(base, iceColor * iceSelfShadow, iceMask);
+
+    // Heightfield self-shadowing (albedo only, no normal perturbation): re-sample
+    // a height a short step toward the sun along the surface and darken where
+    // that neighbour stands higher. Low sun casts longer, deeper shadows; none
+    // past the terminator.
+    let sunElev = dot(localPos, localLightDir);
+    let sunTangent = localLightDir - localPos * sunElev;
+    let sunT = sunTangent * inverseSqrt(max(dot(sunTangent, sunTangent), 1e-6));
+    let shadowLight = smoothstep(-0.05, 0.12, sunElev) * mix(1.0, 0.45, clamp(sunElev, 0.0, 1.0));
+    // Pressure ridges: one extra 2-octave ridged sample, 0.035 toward the sun.
+    let ridgesSun = ridgedFbm((iceDetailPos + sunT * 0.28) * 0.8 + iceRidgePhase);
+    let ridgeShadow = smoothstep(0.0, 0.12, ridgesSun - iceRidges);
+
+    // Layered deposits: thin strata running parallel to the warped cap edge,
+    // spiralling gently with longitude like Mars' polar troughs. The band is
+    // analytic, so the sun-ward re-evaluation for trough shadows costs one sin.
+    let capDepth = lat - iceEdge;
+    let swirl = atan2(localPos.z, localPos.x);
+    let strataK = 200.0;
+    let trough = smoothstep(0.1, 0.9, sin(capDepth * strataK + swirl));
+    let latSun = abs(normalize(localPos + sunT * 0.012).y);
+    let troughSun = smoothstep(0.1, 0.9, sin((latSun - iceEdge) * strataK + swirl));
+    let strataVis = smoothstep(0.012, 0.045, capDepth)
+      * (1.0 - smoothstep(0.975, 0.995, lat))
+      * smoothstep(-0.2, 0.15, iceWarpHiB);
+    let troughShadow = smoothstep(0.0, 0.45, trough - troughSun) * strataVis;
+
+    // Thin margins are grey-blue with the ground tinting through; the deep
+    // interior is bright packed snow. Wind-streak and mottling variation reuse
+    // noise already evaluated above.
+    let thick = smoothstep(0.0, 0.09, capDepth);
+    let thinIce = mix(vec3<f32>(0.60, 0.70, 0.79), base * 0.6 + vec3<f32>(0.32, 0.38, 0.44), 0.35);
+    var iceColor = mix(thinIce, vec3<f32>(0.93, 0.95, 0.97), thick);
+    iceColor = mix(iceColor, vec3<f32>(0.48, 0.70, 0.92), iceBlue * 0.85);
+    iceColor = iceColor * (0.97 + 0.10 * iceWarpHiA) * mix(0.88, 1.04, iceDetail);
+    // Dusty strata pick up the planet's own land color.
+    iceColor = mix(iceColor, land * 0.9 + vec3<f32>(0.08), trough * strataVis * 0.22);
+    // Snow shadows are lit by the sky, so they tint blue rather than grey.
+    let iceOcc = clamp(shadowLight * (ridgeShadow * 0.45 + troughShadow * 0.38), 0.0, 1.0);
+    iceColor = iceColor * mix(vec3<f32>(1.0), vec3<f32>(0.58, 0.68, 0.86), iceOcc);
+    base2 = mix(base, iceColor, iceMask);
   }
 
   // Meteorite impact craters (moons). Two size classes — a sparse field of
