@@ -81,18 +81,19 @@ fn cVnoise(x : vec3<f32>) -> f32 {
   return mix(nxy0, nxy1, u.z);
 }
 
-fn cFbm(p : vec3<f32>) -> f32 {
+// `octaves` is 2 or 4. Truncated sums are rescaled to the 4-octave range so
+// smoothstep thresholds stay tier-independent.
+fn cFbm(p : vec3<f32>, octaves : i32) -> f32 {
   var v = 0.0;
   var a = 0.5;
   var q = p;
-  let octaves = select(4, 3, frame.shadowMisc.y > 1.5);
   for (var i = 0; i < 4; i = i + 1) {
     if (i >= octaves) { break; }
     v = v + a * cVnoise(q);
     q = q * 2.03;
     a = a * 0.5;
   }
-  return v * select(1.0, 15.0 / 14.0, frame.shadowMisc.y > 1.5);
+  return v * select(1.0, 1.25, octaves < 4);
 }
 
 // Per-planet cloud rotation about local Y, varied by seed so different planets
@@ -126,9 +127,13 @@ fn cloudDensity(localDir : vec3<f32>, time : f32, seedf : f32) -> f32 {
   // Domain warp (iq): two extra fbm samples form a warp vector, the final
   // sample re-evaluates the field at the warped position. Produces the
   // characteristic swirly, turbulent look that pure additive fbm lacks.
-  let qx = cFbm(p);
-  let qy = cFbm(p + vec3<f32>(5.2, 1.3, 2.8));
-  let n = cFbm(p + 0.85 * vec3<f32>(qx - 0.5, qy - 0.5, (qx - qy) * 0.7));
+  // Low keeps the visible field at full detail and only trims the warp
+  // samples, whose high octaves barely move the warp (2+2+4 noise taps,
+  // cheaper than the old 3+3+3 split that blurred every Low cloud edge).
+  let warpOctaves = select(4, 2, frame.shadowMisc.y > 1.5);
+  let qx = cFbm(p, warpOctaves);
+  let qy = cFbm(p + vec3<f32>(5.2, 1.3, 2.8), warpOctaves);
+  let n = cFbm(p + 0.85 * vec3<f32>(qx - 0.5, qy - 0.5, (qx - qy) * 0.7), 4);
   let cov = cloudCoverage(seedf);
   // Higher coverage lowers the smoothstep window, so more of the noise
   // domain becomes cloud. Output in [0, 1].
@@ -170,7 +175,7 @@ fn cloudSelfShadow(localDir : vec3<f32>, worldSun : vec3<f32>, time : f32, seedf
     let d2 = cloudDensity(normalize(localDir + localSun * 0.090), time, seedf);
     let d3 = cloudDensity(normalize(localDir + localSun * 0.160), time, seedf);
     let occ = clamp(0.55 * d1 + 0.30 * d2 + 0.15 * d3, 0.0, 1.0);
-    let grain = cFbm(localDir * 14.0 + vec3<f32>(seedf * 0.011, seedf * 0.013, seedf * 0.017));
+    let grain = cFbm(localDir * 14.0 + vec3<f32>(seedf * 0.011, seedf * 0.013, seedf * 0.017), 4);
     occDetail = clamp(occ * mix(0.75, 1.20, grain), 0.0, 1.0);
   }
   return 1.0 - occDetail * 0.70;

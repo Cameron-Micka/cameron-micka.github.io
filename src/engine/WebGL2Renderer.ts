@@ -188,7 +188,7 @@ float cVnoise(vec3 x){
   float n001=cHash3(i+vec3(0,0,1)),n101=cHash3(i+vec3(1,0,1)),n011=cHash3(i+vec3(0,1,1)),n111=cHash3(i+vec3(1,1,1));
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
-float cFbm(vec3 p){float v=0.,a=.5;int octaves=uTier>1.5?3:4;for(int i=0;i<4;i++){if(i>=octaves)break;v+=a*cVnoise(p);p*=2.03;a*=.5;}return v*(uTier>1.5?15.0/14.0:1.0);}
+float cFbm(vec3 p,int octaves){float v=0.,a=.5;for(int i=0;i<4;i++){if(i>=octaves)break;v+=a*cVnoise(p);p*=2.03;a*=.5;}return v*(octaves<4?1.25:1.0);}
 float cloudRotation(float time,float seedf){
   float baseSpeed=0.015;
   float jitter=fract(seedf*0.000371)*0.025;
@@ -205,9 +205,10 @@ float cloudDensity(vec3 localDir,float time,float seedf){
   // Domain warp (iq): two extra fbm samples form a warp vector, the final
   // sample re-evaluates the field at the warped position. Produces the
   // characteristic swirly, turbulent look that pure additive fbm lacks.
-  float qx=cFbm(p);
-  float qy=cFbm(p+vec3(5.2,1.3,2.8));
-  float n=cFbm(p+0.85*vec3(qx-0.5,qy-0.5,(qx-qy)*0.7));
+  int warpOctaves=uTier>1.5?2:4;
+  float qx=cFbm(p,warpOctaves);
+  float qy=cFbm(p+vec3(5.2,1.3,2.8),warpOctaves);
+  float n=cFbm(p+0.85*vec3(qx-0.5,qy-0.5,(qx-qy)*0.7),4);
   float cov=cloudCoverage(seedf);
   float lo=0.62-cov*0.30;float hi=lo+0.14;
   return smoothstep(lo,hi,n);
@@ -1368,7 +1369,7 @@ float cVnoise(vec3 x){
   float n001=cHash3(i+vec3(0,0,1)),n101=cHash3(i+vec3(1,0,1)),n011=cHash3(i+vec3(0,1,1)),n111=cHash3(i+vec3(1,1,1));
   return mix(mix(mix(n000,n100,u.x),mix(n010,n110,u.x),u.y),mix(mix(n001,n101,u.x),mix(n011,n111,u.x),u.y),u.z);
 }
-float cFbm(vec3 p){float v=0.,a=.5;int octaves=uTier>1.5?3:4;for(int i=0;i<4;i++){if(i>=octaves)break;v+=a*cVnoise(p);p*=2.03;a*=.5;}return v*(uTier>1.5?15.0/14.0:1.0);}
+float cFbm(vec3 p,int octaves){float v=0.,a=.5;for(int i=0;i<4;i++){if(i>=octaves)break;v+=a*cVnoise(p);p*=2.03;a*=.5;}return v*(octaves<4?1.25:1.0);}
 float cloudRotation(float time,float seedf){
   float baseSpeed=0.015;
   float jitter=fract(seedf*0.000371)*0.025;
@@ -1382,9 +1383,10 @@ float cloudDensity(vec3 localDir,float time,float seedf){
   vec3 rp=vec3(cs*localDir.x+sn*localDir.z,localDir.y,-sn*localDir.x+cs*localDir.z);
   vec3 seedShift=vec3(seedf*0.0017,seedf*0.0023,seedf*0.0029);
   vec3 p=rp*4.8+seedShift;
-  float qx=cFbm(p);
-  float qy=cFbm(p+vec3(5.2,1.3,2.8));
-  float n=cFbm(p+0.85*vec3(qx-0.5,qy-0.5,(qx-qy)*0.7));
+  int warpOctaves=uTier>1.5?2:4;
+  float qx=cFbm(p,warpOctaves);
+  float qy=cFbm(p+vec3(5.2,1.3,2.8),warpOctaves);
+  float n=cFbm(p+0.85*vec3(qx-0.5,qy-0.5,(qx-qy)*0.7),4);
   float cov=cloudCoverage(seedf);
   float lo=0.62-cov*0.30;float hi=lo+0.14;
   return smoothstep(lo,hi,n);
@@ -1400,7 +1402,7 @@ float cloudSelfShadow(vec3 localDir,vec3 worldSun,float time,float seedf,float d
   float d2=cloudDensity(normalize(localDir+localSun*0.090),time,seedf);
   float d3=cloudDensity(normalize(localDir+localSun*0.160),time,seedf);
   float occ=clamp(0.55*d1+0.30*d2+0.15*d3,0.0,1.0);
-  float grain=cFbm(localDir*14.0+vec3(seedf*0.011,seedf*0.013,seedf*0.017));
+  float grain=cFbm(localDir*14.0+vec3(seedf*0.011,seedf*0.013,seedf*0.017),4);
   float occDetail=clamp(occ*mix(0.75,1.20,grain),0.0,1.0);
   return 1.0-occDetail*0.70;
 }
