@@ -163,12 +163,14 @@ float fogFactor(vec3 worldPos,vec3 camPos){
   float d=distance(worldPos,camPos);float s=d*FOG_DENSITY;return 1.0-exp(-s*s);
 }
 // Analytic spherical shadow (mirror of planet.wgsl). 1.0 unshadowed, 0.0
-// fully shadowed. Fixed loop bound for driver robustness.
-float shadowFactor(vec3 p,vec3 L){
+// fully shadowed. Fixed loop bound for driver robustness. Skips the
+// receiver's own sphere; fs applies a soft terminator for self-shadow.
+float shadowFactor(vec3 p,vec3 L,vec3 exclude){
   float s=1.0;
   for(int i=0;i<8;i++){
     if(i>=uShadowCount)break;
     vec4 sph=uShadowSpheres[i];
+    if(distance(sph.xyz,exclude)<1e-3)continue;
     vec3 d=sph.xyz-p;
     float t=dot(d,L);
     if(t<=0.0)continue;
@@ -533,7 +535,11 @@ void main(){
   }
   // Pre-multiply sun radiance by PI so diffuse is kD*albedo*uSunColor*NdL.
   vec3 sunRadiance=uSunColor*PI;
-  float shadow=shadowFactor(vWorld,L);
+  // Other planets' shadows times a soft self-shadow terminator, so crater
+  // normals facing the sun just past the terminator fade instead of being
+  // cut by a hard own-sphere test (mirror of planet.wgsl).
+  float selfShadow=smoothstep(-0.15,0.0,dot(n,L));
+  float shadow=shadowFactor(vWorld,L,uModel[3].xyz)*selfShadow;
   // Cloud shadow uses the same noise + rotation as CLOUDS_FRAG so the
   // shadow lands directly under the rendered puff (gated by uCloudShadow,
   // which the renderer sets to visibility when clouds are on, 0 otherwise).

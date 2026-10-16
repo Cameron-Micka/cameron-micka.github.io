@@ -167,13 +167,16 @@ fn fogFactor(worldPos : vec3<f32>, cameraPos : vec3<f32>) -> f32 {
 // Analytic spherical shadow from a directional sun. For each occluder sphere
 // we test whether the ray from the receiver point in direction L (toward sun)
 // passes through the sphere. Returns 1.0 unshadowed, 0.0 fully shadowed,
-// smoothstep'd across a ~5% radial penumbra band beyond the umbra.
-fn shadowFactor(p : vec3<f32>, L : vec3<f32>) -> f32 {
+// smoothstep'd across a ~5% radial penumbra band beyond the umbra. The
+// receiver's own sphere is skipped (`exclude` = its center); its self-shadow
+// is a soft terminator term in fs instead of this test's hard cutoff.
+fn shadowFactor(p : vec3<f32>, L : vec3<f32>, exclude : vec3<f32>) -> f32 {
   var s = 1.0;
   let cnt = i32(frame.shadowMisc.x);
   for (var i = 0; i < 8; i = i + 1) {
     if (i >= cnt) { break; }
     let sph = frame.shadowSpheres[i];
+    if (distance(sph.xyz, exclude) < 1e-3) { continue; }
     let d = sph.xyz - p;
     let t = dot(d, L);
     if (t <= 0.0) { continue; } // occluder is behind the receiver
@@ -751,10 +754,13 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   // Sun radiance pre-multiplied by PI so that diffuse simplifies to
   // kD * albedo * sunColor * NdL while specular retains its physical units.
   let sunRadiance = frame.sunColor.rgb * PI;
-  // Analytic planet shadow on the lit side. Self-shadow is implicitly handled
-  // because the lit-side test gives t <= 0 (the receiver's own sphere is
-  // sun-ward, so the ray to the sun never re-enters).
-  let shadow = shadowFactor(in.worldPos, lightDir);
+  // Analytic shadows from other planets, times a soft self-shadow terminator.
+  // Smooth normals already reach NdL = 0 at the geometric terminator, but
+  // crater-perturbed normals can face the sun just past it; the old hard
+  // own-sphere test sliced those craters in half. Fading over a band wider
+  // than a crater lets sunward rims catch light past the terminator.
+  let selfShadow = smoothstep(-0.15, 0.0, dot(n, lightDir));
+  let shadow = shadowFactor(in.worldPos, lightDir, obj.model[3].xyz) * selfShadow;
   // Cloud shadow: gated by p1.z (renderer sets this to the planet's visibility
   // when clouds are on, 0 otherwise, so shadows fade in lockstep with the
   // alpha-blended cloud shell). Uses the same noise/rotation as clouds.wgsl
