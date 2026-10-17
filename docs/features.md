@@ -12,12 +12,14 @@ and the static pages use the same system, without panel wear, background grids,
 or LCD textures. The 3D scene and photo-viewing backdrop stay dark so the work
 remains the focus.
 
-Backplates have a lightly translucent mica finish with a static pink, sage,
+Backplates have a translucent mica finish with a 70%-opaque base tint and a static pink, sage,
 and blue pearlescent sheen, rendered entirely with CSS gradients rather than
 texture images. Buttons, switches, and inset controls share that material,
 using a lighter tint over their parent plate and shallow shadows
 instead of opaque white caps. Hover adds a soft highlight; primary actions and
 selected controls use a rose tint and coral ink, with inset depth when pressed.
+Enabled Settings toggles use a more saturated coral track and an opaque light thumb
+to clearly distinguish them from neutral off states.
 Text buttons have fully rounded pill ends and icon-only buttons are circular.
 The chapter readout is the exception: it retains a softly rounded rectangular
 shape, like the panel and media frames.
@@ -27,6 +29,7 @@ text stays crisp. Secondary labels use darker ink to maintain AA contrast even
 over a black backdrop.
 Static-page navigation stays opaque so scrolled text cannot bleed through;
 card frames share the sheen without adding backdrop-blur layers to the gallery.
+Navigation headers have no surrounding shadow or glow.
 Photo tiles and the About portrait share a thin 2px mica inset, a fine border,
 and restrained shadows so the image takes priority over its frame.
 Expanded photos have no drop shadow against the dark viewer backdrop.
@@ -56,6 +59,11 @@ The POI dialog is a scrollable, snap-aligned feed of every story across the
 career timeline. Its native project picker opens any story without requiring a
 precise click on a 3D marker. The picker's visible "Jump to a story" label is
 hidden at narrow widths, while its accessible name remains available.
+Its native scrollbar sits in the outer mica gutter to the right of the inset
+reading surface, rather than inside the story panel. Only the reading surface
+has rounded corners, so the scrollbar thumb is not clipped at either end.
+The reading surface has a clean, unbeveled edge without a stacked border or
+highlight lip.
 Scrolling between stories is silent, including across company boundaries.
 With sound enabled, directly opening or closing a story still plays its cue,
 as does chapter navigation outside the story dialog.

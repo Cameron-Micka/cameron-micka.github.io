@@ -27,6 +27,8 @@ In addition to typecheck, lint, and the production build, exercise:
   overflow, obscured actions, or inaccessible settings controls. Include
   768x501, 768x600, and the 720px/721px height boundary to check floating-control
   clearance from the header.
+- Brand-mark strokes remain inset within their circular container on both sides
+  of the 980px compact-header breakpoint, including 320px-wide screens.
 - Light surfaces on every route, inset and raised control states, keyboard
   focus, and forced-colors mode. Settings switches retain a 44px hit height;
   their thumbs stay centered vertically with equal end clearance when on or off.
@@ -47,6 +49,9 @@ In addition to typecheck, lint, and the production build, exercise:
   or returning from another route, and reappears on a fresh page load.
 - Direct story links, project switching, expansion, Esc, Tab wrapping, and
   return focus in both viewers.
+- Story scrollbars remain in the outer right mica gutter in normal and
+  expanded layouts, including narrow screens; wheel, keyboard, and native thumb
+  scrolling still update the story picker and deep link.
 - Live system-motion changes, paused interaction, quality switches, and both
   rendering backends. A settled paused scene should submit **zero GPU draws**.
 - Auto quality can reach Medium/High on both fine- and coarse-pointer devices

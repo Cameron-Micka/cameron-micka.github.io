@@ -110,8 +110,8 @@ test('mica backplates stay translucent with AA text over dark and light scenes',
   assert.match(tint, /^#[\da-f]{8}$/i);
   const alpha = parseInt(tint.slice(7), 16) / 255;
   assert.ok(
-    alpha >= 0.8 && alpha <= 0.95,
-    'Backplates should be lightly translucent',
+    alpha >= 0.69 && alpha <= 0.71,
+    'Backplate base tint should stay near 70% opacity',
   );
 
   for (const background of [
@@ -252,10 +252,74 @@ test('gallery frames stay thin with matching inner image corners', () => {
   assert.doesNotMatch(frame, /var\(--shadow-raised\)/);
 });
 
+test('navigation headers have no surrounding glow or shadow', () => {
+  const header = css.match(/^\.topnav \{([^}]+)\}/m)?.[1];
+  const solid = css.match(/^\.topnav\.solid \{([^}]+)\}/m)?.[1];
+  assert.ok(header, 'Missing navigation header style');
+  assert.ok(solid, 'Missing static-page header style');
+  assert.match(header, /box-shadow:\s*none;/);
+  assert.doesNotMatch(solid, /box-shadow:/);
+});
+
 test('expanded photos have no drop shadow', () => {
   const image = css.match(/^\.lightbox-figure img \{([^}]+)\}/m)?.[1];
   assert.ok(image, 'Missing expanded photo style');
   assert.doesNotMatch(image, /(?:box-shadow|filter):/);
+});
+
+test('the story scrollbar has a gutter outside the inset reading surface', () => {
+  const frame = css.match(
+    /^\.modal\.poi-modal \.poi-content-frame \{([^}]+)\}/m,
+  )?.[1];
+  const surface = css.match(
+    /^\.modal\.poi-modal \.poi-content-frame::before \{([^}]+)\}/m,
+  )?.[1];
+  const scroll = css.match(
+    /^\.modal\.poi-modal \.modal-content \{([^}]+)\}/m,
+  )?.[1];
+  assert.ok(surface, 'Missing inset story surface');
+  assert.ok(frame, 'Missing story frame');
+  assert.doesNotMatch(frame, /border-radius:|clip-path:|mask:/);
+  assert.match(surface, /border-radius:\s*var\(--poi-content-radius\);/);
+  assert.doesNotMatch(surface, /(?:border|box-shadow):/);
+  assert.ok(scroll, 'Missing story scroll container');
+  assert.match(surface, /inset:\s*0 var\(--poi-scrollbar-gutter\) 0 0;/);
+  assert.match(surface, /pointer-events:\s*none;/);
+  assert.match(scroll, /scrollbar-gutter:\s*stable;/);
+  assert.match(
+    scroll,
+    /padding:\s*0 calc\(var\(--modal-pad\) \+ var\(--poi-scrollbar-gutter\)\)/,
+  );
+  assert.doesNotMatch(scroll, /margin-right:/);
+});
+
+test('enabled toggles have a saturated track and a contrasting light thumb', () => {
+  const on = color('--toggle-on');
+  assert.ok(parseInt(on.slice(7), 16) / 255 >= 0.8);
+  const [red, green, blue] = rgb(on);
+  assert.ok(
+    red > green * 2 && red > blue * 2,
+    'Track should be saturated coral',
+  );
+  assert.match(
+    css,
+    /\.settings input\[type='checkbox'\]:checked::before \{\s*--control-overlay:\s*var\(--toggle-on\);/,
+  );
+  assert.match(
+    css,
+    /\.settings input\[type='checkbox'\]::after \{\s*--control-tint:\s*var\(--panel\);/,
+  );
+  for (const backdrop of ['#000000', '#ffffff']) {
+    const plate = composite(color('--backplate-tint'), backdrop);
+    for (const base of [plate, '#ffffff']) {
+      const track = composite(on, base);
+      const thumb = color('--panel');
+      assert.ok(
+        contrastColors(thumb, track) >= 3,
+        'Enabled thumb must stand out against its track',
+      );
+    }
+  }
 });
 
 test('toggle tracks and thumbs include borders in their declared size', () => {
