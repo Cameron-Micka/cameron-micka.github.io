@@ -2622,7 +2622,6 @@ main:focus {
     min-width: 0;
   }
   .modal.poi-modal .poi-content-frame {
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--rule);
     background: #f7f8fa;
   }
@@ -2635,6 +2634,11 @@ main:focus {
   }
   .modal.poi-modal .poi-section:first-child {
     padding-top: 18px;
+  }
+  /* Bottom breathing room lives inside the scroller, so content scrolls all
+     the way to the window's bottom edge instead of clipping above it. */
+  .modal.poi-modal .poi-section:last-child {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
   .modal.poi-modal .poi-section h2 {
     font-size: 26px;
