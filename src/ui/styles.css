@@ -936,9 +936,6 @@ main:focus {
   height: 32px;
   object-fit: contain;
   flex-shrink: 0;
-  padding: 5px;
-  background: var(--panel-light);
-  border-radius: 9px;
 }
 .ribbon .role {
   display: block;
