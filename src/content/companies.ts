@@ -784,7 +784,7 @@ const raw: CompanyInput[] = [
   },
   {
     slug: 'digipen',
-    name: 'DigiPen Institute of Technology',
+    name: 'DigiPen',
     role: 'BS, Real-Time Interactive Simulation, Minor in Mathematics',
     logo: 'logos/digipen.svg',
     start: '2006',
