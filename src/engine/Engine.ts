@@ -95,7 +95,7 @@ export interface EngineSnapshot {
 
 export type EngineEvents = {
   focusChanged: number;
-  poiOpened: OpenPoiRef;
+  poiOpened: OpenPoiRef & { source: 'direct' | 'scroll' };
   poiClosed: null;
   qualityChanged: QualityTier;
   ready: null;
@@ -1172,7 +1172,11 @@ export class Engine {
     this.scrubTarget = clamp(index, 0, this.models.length - 1);
   }
 
-  openPoiRef(company: string, poi: string): void {
+  openPoiRef(
+    company: string,
+    poi: string,
+    source: 'direct' | 'scroll' = 'direct',
+  ): void {
     const idx = this.models.findIndex((m) => m.company.slug === company);
     if (
       idx < 0 ||
@@ -1190,7 +1194,7 @@ export class Engine {
     // First POI opened this session: the markers no longer need to advertise
     // themselves, so stop the shimmer until the next page load.
     poiShimmerMuted = true;
-    this.events.emit('poiOpened', this.openPoi);
+    this.events.emit('poiOpened', { ...this.openPoi, source });
     this.commit();
   }
 

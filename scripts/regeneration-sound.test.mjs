@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 let server;
 let SoundManager;
 let TinyEventEmitter;
+let Engine;
 
 before(async () => {
   server = await createServer({
@@ -19,6 +20,7 @@ before(async () => {
   ({ TinyEventEmitter } = await server.ssrLoadModule(
     '/src/engine/TinyEventEmitter.ts',
   ));
+  ({ Engine } = await server.ssrLoadModule('/src/engine/Engine.ts'));
 });
 
 after(async () => {
@@ -105,9 +107,10 @@ function audioProbe(
     });
   }
   const events = new TinyEventEmitter();
-  const sound = new SoundManager({ events });
+  const snapshot = { openPoi: null };
+  const sound = new SoundManager({ events, getSnapshot: () => snapshot });
   t.after(() => sound.destroy());
-  return { sound, events, contexts };
+  return { sound, events, contexts, snapshot };
 }
 
 test('regeneration event plays a short rising sweep and delayed chime', (t) => {
@@ -213,10 +216,14 @@ test('finished tones disconnect and destroy stops active tones and unsubscribes'
   assert.equal(ctx.closes, 1);
 });
 
-test('existing POI and focus cues retain their pitches and waveforms', (t) => {
+test('direct POI and timeline focus cues retain their pitches and waveforms', (t) => {
   const { sound, events, contexts } = audioProbe(t);
   sound.setEnabled(true);
-  events.emit('poiOpened', null);
+  events.emit('poiOpened', {
+    company: 'test',
+    poi: 'project',
+    source: 'direct',
+  });
   events.emit('poiClosed', null);
   events.emit('focusChanged', 3);
   assert.deepEqual(
@@ -230,4 +237,70 @@ test('existing POI and focus cues retain their pitches and waveforms', (t) => {
       [196 * Math.pow(2, 6 / 12), 'triangle'],
     ],
   );
+});
+
+test('scrolling stories stays silent across POI and chapter changes', (t) => {
+  const { sound, events, contexts, snapshot } = audioProbe(t);
+  sound.setEnabled(true);
+  const opened = [];
+  events.on('poiOpened', (poi) => opened.push(poi));
+  const engine = Object.assign(Object.create(Engine.prototype), {
+    events,
+    models: ['first', 'second'].map((slug) => ({
+      company: { slug, pois: [{ slug: 'one' }, { slug: 'two' }] },
+    })),
+    openPoi: null,
+    focusedIndex: 0,
+    scrubCurrent: 0,
+    onUserInteract() {},
+    onOrbitEnd() {},
+    commit() {
+      snapshot.openPoi = this.openPoi;
+    },
+  });
+  engine.openPoiRef('first', 'one');
+  assert.equal(contexts[0].oscillators.length, 1);
+  for (const [company, poi] of [
+    ['first', 'two'],
+    ['second', 'one'],
+    ['second', 'two'],
+  ]) {
+    engine.openPoiRef(company, poi, 'scroll');
+    engine.scrubCurrent = engine.scrubTarget;
+    engine.updateFocus();
+    assert.deepEqual(snapshot.openPoi, { company, poi });
+    assert.equal(contexts[0].oscillators.length, 1);
+  }
+  assert.deepEqual(
+    opened.map(({ source }) => source),
+    ['direct', 'scroll', 'scroll', 'scroll'],
+  );
+  engine.openPoiRef('first', 'one');
+  assert.equal(
+    contexts[0].oscillators.length,
+    2,
+    'Explicit story jumps still chime',
+  );
+  engine.closePoi();
+  assert.equal(
+    contexts[0].oscillators.length,
+    3,
+    'Closing a story still chimes',
+  );
+  engine.scrubCurrent = engine.scrubTarget;
+  engine.updateFocus();
+  assert.equal(
+    contexts[0].oscillators.length,
+    4,
+    'Timeline cues resume after closing',
+  );
+});
+
+test('scroll updates do not create an audio context', (t) => {
+  const { sound, events, contexts, snapshot } = audioProbe(t);
+  sound.setEnabled(true);
+  snapshot.openPoi = { company: 'test', poi: 'project' };
+  events.emit('poiOpened', { ...snapshot.openPoi, source: 'scroll' });
+  events.emit('focusChanged', 1);
+  assert.equal(contexts.length, 0);
 });

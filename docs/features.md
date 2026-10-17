@@ -2,6 +2,44 @@
 
 How visitors navigate and interact with the site, plus accessibility and SEO behavior.
 
+## Visual design
+
+The interface uses a light, minimal soft-plastic treatment: neutral surfaces,
+rounded corners, top-left highlights, and diffuse lower-right shadows. Raised
+buttons and inset readouts share the tokens in `src/ui/styles.css`; coral is
+reserved for actions and selected states. Navigation, story dialogs, Settings,
+and the static pages use the same system, without panel wear, background grids,
+or LCD textures. The 3D scene and photo-viewing backdrop stay dark so the work
+remains the focus.
+
+Backplates have a lightly translucent mica finish with a static pink, sage,
+and blue pearlescent sheen, rendered entirely with CSS gradients rather than
+texture images. Buttons, switches, and inset controls share that material,
+using a lighter tint over their parent plate and shallow shadows
+instead of opaque white caps. Hover adds a soft highlight; primary actions and
+selected controls use a rose tint and coral ink, with inset depth when pressed.
+Text buttons have fully rounded pill ends and icon-only buttons are circular.
+The chapter readout is the exception: it retains a softly rounded rectangular
+shape, like the panel and media frames.
+Floating panels and standalone scene buttons frost the scene behind them;
+nested controls reuse their panel's blur. Story content remains opaque and
+text stays crisp. Secondary labels use darker ink to maintain AA contrast even
+over a black backdrop.
+Static-page navigation stays opaque so scrolled text cannot bleed through;
+card frames share the sheen without adding backdrop-blur layers to the gallery.
+Photo tiles and the About portrait share a thin 2px mica inset, a fine border,
+and restrained shadows so the image takes priority over its frame.
+Expanded photos have no drop shadow against the dark viewer backdrop.
+Reduced-transparency preferences, forced colors, and browsers without backdrop
+filtering use opaque backplates and controls instead.
+
+System sans-serif typography avoids a web-font download. The boot screen and
+browser theme color match the light surface to prevent a dark first-paint flash.
+Text contrast, visible keyboard outlines, native form controls, and distinct
+pressed states keep the soft appearance usable. High-contrast mode restores
+explicit control borders and native checkboxes; reduced-motion preferences
+disable control transitions as well as scene animation.
+
 ## Finding the work
 
 On roomy viewports, the landing introduction explains the experience and
@@ -10,10 +48,17 @@ below) and short landscape windows hide that introduction so the canvas and
 controls have room; the lower readout remains the primary chapter and story
 entry point.
 
+Desktop and tablet windows 501-720px tall hide the duplicate side ruler and
+place Pause and Free Camera below the header. The ribbon still provides
+chapter navigation and story access without overlapping the floating header.
+
 The POI dialog is a scrollable, snap-aligned feed of every story across the
 career timeline. Its native project picker opens any story without requiring a
 precise click on a 3D marker. The picker's visible "Jump to a story" label is
 hidden at narrow widths, while its accessible name remains available.
+Scrolling between stories is silent, including across company boundaries.
+With sound enabled, directly opening or closing a story still plays its cue,
+as does chapter navigation outside the story dialog.
 
 The timeline reads newest to oldest: scroll down or press **Down** to move
 toward older work; scroll up or press **Up** to return toward the present.

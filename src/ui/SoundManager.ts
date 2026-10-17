@@ -11,13 +11,16 @@ export class SoundManager {
 
   constructor(engine: Engine) {
     this.unsub.push(
-      engine.events.on('poiOpened', () => this.blip(660, 0.12, 'sine')),
+      engine.events.on('poiOpened', ({ source }) => {
+        if (source !== 'scroll') this.blip(660, 0.12, 'sine');
+      }),
     );
     this.unsub.push(
       engine.events.on('poiClosed', () => this.blip(330, 0.1, 'sine')),
     );
     this.unsub.push(
       engine.events.on('focusChanged', (i: number) => {
+        if (engine.getSnapshot().openPoi) return;
         // Walk up the timeline in whole steps (+2 semitones per entry) from
         // a G3 base, so each company has a distinct pitch and the sequence
         // reads as a rising scale when scrubbing forward in time.

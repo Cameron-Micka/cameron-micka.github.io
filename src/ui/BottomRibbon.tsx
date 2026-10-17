@@ -29,7 +29,7 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
   return (
     <div className="ribbon" aria-live="polite">
       <div className="ribbon-channel" aria-hidden="true">
-        <span className="channel-label">Chapter</span>
+        <span className="channel-label">Planet</span>
         <span className="channel-value">
           {String(companies.length - focusedIndex).padStart(2, '0')}
           <span>/{String(companies.length).padStart(2, '0')}</span>

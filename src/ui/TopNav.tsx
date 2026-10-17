@@ -30,36 +30,24 @@ export function TopNav({
           end
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
-          <span className="nav-number" aria-hidden="true">
-            01
-          </span>
           {NAV.home}
         </NavLink>
         <NavLink
           to="/about"
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
-          <span className="nav-number" aria-hidden="true">
-            02
-          </span>
           {NAV.about}
         </NavLink>
         <NavLink
           to="/blog"
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
-          <span className="nav-number" aria-hidden="true">
-            03
-          </span>
           {NAV.blog}
         </NavLink>
         <NavLink
           to="/photography"
           className={({ isActive }) => `navlink${isActive ? ' active' : ''}`}
         >
-          <span className="nav-number" aria-hidden="true">
-            04
-          </span>
           {NAV.photography}
         </NavLink>
         {onToggleSettings && (

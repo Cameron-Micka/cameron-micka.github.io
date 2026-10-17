@@ -10,12 +10,34 @@ the production build on every pull request and on pushes to `main`. Only
 receive the `pages`/`id-token` scopes and cannot publish. Deployment jobs are
 serialized separately from pull-request builds.
 
+`scripts/ui-theme.test.mjs` checks text and focus contrast against the shared
+surface tokens, composited mica button states, and matching boot/browser theme
+colors, the shared pill-shaped button radius with its chapter-readout exception,
+and border-inclusive toggle sizing. It does not replace the responsive and
+visual browser checks below.
+
 ## Browser checks
+
+`scripts/regeneration-sound.test.mjs` also checks that scrolling between stories
+and companies is silent while direct story actions and timeline cues remain.
 
 In addition to typecheck, lint, and the production build, exercise:
 
 - Desktop, 320px/390px portrait, and short landscape layouts; no horizontal
-  overflow, obscured actions, or inaccessible settings controls.
+  overflow, obscured actions, or inaccessible settings controls. Include
+  768x501, 768x600, and the 720px/721px height boundary to check floating-control
+  clearance from the header.
+- Light surfaces on every route, inset and raised control states, keyboard
+  focus, and forced-colors mode. Settings switches retain a 44px hit height;
+  their thumbs stay centered vertically with equal end clearance when on or off.
+  Labels and primary actions meet WCAG AA text contrast.
+- Mica buttons keep their sheen on hover and selection, remain legible over
+  dark and bright scenes, and become opaque with reduced transparency.
+  Nested controls reuse panel blur rather than adding a filter per button.
+- Text buttons have semicircular ends and square icon controls remain circular.
+  The chapter readout is the exception and keeps its rounded-rectangle shape.
+  Check multiline readouts at 320px and 390px widths for text clearance,
+  without rounding panels or media previews.
 - Continuous window resizing with motion running, paused, and a story open;
   no black frames during resizing, including when crossing layout breakpoints.
 - Wheel, keyboard, ribbon, and ruler navigation in both directions; form

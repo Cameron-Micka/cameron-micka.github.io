@@ -267,7 +267,7 @@ export function PoiModal({ companies }: { companies: Company[] }) {
     if (!key || key === activeKey.current) return;
     activeKey.current = key;
     const entry = entries.find((e) => e.key === key);
-    if (entry) engine.openPoiRef(entry.company.slug, entry.poi.slug);
+    if (entry) engine.openPoiRef(entry.company.slug, entry.poi.slug, 'scroll');
   };
 
   const titleId = (key: string) => `poi-title-${key.replace('/', '--')}`;

@@ -7,14 +7,6 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <!-- Instrument labels and display typography. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-
     <style>
       /* Boot skeleton — replaced once React hydrates. Keeps first paint instant. */
       html,
@@ -22,48 +14,31 @@
       #root {
         margin: 0;
         height: 100%;
-        color: #f1f0f2;
-        font-family:
-          'IBM Plex Mono', 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+        color: #343941;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       }
       html {
-        background: #202023;
+        background: #eef0f3;
+        color-scheme: light;
       }
       #boot-skeleton {
         position: fixed;
         inset: 0;
         display: grid;
         place-items: center;
-        background: #18181b;
+        background: #eef0f3;
         z-index: 9999;
         transition: opacity 0.6s ease;
       }
       #boot-skeleton .pulse {
         width: 96px;
-        height: 8px;
-        background: repeating-linear-gradient(
-          90deg,
-          #ff510b 0 5px,
-          transparent 5px 8px
-        );
-        border-radius: 4px;
-        box-shadow: 0 0 18px rgba(255, 81, 11, 0.2);
+        height: 6px;
+        background: #f5656b;
+        border-radius: 999px;
+        box-shadow:
+          4px 4px 12px #c7cbd3,
+          -4px -4px 12px #fff;
         animation: bootpulse 1.8s ease-in-out infinite;
-      }
-      /* Scanlines so the pre-hydration frame reads the same as the app. */
-      #boot-skeleton::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: repeating-linear-gradient(
-          to bottom,
-          rgba(0, 0, 0, 0.3) 0 1px,
-          transparent 1px 3px
-        );
-        opacity: 0.5;
-      }
-      html.crt-off #boot-skeleton::after {
-        display: none;
       }
       @keyframes bootpulse {
         0%,
