@@ -79,6 +79,9 @@ Drag a planet to rotate it; faster swipes carry more momentum and coast farther
 after release. Grab again or hold still before releasing to stop the spin.
 Reduced motion keeps direct rotation available without the coast.
 
+The orientation hint appears on desktop and mobile, with arrow/drag/tap guidance
+on touch devices. On mobile it sits below the header independently of the hidden
+introductory text, including short portrait windows.
 The scroll/drag/tap hint disappears after the first scene interaction, chapter
 button activation, or story opening. It stays dismissed across client-side
 navigation until the page is reloaded.

@@ -235,34 +235,36 @@ function SceneIntro({ companies }: { companies: Company[] }) {
   const firstPoi = company?.pois[0];
 
   return (
-    <section
-      className="scene-intro"
-      hidden={hidden}
-      aria-labelledby="intro-title"
-    >
-      <h1 id="intro-title">{INTRO.title}</h1>
-      <p className="intro-body">{INTRO.body}</p>
-      <div className="intro-actions">
-        <button
-          type="button"
-          className="action-link primary"
-          aria-haspopup="dialog"
-          disabled={!firstPoi}
-          onClick={() => {
-            if (company && firstPoi)
-              engine.openPoiRef(company.slug, firstPoi.slug);
-          }}
-        >
-          {INTRO.explore} <ArrowRight size={16} aria-hidden="true" />
-        </button>
-      </div>
-      {!hintDismissed && (
+    <>
+      <section
+        className="scene-intro"
+        hidden={hidden}
+        aria-labelledby="intro-title"
+      >
+        <h1 id="intro-title">{INTRO.title}</h1>
+        <p className="intro-body">{INTRO.body}</p>
+        <div className="intro-actions">
+          <button
+            type="button"
+            className="action-link primary"
+            aria-haspopup="dialog"
+            disabled={!firstPoi}
+            onClick={() => {
+              if (company && firstPoi)
+                engine.openPoiRef(company.slug, firstPoi.slug);
+            }}
+          >
+            {INTRO.explore} <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </section>
+      {!hidden && !hintDismissed && (
         <p className="scene-hint">
           <span className="hint-desktop">{HINTS.scrubDesktop}</span>
           <span className="hint-touch">{HINTS.scrubTouch}</span>
         </p>
       )}
-    </section>
+    </>
   );
 }
 
