@@ -786,6 +786,7 @@ const raw: CompanyInput[] = [
     slug: 'digipen',
     name: 'DigiPen',
     role: 'BS, Real-Time Interactive Simulation, Minor in Mathematics',
+    timelineRole: 'BS, Real-Time Interactive Simulation',
     logo: 'logos/digipen.svg',
     start: '2006',
     end: '2010',

@@ -32,6 +32,9 @@ export const companySchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Company slug must be url-safe (a-z, 0-9, -)'),
   name: z.string(),
   role: z.string(),
+  // Optional shorter role shown in the timeline's bottom ribbon instead of
+  // `role`. Other views (About, résumé) always use the full `role`.
+  timelineRole: z.string().optional(),
   // Optional path to the company's logo (rendered left of the name in the
   // bottom ribbon). Stored under /public/logos/ so it resolves from BASE_URL
   // at runtime — pass e.g. "/logos/microsoft.svg".
