@@ -252,6 +252,15 @@ test('gallery frames stay thin with matching inner image corners', () => {
   assert.doesNotMatch(frame, /var\(--shadow-raised\)/);
 });
 
+test('gallery tiles stay atomic across masonry columns', () => {
+  const item = css.match(/^\.photo-grid > li \{([^}]+)\}/m)?.[1];
+  assert.ok(item, 'Missing gallery item style');
+  assert.match(item, /display:\s*inline-block;/);
+  assert.match(item, /width:\s*100%;/);
+  assert.match(item, /vertical-align:\s*top;/);
+  assert.match(item, /break-inside:\s*avoid;/);
+});
+
 test('navigation headers have no surrounding glow or shadow', () => {
   const header = css.match(/^\.topnav \{([^}]+)\}/m)?.[1];
   const solid = css.match(/^\.topnav\.solid \{([^}]+)\}/m)?.[1];
@@ -291,6 +300,22 @@ test('the story scrollbar has a gutter outside the inset reading surface', () =>
     /padding:\s*0 calc\(var\(--modal-pad\) \+ var\(--poi-scrollbar-gutter\)\)/,
   );
   assert.doesNotMatch(scroll, /margin-right:/);
+});
+
+test('mobile story sheets reclaim the scrollbar gutter and keep usable spacing', () => {
+  const mobile = css.slice(
+    css.indexOf('@media (max-width: 720px) {'),
+    css.indexOf('@media (max-width: 380px) {'),
+  );
+  assert.match(mobile, /--poi-scrollbar-gutter:\s*0px;/);
+  assert.match(mobile, /--modal-pad:\s*16px;/);
+  assert.match(mobile, /\.poi-content-frame::before \{\s*display:\s*none;/);
+  assert.match(mobile, /padding-inline:\s*var\(--modal-pad\);/);
+  assert.match(
+    mobile,
+    /padding-bottom:\s*max\(16px, env\(safe-area-inset-bottom\)\);/,
+  );
+  assert.match(mobile, /grid-template-columns:\s*minmax\(0, 1fr\) auto;/);
 });
 
 test('enabled toggles have a saturated track and a contrasting light thumb', () => {

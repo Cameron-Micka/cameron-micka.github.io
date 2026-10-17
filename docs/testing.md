@@ -49,8 +49,10 @@ In addition to typecheck, lint, and the production build, exercise:
   or returning from another route, and reappears on a fresh page load.
 - Direct story links, project switching, expansion, Esc, Tab wrapping, and
   return focus in both viewers.
-- Story scrollbars remain in the outer right mica gutter in normal and
-  expanded layouts, including narrow screens; wheel, keyboard, and native thumb
+- Desktop story scrollbars remain in the outer right mica gutter. Mobile
+  sheets use a full-width reading surface without the extra gutter; check
+  balanced content padding, unclipped thumbs at both ends, and 44px header
+  controls in normal and expanded layouts. Wheel, keyboard, and native thumb
   scrolling still update the story picker and deep link.
 - Live system-motion changes, paused interaction, quality switches, and both
   rendering backends. A settled paused scene should submit **zero GPU draws**.

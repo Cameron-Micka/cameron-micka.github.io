@@ -32,6 +32,8 @@ card frames share the sheen without adding backdrop-blur layers to the gallery.
 Navigation headers have no surrounding shadow or glow.
 Photo tiles and the About portrait share a thin 2px mica inset, a fine border,
 and restrained shadows so the image takes priority over its frame.
+Gallery items stay indivisible across masonry columns to avoid stray frame-shadow
+fragments in mobile Safari.
 Expanded photos have no drop shadow against the dark viewer backdrop.
 Reduced-transparency preferences, forced colors, and browsers without backdrop
 filtering use opaque backplates and controls instead.
@@ -59,11 +61,16 @@ The POI dialog is a scrollable, snap-aligned feed of every story across the
 career timeline. Its native project picker opens any story without requiring a
 precise click on a 3D marker. The picker's visible "Jump to a story" label is
 hidden at narrow widths, while its accessible name remains available.
-Its native scrollbar sits in the outer mica gutter to the right of the inset
+On desktop its native scrollbar sits in the outer mica gutter to the right of the inset
 reading surface, rather than inside the story panel. Only the reading surface
 has rounded corners, so the scrollbar thumb is not clipped at either end.
 The reading surface has a clean, unbeveled edge without a stacked border or
 highlight lip.
+At 720px and below, the dialog becomes a compact sheet with 8px outer clearance,
+a two-row header, 44px actions, and a full-width reading surface. Smaller story
+headings and 16px content padding leave more room for text and media without a
+separate scrollbar gutter. Bottom clearance keeps the native thumb away from
+the sheet's rounded corners, including in expanded mode.
 Scrolling between stories is silent, including across company boundaries.
 With sound enabled, directly opening or closing a story still plays its cue,
 as does chapter navigation outside the story dialog.
@@ -80,8 +87,9 @@ after release. Grab again or hold still before releasing to stop the spin.
 Reduced motion keeps direct rotation available without the coast.
 
 The orientation hint appears on desktop and mobile, with arrow/drag/tap guidance
-on touch devices. On mobile it sits below the header independently of the hidden
-introductory text, including short portrait windows.
+on touch devices. On mobile it matches the free-camera hint's centered position
+and card styling below the header, independently of the hidden introductory
+text, including short portrait windows.
 The scroll/drag/tap hint disappears after the first scene interaction, chapter
 button activation, or story opening. It stays dismissed across client-side
 navigation until the page is reloaded.
