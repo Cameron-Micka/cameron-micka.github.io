@@ -196,7 +196,7 @@ function frame(cameraPos = [0, 0, 10], wireframe = false) {
     quality: QUALITY_PRESETS.low,
     wireframe,
     blur: 0,
-    poiShimmer: false,
+    poiPulse: false,
     crtBarrel: 0,
     flightPath: new Float32Array(0),
   };

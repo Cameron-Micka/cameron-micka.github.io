@@ -24,6 +24,10 @@ to clearly distinguish them from neutral off states.
 Text buttons have fully rounded pill ends and icon-only buttons are circular.
 Timeline dots use their own circular interaction feedback instead of the native
 tap highlight, which can appear oval over compact mobile hit targets.
+Before the first story is opened, POI markers pulse up to 40% larger three times
+per turn in sequence, reaching each peak in 0.4 seconds instead of showing a
+rotating highlight. Their connectors track the
+changing size. The pulse stops after opening a story and while motion is paused.
 The chapter readout is the exception: it retains a softly rounded rectangular
 shape, like the panel and media frames.
 Floating panels and standalone scene buttons frost the scene behind them;
@@ -33,6 +37,8 @@ over a black backdrop.
 Static-page navigation stays opaque so scrolled text cannot bleed through;
 card frames share the sheen without adding backdrop-blur layers to the gallery.
 Navigation headers have no surrounding shadow or glow.
+The desktop introduction's soft shadow extends to the viewport's top and left
+edges, with a gradual fade toward the scene.
 Photo tiles and the About portrait share a thin 2px mica inset, a fine border,
 and restrained shadows so the image takes priority over its frame.
 Gallery items stay indivisible across masonry columns to avoid stray frame-shadow

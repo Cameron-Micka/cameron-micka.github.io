@@ -54,13 +54,13 @@ export interface OpenPoiRef {
   poi: string;
 }
 
-// The POI shimmer is an attract loop: it tells first-time visitors the markers
+// The POI size pulse is an attract loop: it tells first-time visitors the markers
 // are clickable. Once someone opens a POI the hint has served its purpose, so
 // it is muted for the remainder of the page session. Module-scoped (rather than
 // per-Engine) so client-side navigation away from and back to the landing page
 // — which rebuilds the Engine — keeps it off. It is deliberately not persisted,
-// so a fresh page load turns the shimmer back on.
-let poiShimmerMuted = false;
+// so a fresh page load turns the pulse back on.
+let poiPulseMuted = false;
 
 // Keep the interaction hint dismissed across client-side navigation.
 let sceneHintDismissed = false;
@@ -833,7 +833,7 @@ export class Engine {
         : [],
       blur: this.blurCurrent,
       wireframe: this.settings.wireframe,
-      poiShimmer: !poiShimmerMuted,
+      poiPulse: !poiPulseMuted && !this.motionPaused(),
       crtBarrel: this.settings.crt ? CRT_BARREL : 0,
       flightPath: this.settings.flightPath
         ? this.flightPath
@@ -1192,8 +1192,8 @@ export class Engine {
     this.openPoi = { company, poi };
     this.onOrbitEnd(true);
     // First POI opened this session: the markers no longer need to advertise
-    // themselves, so stop the shimmer until the next page load.
-    poiShimmerMuted = true;
+    // themselves, so stop the pulse until the next page load.
+    poiPulseMuted = true;
     this.events.emit('poiOpened', { ...this.openPoi, source });
     this.commit();
   }

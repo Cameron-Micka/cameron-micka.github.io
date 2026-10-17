@@ -20,7 +20,7 @@ import { mat4 } from './math/mat4';
 import { quat } from './math/quat';
 import { vec3 } from './math/vec3';
 import { mulberry32 } from './math/rng';
-import { poiMarkerDistance, poiFocusFade } from './Scene';
+import { poiMarkerDistance, poiFocusFade, poiPulseScale } from './Scene';
 import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
 import { QUALITY_PRESETS } from './QualityManager';
@@ -1255,7 +1255,7 @@ export class WebGPURenderer implements SceneRenderer {
     // shimmer, 0 = muted after the visitor opened a POI this session). Motion
     // pausing freezes the engine clock (frame.time) rather than switching the
     // shaders to slowed-down variants.
-    f[25] = frame.poiShimmer ? 1 : 0;
+    f[25] = 0;
     // misc.z: wireframe debug-view flag. POI marker / connector shaders
     // sample this to switch to a wireframe-styled rendering (orange tint,
     // outline only) so the overlay matches the wireframe planet body.
@@ -1375,7 +1375,7 @@ export class WebGPURenderer implements SceneRenderer {
       objects.push({ kind: 0, index: objIndex, lod: planetLod });
       objIndex++;
 
-      this.collectPois(p, poiData, er, vis);
+      this.collectPois(p, poiData, er, vis, frame);
 
       // Atmospheric scattering shell (skipped in wireframe debug view).
       if (!frame.wireframe) {
@@ -1909,6 +1909,7 @@ export class WebGPURenderer implements SceneRenderer {
     out: number[],
     effectiveRadius: number,
     vis: number,
+    frame: FrameState,
   ): void {
     // Only the focused ("current") planet shows its POIs.
     const fade = poiFocusFade(p.focus);
@@ -1921,7 +1922,8 @@ export class WebGPURenderer implements SceneRenderer {
       const inner = vec3.add(p.center, vec3.scale(dir, effectiveRadius));
       const outer = vec3.add(p.center, vec3.scale(dir, markerDist));
       const dim = fade;
-      const size = (0.027 + 0.021 * p.focus) * vis;
+      const size = (0.027 + 0.021 * p.focus) * vis *
+        poiPulseScale(frame.time, i + 1, p.pois.length, frame.poiPulse);
       out.push(
         inner[0],
         inner[1],

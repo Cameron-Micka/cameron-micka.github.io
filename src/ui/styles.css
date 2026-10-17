@@ -401,16 +401,18 @@ main:focus {
 
 /* ---- First-visit orientation ---- */
 .scene-intro {
+  --intro-top: calc(var(--nav-height) + 40px);
+  --intro-left: max(40px, env(safe-area-inset-left));
   position: absolute;
-  top: calc(var(--nav-height) + 40px);
-  left: max(40px, env(safe-area-inset-left));
+  top: var(--intro-top);
+  left: var(--intro-left);
   width: min(400px, calc(100% - 112px));
   isolation: isolate;
 }
 .scene-intro::before {
   content: '';
   position: absolute;
-  inset: -64px -32px -24px;
+  inset: calc(0px - var(--intro-top)) -32px -24px calc(0px - var(--intro-left));
   z-index: -1;
   pointer-events: none;
   background: radial-gradient(ellipse at 20% 30%, #141b2bb3, #141b2b00 75%);

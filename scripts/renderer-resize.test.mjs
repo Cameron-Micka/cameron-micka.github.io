@@ -109,7 +109,7 @@ function sizingProbe(name) {
     shadowCasters: [],
     blur: 0,
     wireframe: false,
-    poiShimmer: false,
+    poiPulse: false,
     crtBarrel: 0,
     flightPath: new Float32Array(0),
   };

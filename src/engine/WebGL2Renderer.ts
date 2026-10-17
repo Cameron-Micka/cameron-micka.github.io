@@ -6,7 +6,7 @@ import { mat4 } from './math/mat4';
 import { quat, type Quat } from './math/quat';
 import { vec3 } from './math/vec3';
 import { mulberry32 } from './math/rng';
-import { poiMarkerDistance, poiFocusFade } from './Scene';
+import { poiMarkerDistance, poiFocusFade, poiPulseScale } from './Scene';
 import { computeSunFlare } from './lensFlare';
 import { paintYield } from './paintYield';
 import {
@@ -695,39 +695,7 @@ precision highp float;
 in vec4 vAttr;in vec3 vColor;in float vOrdinal;in float vCount;
 uniform float uWireframe;
 uniform float uTime;
-uniform float uPoiShimmer;
 out vec4 frag;
-// One shimmer "slot" per POI: SHIMMER_SLOT seconds each, of which the first
-// SHIMMER_SWEEP fraction is the highlight travelling a full turn around the
-// pin head and the remainder is a short rest before the next marker takes over.
-// Mirrors shimmer() in poi.wgsl.
-const float SHIMMER_SLOT=1.6;
-const float SHIMMER_SWEEP=0.75;
-// Overall strength of the highlight; kept well under 1 so the sweep reads as a
-// gentle hint rather than a flash. Mirrors SHIMMER_GAIN in poi.wgsl.
-const float SHIMMER_GAIN=0.5;
-const float TAU=6.2831853;
-const float HALF_PI=1.5707963;
-float shimmer(vec2 uv,float ordinal,float count){
-  // uPoiShimmer is 0 once the visitor has opened a POI this session.
-  if(uPoiShimmer<0.5){return 0.0;}
-  float total=max(count,1.0);
-  float slots=max(uTime,0.0)/SHIMMER_SLOT;
-  float whole=floor(slots);
-  // Index of the marker whose turn it is, cycling 0..total-1.
-  // NOTE: 'active' is a reserved word in GLSL ES, hence activeIdx.
-  float activeIdx=whole-total*floor(whole/total);
-  if(abs(activeIdx-(ordinal-1.0))>0.5){return 0.0;}
-  float travel=fract(slots)/SHIMMER_SWEEP;
-  if(travel>1.0){return 0.0;}
-  // Fade the highlight in and out at the ends of its lap so it does not pop
-  // into (or out of) existence at the start angle.
-  float env=smoothstep(0.0,0.12,travel)*(1.0-smoothstep(0.88,1.0,travel));
-  float ang=atan(uv.y,uv.x);
-  float delta=ang-(HALF_PI+travel*TAU);
-  delta=delta-TAU*floor(delta/TAU+0.5);
-  return exp(-delta*delta*5.0)*env*SHIMMER_GAIN;
-}
 void main(){
   vec2 uv=vec2(gl_PointCoord.x,1.0-gl_PointCoord.y)*2.0-1.0;
   float d=length(uv);
@@ -744,19 +712,13 @@ void main(){
       frag=vec4(vec3(1.0,0.478,0.094)*a,a);
       return;
     }
-    float pulse=shimmer(uv,vOrdinal,vCount);
-    float radius=0.32+0.02*pulse;
+    float radius=0.32;
     float aa=max(length(vec2(dFdx(d),dFdy(d))),1e-4);
     // Match the connector's uThick in NDC, converted to the clamped point's UV.
     float halfThick=0.0035/vAttr.w;
     float ring=abs(d-(radius-halfThick));
     float a=(1.0-smoothstep(halfThick-aa,halfThick+aa,ring))*vAttr.y;
-    float halo=(1.0-smoothstep(0.0,4.0*aa,abs(d-radius)))*vAttr.y;
-    float glow=halo*pulse;
-    // UI accent orange (--accent: #ff7a18) so markers match the interface.
-    vec3 rgb=vec3(1.0,0.478,0.094)*a
-      +vec3(1.0,0.95,0.85)*glow*1.6;
-    frag=vec4(rgb,min(1.0,a+glow*0.8));
+    frag=vec4(vec3(1.0,0.478,0.094)*a,a);
   }else{
     if(uWireframe>0.5){
       // Wireframe debug: render the billboard quad as orange edges + diagonal,
@@ -1973,7 +1935,7 @@ export class WebGL2Renderer implements SceneRenderer {
     ]);
     this.star = this.makeProgram(STAR_VERT, STAR_FRAG, ['uViewProj', 'uTime', 'uWireframe']);
     this.point = this.makeProgram(POINT_VERT, POINT_FRAG, [
-      'uViewProj', 'uTime', 'uMode', 'uWireframe', 'uHeight', 'uPoiShimmer',
+      'uViewProj', 'uTime', 'uMode', 'uWireframe', 'uHeight',
     ]);
     this.line = this.makeProgram(LINE_VERT, LINE_FRAG, [
       'uViewProj', 'uAspect', 'uThick', 'uHeight', 'uWireframe',
@@ -3025,7 +2987,6 @@ export class WebGL2Renderer implements SceneRenderer {
       gl.uniform1f(this.point.uniforms.uTime!, frame.time);
       gl.uniform1f(this.point.uniforms.uMode!, 1);
       gl.uniform1f(this.point.uniforms.uHeight!, this.sceneHeight);
-      gl.uniform1f(this.point.uniforms.uPoiShimmer!, frame.poiShimmer ? 1 : 0);
       gl.uniform1f(this.point.uniforms.uWireframe!, frame.wireframe ? 1 : 0);
       gl.bindVertexArray(this.poiVao);
       gl.drawArrays(gl.POINTS, 0, this.poiCount);
@@ -3322,7 +3283,8 @@ export class WebGL2Renderer implements SceneRenderer {
         const dim = fade;
         // NDC half-extent, matching the WebGPU POI billboard size so markers
         // are a fixed fraction of the viewport height regardless of distance.
-        const sizePx = (0.027 + 0.021 * p.focus) * vis;
+        const sizePx = (0.027 + 0.021 * p.focus) * vis *
+          poiPulseScale(frame.time, i + 1, p.pois.length, frame.poiPulse);
         pos.push(outer[0], outer[1], outer[2]);
         attr.push(sizePx, dim, i + 1, p.pois.length);
         color.push(poi.accent[0], poi.accent[1], poi.accent[2]);

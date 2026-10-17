@@ -48,44 +48,6 @@ fn vs(
   return out;
 }
 
-// One shimmer "slot" per POI: SHIMMER_SLOT seconds each, of which the first
-// SHIMMER_SWEEP fraction is the highlight travelling a full turn around the
-// pin head and the remainder is a short rest before the next marker takes over.
-const SHIMMER_SLOT : f32 = 1.6;
-const SHIMMER_SWEEP : f32 = 0.75;
-// Overall strength of the highlight. Kept well under 1 so the sweep reads as a
-// gentle hint rather than a flash that pulls focus off the planet.
-const SHIMMER_GAIN : f32 = 0.5;
-const TAU : f32 = 6.2831853;
-const HALF_PI : f32 = 1.5707963;
-
-fn shimmer(uv : vec2<f32>, ordinal : f32, count : f32) -> f32 {
-  // frame.misc.y == 0 once the visitor has opened a POI this session.
-  if (frame.misc.y < 0.5) {
-    return 0.0;
-  }
-  let total = max(count, 1.0);
-  let slots = max(frame.misc.x, 0.0) / SHIMMER_SLOT;
-  let whole = floor(slots);
-  // Index of the marker whose turn it is, cycling 0..total-1.
-  // NOTE: 'active' is a WGSL reserved word, hence activeIdx.
-  let activeIdx = whole - total * floor(whole / total);
-  if (abs(activeIdx - (ordinal - 1.0)) > 0.5) {
-    return 0.0;
-  }
-  let travel = fract(slots) / SHIMMER_SWEEP;
-  if (travel > 1.0) {
-    return 0.0;
-  }
-  // Fade the highlight in and out at the ends of its lap so it does not pop
-  // into (or out of) existence at the start angle.
-  let env = smoothstep(0.0, 0.12, travel) * (1.0 - smoothstep(0.88, 1.0, travel));
-  let ang = atan2(uv.y, uv.x);
-  var delta = ang - (HALF_PI + travel * TAU);
-  delta = delta - TAU * floor(delta / TAU + 0.5);
-  return exp(-delta * delta * 5.0) * env * SHIMMER_GAIN;
-}
-
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let wf = frame.misc.z;
@@ -102,16 +64,11 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
     return vec4<f32>(vec3<f32>(1.0, 0.478, 0.094) * a, a);
   }
   let d = length(in.uv);
-  let pulse = shimmer(in.uv, in.ordinal, in.count);
-  let radius = 0.32 + 0.02 * pulse;
+  let radius = 0.32;
   let dx = dpdx(d);
   let dy = dpdy(d);
   let aa = max(length(vec2<f32>(dx, dy)), 1e-4);
   let ring = abs(d - (radius - in.halfThick));
   let alpha = (1.0 - smoothstep(in.halfThick - aa, in.halfThick + aa, ring)) * in.dim;
-  let halo = (1.0 - smoothstep(0.0, 4.0 * aa, abs(d - radius))) * in.dim;
-  let glow = halo * pulse;
-  let rgb = UI_ACCENT * alpha
-    + vec3<f32>(1.0, 0.95, 0.85) * glow * 1.6;
-  return vec4<f32>(rgb, min(1.0, alpha + glow * 0.8));
+  return vec4<f32>(UI_ACCENT * alpha, alpha);
 }

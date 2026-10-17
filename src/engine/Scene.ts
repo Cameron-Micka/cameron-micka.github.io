@@ -7,6 +7,20 @@ import type { Quat } from './math/quat';
 
 export const PLANET_SPACING = 9;
 
+export function poiPulseScale(
+  time: number,
+  ordinal: number,
+  count: number,
+  enabled: boolean,
+): number {
+  if (!enabled) return 1;
+  const slots = Math.max(time, 0) / 3.2;
+  if (Math.floor(slots) % Math.max(count, 1) !== ordinal - 1) return 1;
+  const progress = (slots % 1) / 0.75;
+  if (progress >= 1) return 1;
+  return 1 + 0.4 * Math.sin(Math.PI * progress * 3) ** 2;
+}
+
 export interface PlanetModel {
   company: Company;
   index: number;

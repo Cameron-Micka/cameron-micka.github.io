@@ -272,6 +272,20 @@ test('gallery tiles stay atomic across masonry columns', () => {
   assert.match(item, /break-inside:\s*avoid;/);
 });
 
+test('intro shadow reaches the top and left viewport edges', () => {
+  const intro = css.match(/^\.scene-intro \{([^}]+)\}/m)?.[1];
+  const shadow = css.match(/^\.scene-intro::before \{([^}]+)\}/m)?.[1];
+  assert.ok(intro, 'Missing introduction style');
+  assert.ok(shadow, 'Missing introduction shadow');
+  assert.match(intro, /top:\s*var\(--intro-top\);/);
+  assert.match(intro, /left:\s*var\(--intro-left\);/);
+  assert.match(
+    shadow,
+    /inset:\s*calc\(0px - var\(--intro-top\)\) -32px -24px\s+calc\(0px - var\(--intro-left\)\);/,
+  );
+  assert.match(shadow, /pointer-events:\s*none;/);
+});
+
 test('navigation headers have no surrounding glow or shadow', () => {
   const header = css.match(/^\.topnav \{([^}]+)\}/m)?.[1];
   const solid = css.match(/^\.topnav\.solid \{([^}]+)\}/m)?.[1];
