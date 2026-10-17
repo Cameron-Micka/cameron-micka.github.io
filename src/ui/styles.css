@@ -1279,7 +1279,8 @@ main:focus {
   box-shadow: var(--shadow-inset);
   font: 14px var(--font-display);
 }
-.project-jump-caret {
+.project-jump-caret,
+.settings-select-caret {
   position: absolute;
   top: 50%;
   right: 12px;
@@ -1508,14 +1509,20 @@ main:focus {
   border-color: var(--fg);
   transform: translateX(20px);
 }
+.settings-select {
+  position: relative;
+  flex-shrink: 0;
+}
 .settings select {
+  appearance: none;
+  -webkit-appearance: none;
   width: 138px;
   height: 44px;
   color: var(--fg);
   border: 1px solid var(--control-edge);
   border-radius: var(--radius-button);
   box-shadow: var(--shadow-inset);
-  padding: 8px 12px;
+  padding: 8px 40px 8px 12px;
   font-family: var(--font);
   font-size: 13px;
   letter-spacing: 0;

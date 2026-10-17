@@ -374,6 +374,19 @@ test('enabled toggles match the translucent logo coral with a contrasting thumb 
   }
 });
 
+test('Settings dropdown chevrons have a consistent inset and text clearance', () => {
+  const select = css.match(/^\.settings select \{([^}]+)\}/m)?.[1];
+  const caret = css.match(
+    /^\.project-jump-caret,\s*\.settings-select-caret \{([^}]+)\}/m,
+  )?.[1];
+  assert.ok(select, 'Missing Settings select style');
+  assert.ok(caret, 'Missing shared dropdown caret style');
+  assert.match(select, /appearance:\s*none;/);
+  assert.match(select, /padding:\s*8px 40px 8px 12px;/);
+  assert.match(caret, /right:\s*12px;/);
+  assert.match(caret, /pointer-events:\s*none;/);
+});
+
 test('toggle tracks and thumbs include borders in their declared size', () => {
   for (const pseudo of ['before', 'after']) {
     const rule = css.match(

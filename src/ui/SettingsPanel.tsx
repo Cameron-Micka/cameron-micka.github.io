@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import type { QualityPreference } from '@/engine/QualityManager';
 import type { BackendPref } from '@/settings';
@@ -60,35 +60,49 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       <div className="settings-controls">
         <div className="row">
           <label htmlFor="set-quality">Quality</label>
-          <select
-            id="set-quality"
-            value={s.quality}
-            onChange={(e) =>
-              engine.setQualityPreference(e.target.value as QualityPreference)
-            }
-          >
-            <option value="auto">Auto</option>
-            <option value="high">High</option>
-            <option value="med">Medium</option>
-            <option value="low">Low</option>
-          </select>
+          <div className="settings-select">
+            <select
+              id="set-quality"
+              value={s.quality}
+              onChange={(e) =>
+                engine.setQualityPreference(e.target.value as QualityPreference)
+              }
+            >
+              <option value="auto">Auto</option>
+              <option value="high">High</option>
+              <option value="med">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <ChevronDown
+              size={16}
+              className="settings-select-caret"
+              aria-hidden="true"
+            />
+          </div>
         </div>
 
         <div className="row">
           <label htmlFor="set-backend">
             Renderer <span className="setting-note">Reloads the page</span>
           </label>
-          <select
-            id="set-backend"
-            value={s.forceBackend}
-            onChange={(e) =>
-              engine.setForceBackend(e.target.value as BackendPref)
-            }
-          >
-            <option value="auto">Auto</option>
-            <option value="webgpu">WebGPU</option>
-            <option value="webgl2">WebGL</option>
-          </select>
+          <div className="settings-select">
+            <select
+              id="set-backend"
+              value={s.forceBackend}
+              onChange={(e) =>
+                engine.setForceBackend(e.target.value as BackendPref)
+              }
+            >
+              <option value="auto">Auto</option>
+              <option value="webgpu">WebGPU</option>
+              <option value="webgl2">WebGL</option>
+            </select>
+            <ChevronDown
+              size={16}
+              className="settings-select-caret"
+              aria-hidden="true"
+            />
+          </div>
         </div>
 
         <div className="row">

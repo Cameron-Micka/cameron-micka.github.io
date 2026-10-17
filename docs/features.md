@@ -22,6 +22,8 @@ Enabled Settings toggles match the logo's 65%-opaque coral and use an opaque lig
 thumb with a contrasting outline
 to clearly distinguish them from neutral off states.
 Text buttons have fully rounded pill ends and icon-only buttons are circular.
+Settings dropdowns retain native selection behavior with chevrons inset 12px
+from the right edge and reserved text clearance.
 Timeline dots use their own circular interaction feedback instead of the native
 tap highlight, which can appear oval over compact mobile hit targets.
 Before the first story is opened, POI markers pulse up to 40% larger three times
