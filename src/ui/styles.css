@@ -35,7 +35,7 @@
   --control-inset-tint: #eef0f330;
   --control-highlight: #ffffff26;
   --control-selected: #f5dfe642;
-  --toggle-on: #b33345d9;
+  --toggle-on: #f5656ba6;
   --control-edge: #ffffff45;
   --control-shadow:
     2px 3px 8px #3540521f, -2px -2px 7px #ffffff30, inset 1px 1px 0 #ffffff45;
@@ -299,7 +299,6 @@ main:focus {
 .screenshot-stage-bar,
 .freecam-btn,
 .scene-intro .action-link,
-.youtube-play,
 .skip-link,
 .skip-btn {
   -webkit-backdrop-filter: var(--backplate-filter);
@@ -321,7 +320,6 @@ main:focus {
 .story-links a,
 .photo-jump a,
 .lightbox-control,
-.youtube-play,
 .screenshot-btn,
 .skip-link,
 .skip-btn {
@@ -691,6 +689,7 @@ main:focus {
   font-size: 12px;
   line-height: 1.6;
 }
+.scene-hint strong,
 .freecam-hint-card strong {
   color: var(--accent-2);
 }
@@ -745,6 +744,7 @@ main:focus {
 }
 .ruler button {
   position: relative;
+  -webkit-tap-highlight-color: transparent;
   pointer-events: auto;
   display: grid;
   place-items: center;
@@ -1186,48 +1186,6 @@ main:focus {
   height: 100%;
   border: 0;
 }
-.youtube-preview {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: var(--screen);
-  cursor: pointer;
-}
-.youtube-preview:focus-visible {
-  outline-offset: -4px;
-}
-.modal .media .youtube-preview img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border: 0;
-}
-.youtube-play {
-  --control-tint: var(--backplate-tint);
-  --control-overlay: var(--control-selected);
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  color: var(--accent-ink);
-  border: 1px solid var(--control-edge);
-  box-shadow: var(--control-shadow);
-}
-.youtube-preview:hover:not(:disabled) .youtube-play {
-  --control-overlay: var(--control-highlight);
-}
-.youtube-preview:active:not(:disabled) .youtube-play {
-  box-shadow: var(--shadow-pressed);
-}
 .youtube-caption {
   display: none;
   margin-top: 8px;
@@ -1545,6 +1503,7 @@ main:focus {
   transition: transform 0.2s ease;
 }
 .settings input[type='checkbox']:checked::after {
+  border-color: var(--fg);
   transform: translateX(20px);
 }
 .settings select {

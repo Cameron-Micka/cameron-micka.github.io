@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ChevronDown,
-  LoaderCircle,
-  Maximize2,
-  Minimize2,
-  Play,
-  X,
-} from 'lucide-react';
+import { ChevronDown, Maximize2, Minimize2, X } from 'lucide-react';
 import {
   assetUrl,
   tenureLabel,
@@ -41,74 +34,36 @@ function youtubeId(src: string): string | null {
 }
 
 function YouTubeVideo({ videoId, media }: { videoId: string; media: Media }) {
-  const [status, setStatus] = useState<
-    'preview' | 'loading' | 'loaded' | 'failed'
-  >('preview');
+  const [failed, setFailed] = useState(false);
   const title = media.alt ?? 'YouTube video';
-
-  useEffect(() => {
-    if (status !== 'loading') return;
-    const timeout = window.setTimeout(() => setStatus('failed'), 10_000);
-    return () => window.clearTimeout(timeout);
-  }, [status]);
 
   return (
     <figure className="youtube-video">
-      <div className="youtube-player" aria-busy={status === 'loading'}>
-        {(status === 'loading' || status === 'loaded') && (
-          <iframe
-            src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1`}
-            title={title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            referrerPolicy="strict-origin-when-cross-origin"
-            onLoad={(event) => {
-              if (event.currentTarget.contentDocument === null)
-                setStatus('loaded');
-            }}
-            onError={() => setStatus('failed')}
-          />
-        )}
-        {status !== 'loaded' && (
-          <button
-            type="button"
-            className="youtube-preview"
-            aria-label={`Play ${title}`}
-            title={`Play ${title}`}
-            disabled={status === 'loading'}
-            onClick={() => setStatus('loading')}
-          >
-            <img
-              src={
-                media.poster ??
-                `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-              }
-              alt=""
-              loading="lazy"
-            />
-            <span className="youtube-play" aria-hidden="true">
-              {status === 'loading' ? (
-                <LoaderCircle size={28} />
-              ) : (
-                <Play size={28} fill="currentColor" />
-              )}
-            </span>
-          </button>
-        )}
+      <div className="youtube-player">
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${videoId}?playsinline=1`}
+          title={title}
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+          onError={() => setFailed(true)}
+        />
       </div>
-      {(!media.description || status === 'failed') && (
+      {(!media.description || failed) && (
         <figcaption
-          className={
-            status === 'failed'
-              ? 'youtube-caption has-error'
-              : 'youtube-caption'
-          }
+          className={failed ? 'youtube-caption has-error' : 'youtube-caption'}
         >
           {!media.description && (
             <span className="youtube-caption-title">{title}</span>
           )}
-          {status === 'failed' && (
-            <span role="status">YouTube couldn't load here.</span>
+          {failed && (
+            <>
+              <span role="status">YouTube couldn't load here.</span>{' '}
+              <a href={`https://www.youtube.com/watch?v=${videoId}`}>
+                Watch on YouTube
+              </a>
+            </>
           )}
         </figcaption>
       )}

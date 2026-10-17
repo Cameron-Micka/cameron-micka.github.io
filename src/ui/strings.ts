@@ -27,9 +27,16 @@ export const SOCIAL = {
 };
 
 export const HINTS = {
-  scrubDesktop:
-    'Scroll up for earlier work · drag to rotate · select a glowing point',
-  scrubTouch: 'Use the arrows to travel · drag to rotate · tap a glowing point',
+  scrubDesktop: [
+    { action: 'Scroll', detail: ' up for earlier work' },
+    { action: 'drag', detail: ' to rotate' },
+    { action: 'select', detail: ' a glowing point' },
+  ],
+  scrubTouch: [
+    { action: 'Use the arrows', detail: ' to travel' },
+    { action: 'drag', detail: ' to rotate' },
+    { action: 'tap', detail: ' a glowing point' },
+  ],
   freeCameraDesktop: [
     { action: 'WASD', detail: ' to fly' },
     { action: 'Drag empty space', detail: ' to look' },

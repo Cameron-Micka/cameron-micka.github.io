@@ -18,9 +18,12 @@ texture images. Buttons, switches, and inset controls share that material,
 using a lighter tint over their parent plate and shallow shadows
 instead of opaque white caps. Hover adds a soft highlight; primary actions and
 selected controls use a rose tint and coral ink, with inset depth when pressed.
-Enabled Settings toggles use a more saturated coral track and an opaque light thumb
+Enabled Settings toggles match the logo's 65%-opaque coral and use an opaque light
+thumb with a contrasting outline
 to clearly distinguish them from neutral off states.
 Text buttons have fully rounded pill ends and icon-only buttons are circular.
+Timeline dots use their own circular interaction feedback instead of the native
+tap highlight, which can appear oval over compact mobile hit targets.
 The chapter readout is the exception: it retains a softly rounded rectangular
 shape, like the panel and media frames.
 Floating panels and standalone scene buttons frost the scene behind them;
@@ -35,6 +38,8 @@ and restrained shadows so the image takes priority over its frame.
 Gallery items stay indivisible across masonry columns to avoid stray frame-shadow
 fragments in mobile Safari.
 Expanded photos have no drop shadow against the dark viewer backdrop.
+YouTube videos use lazy-loaded privacy-enhanced players with native play controls,
+so a single click starts playback without relying on browser autoplay permission.
 Reduced-transparency preferences, forced colors, and browsers without backdrop
 filtering use opaque backplates and controls instead.
 

@@ -231,6 +231,17 @@ test('button surfaces use fully rounded ends without rounding whole panels', () 
   assert.match(css, /--radius-window:\s*32px;/);
 });
 
+test('timeline dots stay circular without a stretched native tap highlight', () => {
+  const button = css.match(/^\.ruler button \{([^}]+)\}/m)?.[1];
+  const tick = css.match(/^\.ruler button \.tick \{([^}]+)\}/m)?.[1];
+  assert.ok(button, 'Missing timeline button style');
+  assert.ok(tick, 'Missing timeline dot style');
+  assert.match(button, /-webkit-tap-highlight-color:\s*transparent;/);
+  assert.match(tick, /width:\s*14px;/);
+  assert.match(tick, /height:\s*14px;/);
+  assert.match(tick, /border-radius:\s*50%;/);
+});
+
 test('the chapter readout keeps its rounded-rectangle shape', () => {
   const rule = css.match(/^\.ribbon-readout \{([^}]+)\}/m)?.[1];
   assert.ok(rule, 'Missing chapter readout style');
@@ -318,14 +329,10 @@ test('mobile story sheets reclaim the scrollbar gutter and keep usable spacing',
   assert.match(mobile, /grid-template-columns:\s*minmax\(0, 1fr\) auto;/);
 });
 
-test('enabled toggles have a saturated track and a contrasting light thumb', () => {
+test('enabled toggles match the translucent logo coral with a contrasting thumb outline', () => {
   const on = color('--toggle-on');
-  assert.ok(parseInt(on.slice(7), 16) / 255 >= 0.8);
-  const [red, green, blue] = rgb(on);
-  assert.ok(
-    red > green * 2 && red > blue * 2,
-    'Track should be saturated coral',
-  );
+  assert.equal(on.slice(0, 7), color('--accent'));
+  assert.ok(Math.abs(parseInt(on.slice(7), 16) / 255 - 0.65) < 0.005);
   assert.match(
     css,
     /\.settings input\[type='checkbox'\]:checked::before \{\s*--control-overlay:\s*var\(--toggle-on\);/,
@@ -334,14 +341,20 @@ test('enabled toggles have a saturated track and a contrasting light thumb', () 
     css,
     /\.settings input\[type='checkbox'\]::after \{\s*--control-tint:\s*var\(--panel\);/,
   );
+  assert.match(
+    css,
+    /\.settings input\[type='checkbox'\]:checked::after \{\s*border-color:\s*var\(--fg\);/,
+  );
   for (const backdrop of ['#000000', '#ffffff']) {
     const plate = composite(color('--backplate-tint'), backdrop);
     for (const base of [plate, '#ffffff']) {
       const track = composite(on, base);
       const thumb = color('--panel');
+      const outline = color('--fg');
       assert.ok(
-        contrastColors(thumb, track) >= 3,
-        'Enabled thumb must stand out against its track',
+        contrastColors(outline, track) >= 3 &&
+          contrastColors(outline, thumb) >= 3,
+        'Enabled thumb outline must stand out against the track and knob',
       );
     }
   }

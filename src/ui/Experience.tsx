@@ -260,8 +260,24 @@ function SceneIntro({ companies }: { companies: Company[] }) {
       </section>
       {!hidden && !hintDismissed && (
         <p className="scene-hint">
-          <span className="hint-desktop">{HINTS.scrubDesktop}</span>
-          <span className="hint-touch">{HINTS.scrubTouch}</span>
+          <span className="hint-desktop">
+            {HINTS.scrubDesktop.map(({ action, detail }, index) => (
+              <span key={action}>
+                {index > 0 && ' · '}
+                <strong>{action}</strong>
+                {detail}
+              </span>
+            ))}
+          </span>
+          <span className="hint-touch">
+            {HINTS.scrubTouch.map(({ action, detail }, index) => (
+              <span key={action}>
+                {index > 0 && ' · '}
+                <strong>{action}</strong>
+                {detail}
+              </span>
+            ))}
+          </span>
         </p>
       )}
     </>
