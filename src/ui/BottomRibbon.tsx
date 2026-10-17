@@ -70,7 +70,7 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
           )}
           <span>
             <span className="company">{company.name}</span>
-            <span className="role">{company.role}</span>
+            <span className="role">{company.timelineRole ?? company.role}</span>
           </span>
         </span>
         <span className="dates">
