@@ -880,6 +880,7 @@ const raw: CompanyInput[] = [
   {
     slug: 'screen-actors-guild',
     name: 'Screen Actors Guild',
+    logo: 'logos/screen-actors-guild.svg',
     role: 'Child Actor & Print Model',
     start: '1988',
     end: '2004',
