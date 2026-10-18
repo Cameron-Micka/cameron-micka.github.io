@@ -31,7 +31,7 @@
   --photo-edge: #ffffff66;
   --photo-shadow: 1px 2px 6px #35405214, -1px -1px 4px #ffffff45;
   --photo-shadow-hover: 2px 3px 8px #35405220, -1px -1px 5px #ffffff60;
-  --backplate-tint: #eef0f3b3;
+  --backplate-tint: #eef0f399;
   --backplate-muted: #363e48;
   --backplate-accent: #70202e;
   --backplate-filter: blur(10px) saturate(1.12);
@@ -113,7 +113,7 @@
     --photo-edge: #ffffff14;
     --photo-shadow: 1px 2px 6px #00000059, -1px -1px 4px #ffffff08;
     --photo-shadow-hover: 2px 3px 8px #00000073, -1px -1px 5px #ffffff0d;
-    --backplate-tint: #15181ecf;
+    --backplate-tint: #15181e99;
     --backplate-muted: #cdd2db;
     --backplate-accent: #ffc2c7;
     --backplate-sheen:

@@ -21,13 +21,15 @@ operating system's color scheme and updates live when it changes. Dark mode
 overrides the same tokens under `html.theme-dark`, so every route, dialog, and
 control switches together, including the boot screen and browser theme color.
 A small inline script in `index.html` applies the saved choice before first
-paint, so dark pages never flash light. Dark plates use an 81%-opaque base tint
-and a fainter sheen to keep light text at AA contrast, and printouts always use
-the light theme.
+paint, so dark pages never flash light. Dark plates use a fainter sheen than
+light ones, and printouts always use the light theme.
 
-Backplates have a translucent mica finish with a 70%-opaque base tint and a static pink, sage,
-and blue pearlescent sheen, rendered entirely with CSS gradients rather than
-texture images. Buttons, switches, and inset controls share that material,
+Backplates have a translucent mica finish with a 60%-opaque base tint in both
+themes. Panel text meets WCAG AA over the page background, but can dip below AA
+where very dark or very bright content shows through (worst case about 2.5:1 in
+dark mode over white); reduced-transparency settings make plates opaque. The
+static pink, sage, and blue pearlescent sheen is rendered entirely with CSS
+gradients rather than texture images. Buttons, switches, and inset controls share that material,
 using a lighter tint over their parent plate and shallow shadows
 instead of opaque white caps. Hover adds a soft highlight; primary actions and
 selected controls use a rose tint and coral ink, with inset depth when pressed.

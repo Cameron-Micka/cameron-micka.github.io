@@ -11,7 +11,8 @@ receive the `pages`/`id-token` scopes and cannot publish. Deployment jobs are
 serialized separately from pull-request builds.
 
 `scripts/ui-theme.test.mjs` checks text and focus contrast against the shared
-surface tokens, composited mica button states, and matching boot/browser theme
+surface tokens, composited mica button states (AA over each theme's page
+background, with a regression floor over worst-case backdrops), and matching boot/browser theme
 colors, the shared pill-shaped button radius with its chapter-readout exception,
 and border-inclusive toggle sizing. It does not replace the responsive and
 visual browser checks below.
