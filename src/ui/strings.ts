@@ -73,6 +73,7 @@ export const UI = {
   skip: 'Skip to content',
   details: 'Technical details',
   settings: 'Settings',
+  theme: 'Theme',
   freeCamera: 'Free camera',
   blogSoon: 'Notes from the pixel mines.',
 };

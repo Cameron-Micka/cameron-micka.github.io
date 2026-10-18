@@ -21,6 +21,16 @@
   --bg-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0.09 0 0 0 0.888 0.09 0 0 0 0.896 0.09 0 0 0 0.908 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   --panel-light-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0.09 0 0 0 0.924 0.09 0 0 0 0.928 0.09 0 0 0 0.935 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   --panel-edge: #d3d8e0;
+  --surface-edge: #ffffffb3;
+  --nav-edge: #ffffffc7;
+  --accent-edge: #982f4059;
+  --danger-edge: #e6b9c2;
+  --readout-edge: #b6becb;
+  --toggle-edge: #b9c1cd;
+  --knob-shadow: 2px 2px 5px #6b768540, inset 1px 1px 0 #ffffff60;
+  --photo-edge: #ffffff66;
+  --photo-shadow: 1px 2px 6px #35405214, -1px -1px 4px #ffffff45;
+  --photo-shadow-hover: 2px 3px 8px #35405220, -1px -1px 5px #ffffff60;
   --backplate-tint: #eef0f3b3;
   --backplate-muted: #363e48;
   --backplate-accent: #70202e;
@@ -74,6 +84,76 @@
   --nav-height: calc(88px + env(safe-area-inset-top, 0px));
 }
 
+/* Dark theme: the Settings "Theme" option (or the OS preference, under Auto)
+   adds .theme-dark to <html>. Scoped to screen so printouts stay light. */
+@media screen {
+  html.theme-dark {
+    color-scheme: dark;
+    --bg: #15181e;
+    --fg: #e4e7ec;
+    --muted: #9ea6b3;
+    --accent-ink: #ff9aa2;
+    --accent-soft: #3b2329;
+    --glass: #1c2027;
+    --glass-border: #2c323c;
+    --rule: #2c323c;
+    --danger: #ff9aa2;
+    --panel: #15181e;
+    --panel-light: #1d2128;
+    --bg-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0.09 0 0 0 0.037 0.09 0 0 0 0.049 0.09 0 0 0 0.073 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    --panel-light-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0.09 0 0 0 0.069 0.09 0 0 0 0.084 0.09 0 0 0 0.112 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    --panel-edge: #2e343e;
+    --surface-edge: #ffffff1c;
+    --nav-edge: #ffffff21;
+    --accent-edge: #ff9aa259;
+    --danger-edge: #6b3a44;
+    --readout-edge: #4a5260;
+    --toggle-edge: #4a5260;
+    --knob-shadow: 2px 2px 5px #00000066, inset 1px 1px 0 #ffffff1a;
+    --photo-edge: #ffffff14;
+    --photo-shadow: 1px 2px 6px #00000059, -1px -1px 4px #ffffff08;
+    --photo-shadow-hover: 2px 3px 8px #00000073, -1px -1px 5px #ffffff0d;
+    --backplate-tint: #15181ecf;
+    --backplate-muted: #cdd2db;
+    --backplate-accent: #ffc2c7;
+    --backplate-sheen:
+      linear-gradient(
+        135deg,
+        #ffffff0a,
+        #ffffff02 35%,
+        #ffffff00 60%,
+        #ffffff06
+      ),
+      linear-gradient(
+        115deg,
+        #9fd1bb08,
+        #b3a8e006 25%,
+        #f2a0b808 50%,
+        #a8c3f007 75%,
+        #a9dcae08
+      );
+    --control-inset-tint: #15181e30;
+    --control-highlight: #ffffff12;
+    --control-selected: #f5656b1a;
+    --control-edge: #ffffff1a;
+    --control-shadow:
+      2px 3px 8px #0000004d, -1px -1px 4px #ffffff08, inset 1px 1px 0 #ffffff14;
+    --key-top: #232831;
+    --key-bottom: #1a1e25;
+    --key-hover: #2a303a;
+    --key-shadow: #4a5260;
+    --screen: #1a1e25;
+    --screen-edge: #2c323c;
+    --shadow:
+      12px 16px 36px #00000066, inset 1px 1px 1px #ffffff14,
+      inset -1px -1px 1px #0000004d;
+    --shadow-raised: 5px 5px 12px #00000059, -4px -4px 10px #ffffff08;
+    --shadow-inset: inset 2px 2px 5px #00000066, inset -2px -2px 5px #ffffff0a;
+    --shadow-pressed:
+      inset 3px 3px 6px #00000073, inset -2px -2px 5px #ffffff0a;
+  }
+}
+
 @supports (height: 1dvh) {
   :root {
     --dvh: 1dvh;
@@ -83,14 +163,16 @@
 @supports not (
   (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
 ) {
-  :root {
+  :root,
+  html.theme-dark {
     --backplate-tint: var(--panel);
     --control-inset-tint: var(--panel);
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root {
+  :root,
+  html.theme-dark {
     --backplate-tint: var(--panel);
     --backplate-filter: none;
     --control-inset-tint: var(--panel);
@@ -233,7 +315,7 @@ main:focus {
 .action-link.primary {
   --control-overlay: var(--control-selected);
   color: var(--accent-ink);
-  border-color: #982f4059;
+  border-color: var(--accent-edge);
 }
 .action-link.primary:hover {
   --control-overlay: var(--control-highlight);
@@ -457,7 +539,7 @@ main:focus {
   max-width: calc(100% - 48px);
   margin: 0;
   padding: 9px 16px;
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   border-radius: 999px;
   color: var(--muted);
   box-shadow: var(--shadow);
@@ -492,7 +574,7 @@ main:focus {
   gap: 24px;
   z-index: 20;
   color: var(--ink);
-  border: 1px solid #ffffffc7;
+  border: 1px solid var(--nav-edge);
   border-radius: var(--radius);
   box-shadow: none;
 }
@@ -618,7 +700,7 @@ main:focus {
 }
 .icon-btn.active {
   --control-overlay: var(--control-selected);
-  border-color: #982f4059;
+  border-color: var(--accent-edge);
   color: var(--accent-ink);
   box-shadow: var(--shadow-pressed);
 }
@@ -689,7 +771,7 @@ main:focus {
 }
 .freecam-hint-card {
   padding: 12px 16px;
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   border-radius: var(--radius-screen);
   box-shadow: var(--shadow);
   font-size: 12px;
@@ -723,7 +805,7 @@ main:focus {
   z-index: 18;
   align-items: center;
   padding: 10px 5px;
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   border-radius: 999px;
   box-shadow: var(--shadow);
 }
@@ -845,7 +927,7 @@ main:focus {
   padding: 14px 18px;
   text-align: left;
   color: var(--ink);
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   z-index: 16;
@@ -905,7 +987,7 @@ main:focus {
 }
 .ribbon-readout:hover:not(:disabled),
 .ribbon-readout:focus-visible {
-  border-color: #b6becb;
+  border-color: var(--readout-edge);
 }
 .ribbon-readout:hover:not(:disabled) {
   --control-overlay: var(--control-highlight);
@@ -1042,7 +1124,7 @@ main:focus {
   max-height: 100%;
   overflow: hidden;
   border-radius: var(--radius-window);
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   box-shadow: var(--shadow);
   padding: var(--modal-pad);
   animation: rise 0.24s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1217,7 +1299,7 @@ main:focus {
   --poi-scrollbar-gutter: 16px;
   width: min(1120px, 100%);
   padding: var(--poi-bezel);
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   box-shadow: var(--shadow);
   outline: none;
 }
@@ -1317,7 +1399,7 @@ main:focus {
   pointer-events: none;
   background:
     var(--panel-light-grain) 0 0 / 160px 160px,
-    #f7f8fa;
+    var(--panel-light);
   border-radius: var(--poi-content-radius);
 }
 .modal.poi-modal .modal-content {
@@ -1410,7 +1492,7 @@ main:focus {
   z-index: 30;
   border-radius: var(--radius-window);
   color: var(--ink);
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   box-shadow: var(--shadow);
   padding: 20px;
   animation: rise 0.2s ease;
@@ -1483,7 +1565,7 @@ main:focus {
   left: 3px;
   width: 46px;
   height: 26px;
-  border: 1px solid #b9c1cd;
+  border: 1px solid var(--toggle-edge);
   border-radius: 999px;
   box-shadow: var(--shadow-inset);
 }
@@ -1503,9 +1585,7 @@ main:focus {
   height: 20px;
   border-radius: 50%;
   border: 1px solid var(--control-edge);
-  box-shadow:
-    2px 2px 5px #6b768540,
-    inset 1px 1px 0 #ffffff60;
+  box-shadow: var(--knob-shadow);
   transition: transform 0.2s ease;
 }
 .settings input[type='checkbox']:checked::after {
@@ -1623,7 +1703,7 @@ main:focus {
 .loading-card {
   width: min(400px, var(--vw) * 86);
   padding: 32px;
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   border-radius: var(--radius-window);
   box-shadow: var(--shadow-raised);
   text-align: left;
@@ -1728,7 +1808,7 @@ main:focus {
   grid-template-columns: 132px minmax(0, 1fr);
   gap: 24px;
   padding: 28px;
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   border-radius: var(--radius);
   box-shadow: var(--shadow-raised);
 }
@@ -1820,7 +1900,7 @@ main:focus {
 }
 .fallback-notice {
   padding: 24px;
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   border-radius: var(--radius-screen);
   box-shadow: var(--shadow-raised);
 }
@@ -1883,7 +1963,7 @@ main:focus {
   gap: 10px;
   padding: 18px 20px;
   border-radius: var(--radius-button);
-  border: 1px solid #ffffffb3;
+  border: 1px solid var(--surface-edge);
   box-shadow: var(--shadow-raised);
   color: var(--ink);
   font-family: var(--font);
@@ -1954,11 +2034,9 @@ main:focus {
 .profile-photo {
   display: block;
   padding: 2px;
-  border: 1px solid #ffffff66;
+  border: 1px solid var(--photo-edge);
   border-radius: var(--radius-screen);
-  box-shadow:
-    1px 2px 6px #35405214,
-    -1px -1px 4px #ffffff45;
+  box-shadow: var(--photo-shadow);
   overflow: hidden;
 }
 .photo-tile {
@@ -1968,9 +2046,7 @@ main:focus {
 }
 .photo-tile:hover,
 .photo-tile:focus-visible {
-  box-shadow:
-    2px 3px 8px #35405220,
-    -1px -1px 5px #ffffff60;
+  box-shadow: var(--photo-shadow-hover);
 }
 .photo-tile img,
 .profile-photo img {
@@ -2121,7 +2197,7 @@ main:focus {
 }
 .error-card {
   max-width: 640px;
-  border: 1px solid #e6b9c2;
+  border: 1px solid var(--danger-edge);
   border-radius: var(--radius-window);
   box-shadow: var(--shadow-raised);
   padding: 28px;
@@ -2611,7 +2687,7 @@ main:focus {
     border-top: 1px solid var(--rule);
     background:
       var(--panel-light-grain) 0 0 / 160px 160px,
-      #f7f8fa;
+      var(--panel-light);
   }
   .modal.poi-modal .poi-content-frame::before {
     display: none;
@@ -2963,7 +3039,7 @@ html.screenshot-stage #root::-webkit-scrollbar {
 }
 .screenshot-btn.is-primary {
   --control-overlay: var(--control-selected);
-  border-color: #982f4059;
+  border-color: var(--accent-edge);
   color: var(--accent-ink);
 }
 .screenshot-btn:hover:not(:disabled) {

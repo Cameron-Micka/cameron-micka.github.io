@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Head } from 'vite-react-ssg';
+import { isDarkTheme, subscribeTheme } from '@/settings';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { installScreenshotShortcut } from '@/ui/screenshot';
 import { SITE, SOCIAL, UI } from '@/ui/strings';
@@ -28,10 +29,14 @@ const PAGES: Record<string, { title: string; description: string }> = {
   },
 };
 
+// Browser chrome colors; each matches its theme's --bg.
+const THEME_COLORS = { light: '#eef0f3', dark: '#15181e' } as const;
+
 export default function RootLayout() {
   const { pathname, hash } = useLocation();
   const path = pathname.replace(/\/+$/, '') || '/';
   const previousPath = useRef(pathname);
+  const dark = useSyncExternalStore(subscribeTheme, isDarkTheme, () => false);
   const metadata = PAGES[path] ?? {
     title: `Page not found \u2014 ${SITE.name}`,
     description:
@@ -54,7 +59,10 @@ export default function RootLayout() {
       <Head>
         <title>{metadata.title}</title>
         <meta name="description" content={metadata.description} />
-        <meta name="theme-color" content="#eef0f3" />
+        <meta
+          name="theme-color"
+          content={dark ? THEME_COLORS.dark : THEME_COLORS.light}
+        />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content={SITE.name} />
         <meta property="og:title" content={metadata.title} />

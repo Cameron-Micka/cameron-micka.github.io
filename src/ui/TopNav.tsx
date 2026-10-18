@@ -1,6 +1,7 @@
 import { SlidersHorizontal } from 'lucide-react';
 import { Link, NavLink } from 'react-router-dom';
 import { NAV, SITE, UI } from './strings';
+import { ThemeToggle } from './ThemeToggle';
 
 export function TopNav({
   onToggleSettings,
@@ -47,7 +48,7 @@ export function TopNav({
         >
           {NAV.photography}
         </NavLink>
-        {onToggleSettings && (
+        {onToggleSettings ? (
           <button
             id="settings-toggle"
             type="button"
@@ -60,6 +61,8 @@ export function TopNav({
           >
             <SlidersHorizontal size={18} strokeWidth={1.7} aria-hidden="true" />
           </button>
+        ) : (
+          <ThemeToggle />
         )}
       </nav>
     </header>

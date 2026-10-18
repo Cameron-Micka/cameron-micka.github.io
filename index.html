@@ -7,6 +7,23 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
+    <script>
+      // Applies the saved theme (Settings > Theme, keyed like src/settings.ts)
+      // before first paint so dark mode never flashes light on load.
+      (function () {
+        try {
+          var theme = JSON.parse(
+            localStorage.getItem('cm-portfolio-settings') || '{}',
+          ).theme;
+          if (
+            theme === 'dark' ||
+            (theme !== 'light' &&
+              matchMedia('(prefers-color-scheme: dark)').matches)
+          )
+            document.documentElement.classList.add('theme-dark');
+        } catch (error) {}
+      })();
+    </script>
     <style>
       /* Boot skeleton — replaced once React hydrates. Keeps first paint instant. */
       html,
@@ -39,6 +56,15 @@
           4px 4px 12px #c7cbd3,
           -4px -4px 12px #fff;
         animation: bootpulse 1.8s ease-in-out infinite;
+      }
+      html.theme-dark,
+      html.theme-dark #boot-skeleton {
+        color: #e4e7ec;
+        background: #15181e;
+        color-scheme: dark;
+      }
+      html.theme-dark #boot-skeleton .pulse {
+        box-shadow: 4px 4px 12px #00000080;
       }
       @keyframes bootpulse {
         0%,

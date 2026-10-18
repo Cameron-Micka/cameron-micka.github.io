@@ -7,6 +7,8 @@ export type ReducedMotionPref = 'auto' | 'on' | 'off';
 
 export type BackendPref = 'auto' | 'webgpu' | 'webgl2';
 
+export type ThemePref = 'auto' | 'light' | 'dark';
+
 export interface PersistedSettings {
   quality: QualityPreference;
   reducedMotion: ReducedMotionPref;
@@ -16,6 +18,7 @@ export interface PersistedSettings {
   freeCamera: boolean;
   flightPath: boolean;
   crt: boolean;
+  theme: ThemePref;
 }
 
 const KEY = 'cm-portfolio-settings';
@@ -29,6 +32,7 @@ const DEFAULTS: PersistedSettings = {
   freeCamera: false,
   flightPath: false,
   crt: false,
+  theme: 'auto',
 };
 
 function isValidQuality(q: unknown): q is QualityPreference {
@@ -68,6 +72,12 @@ export function loadSettings(): PersistedSettings {
         merged.forceBackend = backend;
       } else invalid.push('forceBackend');
     }
+    if ('theme' in parsed) {
+      const theme = parsed.theme;
+      if (theme === 'auto' || theme === 'light' || theme === 'dark') {
+        merged.theme = theme;
+      } else invalid.push('theme');
+    }
     for (const key of ['debugHud', 'crt'] as const) {
       if (key in parsed) {
         const value: unknown = Reflect.get(parsed, key);
@@ -106,4 +116,43 @@ export function saveSettings(s: PersistedSettings): void {
 export function applyCrt(on: boolean): void {
   if (typeof document === 'undefined') return;
   document.documentElement.classList.toggle('crt-off', !on);
+}
+
+// The theme is a class on <html> so every page, including the static ones
+// without an engine, picks it up. index.html applies it before first paint;
+// this keeps it in sync afterwards, following the OS while set to Auto.
+let themePref: ThemePref = 'auto';
+let darkQuery: MediaQueryList | null = null;
+const themeListeners = new Set<() => void>();
+
+export function applyTheme(pref: ThemePref): void {
+  if (typeof document === 'undefined') return;
+  themePref = pref;
+  if (!darkQuery && typeof window.matchMedia === 'function') {
+    darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    darkQuery.addEventListener('change', () => applyTheme(themePref));
+  }
+  const dark = pref === 'dark' || (pref === 'auto' && !!darkQuery?.matches);
+  document.documentElement.classList.toggle('theme-dark', dark);
+  for (const listener of themeListeners) listener();
+}
+
+export function getThemePref(): ThemePref {
+  return themePref;
+}
+
+// For pages without an engine. The timeline engine reloads settings when it
+// mounts, so saving here cannot leave its copy stale.
+export function saveThemePref(pref: ThemePref): void {
+  saveSettings({ ...loadSettings(), theme: pref });
+  applyTheme(pref);
+}
+
+export function isDarkTheme(): boolean {
+  return document.documentElement.classList.contains('theme-dark');
+}
+
+export function subscribeTheme(listener: () => void): () => void {
+  themeListeners.add(listener);
+  return () => themeListeners.delete(listener);
 }

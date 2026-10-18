@@ -29,7 +29,8 @@ In addition to typecheck, lint, and the production build, exercise:
   clearance from the header.
 - Brand-mark strokes remain inset within their circular container on both sides
   of the 980px compact-header breakpoint, including 320px-wide screens.
-- Light surfaces on every route, inset and raised control states, keyboard
+- Light and dark surfaces on every route (Settings → Theme, plus Auto following
+  the OS color scheme without a light flash on reload), inset and raised control states, keyboard
   focus, and forced-colors mode. Settings switches retain a 44px hit height;
   their thumbs stay centered vertically with equal end clearance when on or off.
   Labels and primary actions meet WCAG AA text contrast.

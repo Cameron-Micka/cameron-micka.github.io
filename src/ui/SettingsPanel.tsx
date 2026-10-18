@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { useEngine, useEngineSnapshot } from './EngineContext';
 import type { QualityPreference } from '@/engine/QualityManager';
-import type { BackendPref } from '@/settings';
+import type { BackendPref, ThemePref } from '@/settings';
 import { UI } from './strings';
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
@@ -58,6 +58,26 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <div className="settings-controls">
+        <div className="row">
+          <label htmlFor="set-theme">{UI.theme}</label>
+          <div className="settings-select">
+            <select
+              id="set-theme"
+              value={s.theme}
+              onChange={(e) => engine.setTheme(e.target.value as ThemePref)}
+            >
+              <option value="auto">Auto</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+            <ChevronDown
+              size={16}
+              className="settings-select-caret"
+              aria-hidden="true"
+            />
+          </div>
+        </div>
+
         <div className="row">
           <label htmlFor="set-quality">Quality</label>
           <div className="settings-select">

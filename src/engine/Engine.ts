@@ -44,9 +44,11 @@ import {
   loadSettings,
   saveSettings,
   applyCrt,
+  applyTheme,
   type PersistedSettings,
   type ReducedMotionPref,
   type BackendPref,
+  type ThemePref,
 } from '@/settings';
 
 export interface OpenPoiRef {
@@ -82,6 +84,7 @@ export interface EngineSnapshot {
   freeCamera: boolean;
   flightPath: boolean;
   crt: boolean;
+  theme: ThemePref;
   // Populated only while free camera is active. Yaw/pitch are in degrees;
   // yaw is normalized to (-180, 180].
   freeCameraState: {
@@ -1350,6 +1353,14 @@ export class Engine {
     this.commit();
   }
 
+  setTheme(pref: ThemePref): void {
+    if (this.settings.theme === pref) return;
+    this.settings.theme = pref;
+    saveSettings(this.settings);
+    applyTheme(pref);
+    this.commit();
+  }
+
   // ---- helpers ----
 
   // True when the "Paused" motion preference is active (either chosen
@@ -1455,6 +1466,7 @@ export class Engine {
       freeCameraState,
       flightPath: this.settings.flightPath,
       crt: this.settings.crt,
+      theme: this.settings.theme,
       stats: {
         ...stats,
         fps: Math.round(this.fps),

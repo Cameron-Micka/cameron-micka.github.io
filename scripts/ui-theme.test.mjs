@@ -6,15 +6,23 @@ const css = readFileSync(
   new URL('../src/ui/styles.css', import.meta.url),
   'utf8',
 );
-const colors = new Map(
-  [...css.matchAll(/^\s*(--[\w-]+):\s*(#[\da-f]{6}(?:[\da-f]{2})?);/gim)].map(
-    (match) => [match[1], match[2]],
-  ),
-);
+function hexTokens(block) {
+  return [
+    ...block.matchAll(/^\s*(--[\w-]+):\s*(#[\da-f]{6}(?:[\da-f]{2})?);/gim),
+  ].map((match) => [match[1], match[2]]);
+}
 
-function color(token) {
-  const value = colors.get(token);
-  assert.ok(value, `Missing theme color: ${token}`);
+const lightBlock = css.match(/^:root \{([\s\S]*?)^\}/m)?.[1] ?? '';
+const darkBlock =
+  css.match(/^ {2}html\.theme-dark \{([\s\S]*?)^ {2}\}/m)?.[1] ?? '';
+const themes = {
+  light: new Map(hexTokens(lightBlock)),
+  dark: new Map([...hexTokens(lightBlock), ...hexTokens(darkBlock)]),
+};
+
+function color(token, theme = 'light') {
+  const value = themes[theme].get(token);
+  assert.ok(value, `Missing ${theme} theme color: ${token}`);
   return value;
 }
 
@@ -58,8 +66,8 @@ function contrastColors(foreground, background) {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
-function contrast(foreground, background) {
-  return contrastColors(color(foreground), color(background));
+function contrast(foreground, background, theme) {
+  return contrastColors(color(foreground, theme), color(background, theme));
 }
 
 const surfaces = [
@@ -72,111 +80,117 @@ const surfaces = [
   '--key-bottom',
 ];
 
-test('primary and secondary text meet AA contrast on every soft surface', () => {
-  for (const foreground of ['--fg', '--muted']) {
-    for (const background of surfaces) {
-      const ratio = contrast(foreground, background);
+for (const theme of ['light', 'dark']) {
+  test(`${theme}: primary and secondary text meet AA contrast on every soft surface`, () => {
+    for (const foreground of ['--fg', '--muted']) {
+      for (const background of surfaces) {
+        const ratio = contrast(foreground, background, theme);
+        assert.ok(
+          ratio >= 4.5,
+          `${foreground} on ${background}: ${ratio.toFixed(2)}:1, expected 4.5:1`,
+        );
+      }
+    }
+  });
+
+  test(`${theme}: coral actions keep readable text at rest and on hover`, () => {
+    for (const background of ['--accent', '--accent-hover']) {
+      const ratio = contrast('--on-accent', background, theme);
       assert.ok(
         ratio >= 4.5,
-        `${foreground} on ${background}: ${ratio.toFixed(2)}:1, expected 4.5:1`,
+        `${background} action contrast: ${ratio.toFixed(2)}`,
       );
     }
-  }
-});
+  });
 
-test('coral actions keep readable text at rest and on hover', () => {
-  for (const background of ['--accent', '--accent-hover']) {
-    const ratio = contrast('--on-accent', background);
+  test(`${theme}: accent labels and focus rings remain visible in selected states`, () => {
+    for (const background of [...surfaces, '--accent-soft']) {
+      const ratio = contrast('--accent-ink', background, theme);
+      assert.ok(
+        ratio >= 4.5,
+        `${background} accent contrast: ${ratio.toFixed(2)}`,
+      );
+    }
+    assert.match(css, /--focus:\s*var\(--accent-ink\)/);
+  });
+
+  test(`${theme}: mica backplates stay translucent with AA text over dark and light scenes`, () => {
+    const color = (token) => themes[theme].get(token);
+    const tint = color('--backplate-tint');
+    assert.match(tint, /^#[\da-f]{8}$/i);
+    const alpha = parseInt(tint.slice(7), 16) / 255;
+    // Dark plates need a little more body to hold light text over bright scenes.
+    const [low, high] = theme === 'light' ? [0.69, 0.71] : [0.69, 0.82];
     assert.ok(
-      ratio >= 4.5,
-      `${background} action contrast: ${ratio.toFixed(2)}`,
+      alpha >= low && alpha <= high,
+      `Backplate base tint should stay translucent (${alpha.toFixed(2)})`,
     );
-  }
-});
 
-test('accent labels and focus rings remain visible in selected states', () => {
-  for (const background of [...surfaces, '--accent-soft']) {
-    const ratio = contrast('--accent-ink', background);
-    assert.ok(
-      ratio >= 4.5,
-      `${background} accent contrast: ${ratio.toFixed(2)}`,
-    );
-  }
-  assert.match(css, /--focus:\s*var\(--accent-ink\)/);
-});
-
-test('mica backplates stay translucent with AA text over dark and light scenes', () => {
-  const tint = color('--backplate-tint');
-  assert.match(tint, /^#[\da-f]{8}$/i);
-  const alpha = parseInt(tint.slice(7), 16) / 255;
-  assert.ok(
-    alpha >= 0.69 && alpha <= 0.71,
-    'Backplate base tint should stay near 70% opacity',
-  );
-
-  for (const background of [
-    '#000000',
-    '#ffffff',
-    '#141b2b',
-    '#185561',
-    '#68283a',
-  ]) {
-    const surface = composite(tint, background);
-    for (const foreground of [
-      '--fg',
-      '--backplate-muted',
-      '--backplate-accent',
+    for (const background of [
+      '#000000',
+      '#ffffff',
+      '#141b2b',
+      '#185561',
+      '#68283a',
     ]) {
-      const ratio = contrastColors(color(foreground), surface);
-      assert.ok(
-        ratio >= 4.5,
-        `${foreground} on mica over ${background}: ${ratio.toFixed(2)}:1`,
-      );
-    }
-  }
-});
-
-test('mica buttons preserve AA contrast in standalone and nested interaction states', () => {
-  const insetTint = color('--control-inset-tint');
-  const insetAlpha = parseInt(insetTint.slice(7), 16) / 255;
-  assert.ok(
-    insetAlpha >= 0.1 && insetAlpha <= 0.3,
-    'Nested buttons should reveal the mica plate rather than form opaque caps',
-  );
-  assert.match(css, /--control-tint:\s*var\(--backplate-tint\)/);
-  for (const backdrop of ['#000000', '#ffffff', '#141b2b', '#185561']) {
-    const plate = composite(color('--backplate-tint'), backdrop);
-    const surfaces = [plate, composite(insetTint, plate)];
-    for (const surface of surfaces) {
-      for (const state of [
-        '#ffffff00',
-        color('--control-highlight'),
-        color('--control-selected'),
+      const surface = composite(tint, background);
+      for (const foreground of [
+        '--fg',
+        '--backplate-muted',
+        '--backplate-accent',
       ]) {
-        for (const foreground of [
-          '--fg',
-          '--backplate-muted',
-          '--backplate-accent',
+        const ratio = contrastColors(color(foreground), surface);
+        assert.ok(
+          ratio >= 4.5,
+          `${foreground} on mica over ${background}: ${ratio.toFixed(2)}:1`,
+        );
+      }
+    }
+  });
+
+  test(`${theme}: mica buttons preserve AA contrast in standalone and nested interaction states`, () => {
+    const color = (token) => themes[theme].get(token);
+    const insetTint = color('--control-inset-tint');
+    const insetAlpha = parseInt(insetTint.slice(7), 16) / 255;
+    assert.ok(
+      insetAlpha >= 0.1 && insetAlpha <= 0.3,
+      'Nested buttons should reveal the mica plate rather than form opaque caps',
+    );
+    assert.match(css, /--control-tint:\s*var\(--backplate-tint\)/);
+    for (const backdrop of ['#000000', '#ffffff', '#141b2b', '#185561']) {
+      const plate = composite(color('--backplate-tint'), backdrop);
+      const surfaces = [plate, composite(insetTint, plate)];
+      for (const surface of surfaces) {
+        for (const state of [
+          '#ffffff00',
+          color('--control-highlight'),
+          color('--control-selected'),
         ]) {
-          const ratio = contrastColors(
-            color(foreground),
-            composite(state, surface),
-          );
-          assert.ok(
-            ratio >= 4.5,
-            `${foreground} with ${state} over ${backdrop}: ${ratio.toFixed(2)}:1`,
-          );
+          for (const foreground of [
+            '--fg',
+            '--backplate-muted',
+            '--backplate-accent',
+          ]) {
+            const ratio = contrastColors(
+              color(foreground),
+              composite(state, surface),
+            );
+            assert.ok(
+              ratio >= 4.5,
+              `${foreground} with ${state} over ${backdrop}: ${ratio.toFixed(2)}:1`,
+            );
+          }
         }
       }
     }
-  }
-});
+  });
+}
 
 test('the pearlescent sheen only lightens the minimum-contrast backplate', () => {
   const tint = color('--backplate-tint');
   const alpha = parseInt(tint.slice(7), 16) / 255;
   const minimum = rgb(tint).map((channel) => channel * alpha);
-  const sheen = css.match(/--backplate-sheen:([\s\S]*?);/)?.[1];
+  const sheen = lightBlock.match(/--backplate-sheen:([\s\S]*?);/)?.[1];
   assert.ok(sheen, 'Missing pearlescent backplate sheen');
   const stops = [...sheen.matchAll(/#[\da-f]{8}/gi)];
   assert.ok(stops.length > 0);
@@ -188,12 +202,47 @@ test('the pearlescent sheen only lightens the minimum-contrast backplate', () =>
   }
 });
 
-test('surface grains average to their surface colors', () => {
-  for (const [grain, surface] of [
-    ['--bg-grain', '--bg'],
-    ['--panel-light-grain', '--panel-light'],
+test('the dark sheen keeps AA text over the brightest tested backplate', () => {
+  const color = (token) => themes.dark.get(token);
+  const sheen = darkBlock.match(/--backplate-sheen:([\s\S]*?);/)?.[1];
+  assert.ok(sheen, 'Missing dark backplate sheen');
+  const layers = sheen
+    .split(/\),\s*linear-gradient/)
+    .map((layer) => [...layer.matchAll(/#[\da-f]{8}/gi)].map(([stop]) => stop));
+  assert.equal(layers.length, 2);
+  const plate = composite(
+    color('--control-highlight'),
+    composite(color('--backplate-tint'), '#ffffff'),
+  );
+  // The first gradient paints on top of the second.
+  for (const lower of layers[1]) {
+    for (const upper of layers[0]) {
+      const surface = composite(upper, composite(lower, plate));
+      for (const foreground of [
+        '--fg',
+        '--backplate-muted',
+        '--backplate-accent',
+      ]) {
+        const ratio = contrastColors(color(foreground), surface);
+        assert.ok(
+          ratio >= 4.5,
+          `${foreground} under dark sheen ${upper}/${lower}: ${ratio.toFixed(2)}:1`,
+        );
+      }
+    }
+  }
+});
+
+test('surface grains average to their surface colors in both themes', () => {
+  for (const [theme, block, grain, surface] of [
+    ['light', lightBlock, '--bg-grain', '--bg'],
+    ['light', lightBlock, '--panel-light-grain', '--panel-light'],
+    ['dark', darkBlock, '--bg-grain', '--bg'],
+    ['dark', darkBlock, '--panel-light-grain', '--panel-light'],
   ]) {
-    const value = css.match(new RegExp(`${grain}:\\s*url\\(([^;]+)\\);`))?.[1];
+    const value = block.match(
+      new RegExp(`${grain}:\\s*url\\(([^;]+)\\);`),
+    )?.[1];
     assert.ok(value, `Missing ${grain}`);
     const matrix = value
       .match(/feColorMatrix values='([^']+)'/)?.[1]
@@ -204,10 +253,10 @@ test('surface grains average to their surface colors', () => {
     const mean = [0, 1, 2].map(
       (row) => (matrix[row * 5] * 0.5 + matrix[row * 5 + 4]) * 255,
     );
-    rgb(color(surface)).forEach((channel, index) =>
+    rgb(color(surface, theme)).forEach((channel, index) =>
       assert.ok(
         Math.abs(mean[index] - channel) <= 1,
-        `${grain} channel ${index} averages ${mean[index].toFixed(1)}, not ${channel}`,
+        `${theme} ${grain} channel ${index} averages ${mean[index].toFixed(1)}, not ${channel}`,
       ),
     );
     assert.equal(matrix[19], 1, `${grain} must be opaque`);
@@ -218,14 +267,13 @@ test('surface grains average to their surface colors', () => {
   );
   const poiSurfaces = [
     ...css.matchAll(
-      /background:\s*var\(--panel-light-grain\)[^;]*,\s*(#[\da-f]{6});/g,
+      /background:\s*var\(--panel-light-grain\)[^;]*,\s*var\(--panel-light\);/g,
     ),
   ];
   assert.equal(poiSurfaces.length, 2, 'Both POI content surfaces need grain');
-  for (const [, hex] of poiSurfaces) assert.equal(hex, color('--panel-light'));
 });
 
-test('boot surface and browser theme match the light page surface', () => {
+test('boot surface and browser theme match each theme page surface', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const layout = readFileSync(
     new URL('../src/routes/RootLayout.tsx', import.meta.url),
@@ -234,11 +282,68 @@ test('boot surface and browser theme match the light page surface', () => {
   const boot = html.match(/#boot-skeleton\s*\{([^}]+)\}/)?.[1];
   assert.ok(boot, 'The boot skeleton must define its initial surface');
   assert.match(boot, new RegExp(`background:\\s*${color('--bg')};`));
-  assert.equal(
-    layout.match(/<meta\s+name="theme-color"\s+content="([^"]+)"/)?.[1],
-    color('--bg'),
+  const darkBoot = html.match(
+    /html\.theme-dark,\s*html\.theme-dark #boot-skeleton\s*\{([^}]+)\}/,
+  )?.[1];
+  assert.ok(darkBoot, 'The boot skeleton must define its dark surface');
+  assert.match(
+    darkBoot,
+    new RegExp(`background:\\s*${color('--bg', 'dark')};`),
   );
-  assert.match(css, /color-scheme:\s*light/);
+  assert.match(darkBoot, /color-scheme:\s*dark/);
+  const chrome = layout.match(
+    /THEME_COLORS = \{ light: '([^']+)', dark: '([^']+)' \}/,
+  );
+  assert.equal(chrome?.[1], color('--bg'));
+  assert.equal(chrome?.[2], color('--bg', 'dark'));
+  assert.match(lightBlock, /color-scheme:\s*light/);
+  assert.match(darkBlock, /color-scheme:\s*dark/);
+});
+
+test('pages without Settings get a theme button cycling Auto, Light, and Dark', () => {
+  const read = (path) =>
+    readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
+  const nav = read('ui/TopNav.tsx');
+  const toggle = read('ui/ThemeToggle.tsx');
+  assert.match(
+    nav,
+    /onToggleSettings \? \([\s\S]*id="settings-toggle"[\s\S]*\) : \(\s*<ThemeToggle \/>\s*\)/,
+  );
+  const cycle = Object.fromEntries(
+    [
+      ...toggle.matchAll(
+        /(\w+): \{ label: '\w+', next: '(\w+)', Icon: (\w+) \}/g,
+      ),
+    ].map(([, pref, next, icon]) => [pref, { next, icon }]),
+  );
+  assert.deepEqual(cycle, {
+    auto: { next: 'light', icon: 'SunMoon' },
+    light: { next: 'dark', icon: 'Sun' },
+    dark: { next: 'auto', icon: 'Moon' },
+  });
+  assert.match(toggle, /className="icon-btn"/);
+  assert.match(toggle, /onClick=\{\(\) => saveThemePref\(next\)\}/);
+});
+
+test('the saved theme is applied before first paint and printouts stay light', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const settings = readFileSync(
+    new URL('../src/settings.ts', import.meta.url),
+    'utf8',
+  );
+  const key = settings.match(/const KEY = '([^']+)'/)?.[1];
+  assert.ok(key, 'Missing settings storage key');
+  const head = html.slice(0, html.indexOf('</head>'));
+  const script = head.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script, 'index.html must apply the theme with an inline script');
+  assert.ok(script.includes(`'${key}'`), 'Pre-paint script must read settings');
+  assert.match(script, /prefers-color-scheme: dark/);
+  assert.match(script, /classList\.add\('theme-dark'\)/);
+  assert.ok(
+    head.indexOf('<script>') < head.indexOf('<style>'),
+    'Theme must be applied before the boot styles',
+  );
+  assert.match(css, /@media screen \{\s*html\.theme-dark \{/);
 });
 
 test('button surfaces use fully rounded ends without rounding whole panels', () => {
@@ -378,36 +483,42 @@ test('mobile story sheets reclaim the scrollbar gutter and keep usable spacing',
   assert.match(mobile, /grid-template-columns:\s*minmax\(0, 1fr\) auto;/);
 });
 
-test('enabled toggles match the translucent logo coral with a contrasting thumb outline', () => {
-  const on = color('--toggle-on');
-  assert.equal(on.slice(0, 7), color('--accent'));
-  assert.ok(Math.abs(parseInt(on.slice(7), 16) / 255 - 0.65) < 0.005);
-  assert.match(
-    css,
-    /\.settings input\[type='checkbox'\]:checked::before \{\s*--control-overlay:\s*var\(--toggle-on\);/,
-  );
-  assert.match(
-    css,
-    /\.settings input\[type='checkbox'\]::after \{\s*--control-tint:\s*var\(--panel\);/,
-  );
-  assert.match(
-    css,
-    /\.settings input\[type='checkbox'\]:checked::after \{\s*border-color:\s*var\(--fg\);/,
-  );
-  for (const backdrop of ['#000000', '#ffffff']) {
-    const plate = composite(color('--backplate-tint'), backdrop);
-    for (const base of [plate, '#ffffff']) {
-      const track = composite(on, base);
-      const thumb = color('--panel');
-      const outline = color('--fg');
-      assert.ok(
-        contrastColors(outline, track) >= 3 &&
-          contrastColors(outline, thumb) >= 3,
-        'Enabled thumb outline must stand out against the track and knob',
-      );
+for (const theme of ['light', 'dark']) {
+  test(`${theme}: enabled toggles match the translucent logo coral with a contrasting thumb outline`, () => {
+    const color = (token) => themes[theme].get(token);
+    const on = color('--toggle-on');
+    assert.equal(on.slice(0, 7), color('--accent'));
+    assert.ok(Math.abs(parseInt(on.slice(7), 16) / 255 - 0.65) < 0.005);
+    assert.match(
+      css,
+      /\.settings input\[type='checkbox'\]:checked::before \{\s*--control-overlay:\s*var\(--toggle-on\);/,
+    );
+    assert.match(
+      css,
+      /\.settings input\[type='checkbox'\]::after \{\s*--control-tint:\s*var\(--panel\);/,
+    );
+    assert.match(
+      css,
+      /\.settings input\[type='checkbox'\]:checked::after \{\s*border-color:\s*var\(--fg\);/,
+    );
+    for (const backdrop of ['#000000', '#ffffff']) {
+      const plate = composite(color('--backplate-tint'), backdrop);
+      for (const base of [
+        plate,
+        theme === 'light' ? '#ffffff' : color('--panel'),
+      ]) {
+        const track = composite(on, base);
+        const thumb = color('--panel');
+        const outline = color('--fg');
+        assert.ok(
+          contrastColors(outline, track) >= 3 &&
+            contrastColors(outline, thumb) >= 3,
+          'Enabled thumb outline must stand out against the track and knob',
+        );
+      }
     }
-  }
-});
+  });
+}
 
 test('Settings dropdown chevrons have a consistent inset and text clearance', () => {
   const select = css.match(/^\.settings select \{([^}]+)\}/m)?.[1];

@@ -16,7 +16,7 @@ seconds of stable frames at or below 18 ms, and steps down when average frame
 time reaches 20 ms over a 1.5-second window. It does not retry an unsustainable
 tier until Auto restarts. Desktop and mobile/coarse-pointer devices use the same
 performance-based adjustment. Explicit quality choices are never overridden.
-Quality, renderer, motion, sound, CRT, and debug preferences persist in
+Quality, renderer, motion, theme, CRT, and debug preferences persist in
 `localStorage`; wireframe, flight path, and free-camera mode reset each session.
 The initial output size uses the chosen tier immediately, rather than allocating
 a High-DPR canvas and resizing it down at startup.

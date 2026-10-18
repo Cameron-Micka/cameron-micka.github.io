@@ -14,6 +14,17 @@ monochrome grain whose average matches their base color, so it adds texture
 without lowering text contrast. The 3D scene and photo-viewing backdrop stay dark so the work
 remains the focus.
 
+Settings → Theme offers Auto, Light, and Dark. Pages without the timeline's
+Settings panel show a single theme button in its place that cycles Auto (sun
+and moon) → Light (sun) → Dark (moon). Auto (the default) follows the
+operating system's color scheme and updates live when it changes. Dark mode
+overrides the same tokens under `html.theme-dark`, so every route, dialog, and
+control switches together, including the boot screen and browser theme color.
+A small inline script in `index.html` applies the saved choice before first
+paint, so dark pages never flash light. Dark plates use an 81%-opaque base tint
+and a fainter sheen to keep light text at AA contrast, and printouts always use
+the light theme.
+
 Backplates have a translucent mica finish with a 70%-opaque base tint and a static pink, sage,
 and blue pearlescent sheen, rendered entirely with CSS gradients rather than
 texture images. Buttons, switches, and inset controls share that material,
