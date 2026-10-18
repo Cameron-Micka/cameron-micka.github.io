@@ -19,7 +19,7 @@ struct VSOut {
   @location(1) accent : vec3<f32>,
   @location(2) dim : f32,
   @location(3) ordinal : f32,
-  @location(4) count : f32,
+  @location(4) highlight : f32,
   @location(5) halfThick : f32,
 };
 
@@ -30,7 +30,7 @@ fn vs(
   @location(2) attribs : vec4<f32>,  // x=size y=dim z=accentR w=accentG
   @location(3) accentB : f32,        // accentB
   @location(4) ordinal : f32,        // one-based POI order for the shimmer
-  @location(5) count : f32,          // number of POIs on this marker's planet
+  @location(5) highlight : f32,      // 1 for career highlights, else 0
 ) -> VSOut {
   var out : VSOut;
   let clip = frame.viewProj * vec4<f32>(center, 1.0);
@@ -43,7 +43,7 @@ fn vs(
   out.accent = vec3<f32>(attribs.z, attribs.w, accentB);
   out.dim = attribs.y;
   out.ordinal = ordinal;
-  out.count = count;
+  out.highlight = highlight;
   out.halfThick = HALF_THICK / attribs.x;
   return out;
 }
@@ -69,6 +69,11 @@ fn fs(in : VSOut) -> @location(0) vec4<f32> {
   let dy = dpdy(d);
   let aa = max(length(vec2<f32>(dx, dy)), 1e-4);
   let ring = abs(d - (radius - in.halfThick));
-  let alpha = (1.0 - smoothstep(in.halfThick - aa, in.halfThick + aa, ring)) * in.dim;
+  let ringA = 1.0 - smoothstep(in.halfThick - aa, in.halfThick + aa, ring);
+  // Career highlights add a center dot (a bullseye) sized to half the ring's
+  // inner radius, so an even gap stays visible as the ring thickens.
+  let dotR = 0.5 * (radius - 2.0 * in.halfThick);
+  let dotA = (1.0 - smoothstep(dotR - aa, dotR + aa, d)) * in.highlight;
+  let alpha = max(ringA, dotA) * in.dim;
   return vec4<f32>(UI_ACCENT * alpha, alpha);
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Maximize2, Minimize2, X } from 'lucide-react';
+import { ChevronDown, Maximize2, Minimize2, Sparkles, X } from 'lucide-react';
 import {
   assetUrl,
   tenureLabel,
@@ -325,8 +325,14 @@ export function PoiModal({ companies }: { companies: Company[] }) {
                         <option
                           key={poi.slug}
                           value={`${company.slug}/${poi.slug}`}
+                          aria-label={
+                            poi.highlight
+                              ? `${poi.title}, ${UI.careerHighlight}`
+                              : undefined
+                          }
                         >
-                          {poi.title}
+                          {/* Native options can't hold SVG; U+2726 stands in for the sparkle icon. */}
+                          {poi.highlight ? `${poi.title} \u2726` : poi.title}
                         </option>
                       ))}
                     </optgroup>
@@ -388,6 +394,12 @@ export function PoiModal({ companies }: { companies: Company[] }) {
                   }}
                 >
                   <div className="poi-copy">
+                    {entry.poi.highlight && (
+                      <p className="highlight-badge">
+                        <Sparkles size={12} aria-hidden="true" />
+                        {UI.careerHighlight}
+                      </p>
+                    )}
                     <h2 id={titleId(entry.key)}>
                       <span>
                         <span className="poi-index">{entry.ordinal}.</span>{' '}

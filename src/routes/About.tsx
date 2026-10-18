@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, Sparkles } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { AboutIntro } from '@/ui/AboutIntro';
 import { TopNav } from '@/ui/TopNav';
-import { SITE, SOCIAL } from '@/ui/strings';
+import { SITE, SOCIAL, UI } from '@/ui/strings';
 import { companies } from '@/content/companies';
 import { tenureLabel, assetUrl } from '@/content/schema';
 
@@ -58,6 +58,10 @@ export default function About() {
 
         <section id="experience">
           <h2>Experience, chapter by chapter</h2>
+          <p className="highlight-legend">
+            <Sparkles size={14} aria-hidden="true" />
+            {UI.highlightLegend}
+          </p>
           <ol className="career-list">
             {[...companies].reverse().map((c) => (
               <li key={c.slug}>
@@ -72,7 +76,17 @@ export default function About() {
                   >
                     {c.pois.map((poi) => (
                       <li key={poi.slug}>
-                        <Link to={`/#/${c.slug}/${poi.slug}`}>
+                        <Link
+                          to={`/#/${c.slug}/${poi.slug}`}
+                          className={poi.highlight ? 'highlight' : undefined}
+                        >
+                          {poi.highlight && (
+                            <Sparkles
+                              size={14}
+                              role="img"
+                              aria-label={UI.careerHighlight}
+                            />
+                          )}
                           {poi.title}{' '}
                           <ArrowUpRight size={14} aria-hidden="true" />
                         </Link>

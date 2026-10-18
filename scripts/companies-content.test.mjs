@@ -166,3 +166,20 @@ test('Screen Actors Guild is the oldest planet with its four POIs', () => {
     ],
   );
 });
+
+test('career highlights flag exactly the headline stories', () => {
+  const highlighted = companies
+    .flatMap((company) => company.pois)
+    .filter((poi) => poi.highlight)
+    .map((poi) => poi.slug)
+    .sort();
+  assert.deepEqual(highlighted, [
+    'fat-princess-adventures',
+    'force-unleashed-ii',
+    'graphics-tools-unity',
+    'hairball',
+    'hololens-2-isvs',
+    'mesh',
+    'student-games',
+  ]);
+});

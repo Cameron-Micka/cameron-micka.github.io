@@ -88,6 +88,7 @@ export interface PlanetInstance {
     slug: string;
     dir: Vec3;
     accent: Vec3;
+    highlight: boolean;
   }[];
   focus: number; // 0..1 how focused/foregrounded this planet is
   visibility: number; // 0..1 fade; planets more recent than focus fade out

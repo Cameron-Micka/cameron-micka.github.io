@@ -64,6 +64,8 @@ export const UI = {
   collapse: 'Collapse',
   poiList: 'Project stories',
   about: 'About',
+  careerHighlight: 'Career highlight',
+  highlightLegend: 'Marks a career highlight',
   viewLarger: 'View larger',
   imageViewer: 'Image viewer',
   projectJump: 'Jump to a story',

@@ -60,7 +60,7 @@ const MAX_SATELLITES = 64;
 const SAT_FLOATS = 7;
 const SAT_STRIDE = SAT_FLOATS * 4;
 // Per-POI instance record shared by the marker and connector pipelines:
-// inner.xyz, outer.xyz, size, dim, accent.rgb, digit, planet POI count.
+// inner.xyz, outer.xyz, size, dim, accent.rgb, digit, highlight (0/1).
 const POI_INSTANCE_FLOATS = 13;
 
 export class WebGPURenderer implements SceneRenderer {
@@ -767,7 +767,7 @@ export class WebGPURenderer implements SceneRenderer {
         { shaderLocation: 2, offset: 24, format: 'float32x4' }, // size,dim,accentRG
         { shaderLocation: 3, offset: 40, format: 'float32' }, // accentB
         { shaderLocation: 4, offset: 44, format: 'float32' }, // digit (1..9 or 0)
-        { shaderLocation: 5, offset: 48, format: 'float32' }, // POI count on planet
+        { shaderLocation: 5, offset: 48, format: 'float32' }, // career highlight (0/1)
       ],
     };
 
@@ -1937,7 +1937,7 @@ export class WebGPURenderer implements SceneRenderer {
         poi.accent[1],
         poi.accent[2],
         i + 1,
-        p.pois.length,
+        poi.highlight ? 1 : 0,
       );
     }
   }

@@ -23,6 +23,9 @@ export const poiSchema = z.object({
   // shown beneath the company and date line in the POI modal.
   platforms: z.string().optional(),
   engine: z.string().optional(),
+  // Career highlight: badged in the story dialog and drawn with a filled
+  // center on the 3D planet marker.
+  highlight: z.boolean().default(false),
   media: z.array(mediaSchema).default([]),
 });
 
@@ -161,7 +164,9 @@ export function tenureYears(start: string, end: string | null): number {
     const [y, m] = s.split('-').map(Number);
     return (y ?? 2000) + ((m ?? 1) - 1) / 12;
   };
-  const e = end ? parse(end) : new Date().getFullYear() + new Date().getMonth() / 12;
+  const e = end
+    ? parse(end)
+    : new Date().getFullYear() + new Date().getMonth() / 12;
   return Math.max(0.5, e - parse(start));
 }
 

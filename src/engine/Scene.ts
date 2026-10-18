@@ -32,7 +32,7 @@ export interface PlanetModel {
   paletteLow: Vec3;
   paletteMid: Vec3;
   paletteHigh: Vec3;
-  poiDirs: { slug: string; dir: Vec3; accent: Vec3 }[];
+  poiDirs: { slug: string; dir: Vec3; accent: Vec3; highlight: boolean }[];
   moonSpecs: {
     seed: number;
     iceCaps: boolean;
@@ -114,6 +114,7 @@ export function buildPlanetModels(companies: Company[]): PlanetModel[] {
         slug: poi.slug,
         dir,
         accent: hexToRgb(poi.accent),
+        highlight: poi.highlight,
       };
     });
 
@@ -386,7 +387,8 @@ export function buildFlightPath(models: PlanetModel[]): Float32Array {
       const t = s / segs;
       const a = entryAngle + t * delta;
       const env = Math.sin(Math.PI * t);
-      const wiggle = helixAmp * env * env * Math.sin(2 * Math.PI * helixCycles * t);
+      const wiggle =
+        helixAmp * env * env * Math.sin(2 * Math.PI * helixCycles * t);
       const base = pointAt(i, a);
       push([
         base[0] + o.w[0] * wiggle,

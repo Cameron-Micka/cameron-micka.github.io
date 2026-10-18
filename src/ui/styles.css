@@ -614,7 +614,7 @@ main:focus {
   height: 16px;
   border-radius: 999px;
   background: var(--accent);
-  transform: translate(2px, 1px) rotate(30deg);
+  transform: translate(1.5px, 0.5px) rotate(30deg);
 }
 .topnav .brand-mark > span:nth-child(2) {
   height: 12px;
@@ -1361,6 +1361,18 @@ main:focus {
   color: var(--muted);
   font: 12px/1.6 var(--font);
 }
+.modal.poi-modal .highlight-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--accent-edge);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: 600 11px/1.6 var(--font);
+}
 .modal.poi-modal .story-platforms {
   display: block;
 }
@@ -1829,6 +1841,18 @@ main:focus {
   margin: 8px 0 16px;
   font-size: 13px;
 }
+.highlight-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.highlight-legend svg {
+  flex-shrink: 0;
+  color: var(--accent-ink);
+}
 .story-links {
   display: flex;
   flex-wrap: wrap;
@@ -1855,6 +1879,14 @@ main:focus {
 }
 .story-links a:active {
   box-shadow: var(--shadow-pressed);
+}
+/* Career highlights reuse the story dialog's badge tint. */
+.story-links a.highlight {
+  --control-overlay: color-mix(in srgb, var(--accent-soft) 75%, transparent);
+  border-color: var(--accent-edge);
+}
+.story-links a.highlight:hover {
+  --control-overlay: var(--accent-soft);
 }
 .story-links svg {
   flex-shrink: 0;

@@ -62,6 +62,7 @@ const raw: CompanyInput[] = [
       {
         slug: 'hololens-2-isvs',
         title: 'HoloLens 2 ISVs',
+        highlight: true,
         platforms: 'HoloLens 2',
         engine: 'Unity',
         accent: '#7ad6ff',
@@ -208,6 +209,7 @@ const raw: CompanyInput[] = [
       {
         slug: 'graphics-tools-unity',
         title: 'Graphics Tools for Unity',
+        highlight: true,
         platforms: 'Open Source Toolkit',
         engine: 'Unity',
         accent: '#4ec0ff',
@@ -336,6 +338,7 @@ const raw: CompanyInput[] = [
       {
         slug: 'mesh',
         title: 'Microsoft Mesh & Teams Immersive Events',
+        highlight: true,
         platforms: 'Windows, Web & Meta Quest',
         engine: 'Unity',
         accent: '#4fd1c5',
@@ -436,6 +439,7 @@ const raw: CompanyInput[] = [
       {
         slug: 'fat-princess-adventures',
         title: 'Fat Princess Adventures & DLC',
+        highlight: true,
         platforms: 'PS4',
         engine: 'C4 Engine',
         accent: '#ff9f43',
@@ -531,6 +535,7 @@ const raw: CompanyInput[] = [
       {
         slug: 'force-unleashed-ii',
         title: 'The Force Unleashed II & DLC',
+        highlight: true,
         platforms: 'PS3 & X360',
         engine: 'Ronin Engine',
         accent: '#e6c35c',
@@ -602,6 +607,7 @@ const raw: CompanyInput[] = [
       {
         slug: 'hairball',
         title: 'Hairball',
+        highlight: true,
         platforms: 'iOS',
         engine: 'Custom Engine',
         accent: '#b768ff',
@@ -801,6 +807,7 @@ const raw: CompanyInput[] = [
       {
         slug: 'student-games',
         title: 'Student Game Projects',
+        highlight: true,
         platforms: 'Windows, Wii & Game Boy Advance',
         engine: 'Custom Engine',
         accent: '#4fe08a',

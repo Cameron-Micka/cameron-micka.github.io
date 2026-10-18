@@ -664,7 +664,7 @@ void main(){
 
 const POINT_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
-layout(location=1) in vec4 aAttr; // x size, y phase/dim, z POI shimmer order, w POI count on planet
+layout(location=1) in vec4 aAttr; // x size, y phase/dim, z POI shimmer order, w career highlight (0/1)
 layout(location=2) in vec3 aColor;
 uniform mat4 uViewProj;
 uniform float uTime;
@@ -673,7 +673,7 @@ uniform float uHeight; // viewport height in pixels (POI fixed-screen sizing)
 out vec4 vAttr;
 out vec3 vColor;
 out float vOrdinal;
-out float vCount;
+out float vHighlight;
 void main(){
   vec4 clip=uViewProj*vec4(aPos,1.0);
   gl_Position=clip;
@@ -687,12 +687,12 @@ void main(){
   vAttr=vec4(twinkle,aAttr.y,uMode,(uMode<0.5)?aAttr.x:gl_PointSize/uHeight);
   vColor=aColor;
   vOrdinal=aAttr.z;
-  vCount=aAttr.w;
+  vHighlight=aAttr.w;
 }`;
 
 const POINT_FRAG = `#version 300 es
 precision highp float;
-in vec4 vAttr;in vec3 vColor;in float vOrdinal;in float vCount;
+in vec4 vAttr;in vec3 vColor;in float vOrdinal;in float vHighlight;
 uniform float uWireframe;
 uniform float uTime;
 out vec4 frag;
@@ -717,7 +717,12 @@ void main(){
     // Match the connector's uThick in NDC, converted to the clamped point's UV.
     float halfThick=0.0035/vAttr.w;
     float ring=abs(d-(radius-halfThick));
-    float a=(1.0-smoothstep(halfThick-aa,halfThick+aa,ring))*vAttr.y;
+    float ringA=1.0-smoothstep(halfThick-aa,halfThick+aa,ring);
+    // Career highlights add a center dot (a bullseye) at half the ring's inner
+    // radius, matching WebGPU.
+    float dotR=0.5*(radius-2.0*halfThick);
+    float dotA=(1.0-smoothstep(dotR-aa,dotR+aa,d))*vHighlight;
+    float a=max(ringA,dotA)*vAttr.y;
     frag=vec4(vec3(1.0,0.478,0.094)*a,a);
   }else{
     if(uWireframe>0.5){
@@ -3286,7 +3291,7 @@ export class WebGL2Renderer implements SceneRenderer {
         const sizePx = (0.027 + 0.021 * p.focus) * vis *
           poiPulseScale(frame.time, i + 1, p.pois.length, frame.poiPulse);
         pos.push(outer[0], outer[1], outer[2]);
-        attr.push(sizePx, dim, i + 1, p.pois.length);
+        attr.push(sizePx, dim, i + 1, poi.highlight ? 1 : 0);
         color.push(poi.accent[0], poi.accent[1], poi.accent[2]);
         // Connector quad: surface vertex (faint) -> rim vertex (bright).
         const ar = poi.accent[0];

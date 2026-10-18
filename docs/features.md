@@ -45,6 +45,8 @@ Before the first story is opened, POI markers pulse up to 40% larger three times
 per turn in sequence, reaching each peak in 0.4 seconds instead of showing a
 rotating highlight. Their connectors track the
 changing size. The pulse stops after opening a story and while motion is paused.
+Career-highlight stories draw their marker as a bullseye — the usual ring plus a
+filled center dot — in both rendering backends.
 The chapter readout is the exception: it retains a softly rounded rectangular
 shape, like the panel and media frames.
 Floating panels and standalone scene buttons frost the scene behind them;
@@ -94,6 +96,11 @@ deep link opens directly at that story, and the readout for an older chapter
 opens at its first story. The dialog's native project picker opens any story without requiring a
 precise click on a 3D marker. The picker's visible "Jump to a story" label is
 hidden at narrow widths, while its accessible name remains available.
+Career-highlight stories (flagged with `highlight: true` in the content) show a
+sparkle-marked "Career highlight" badge above their title, and their About page
+story links use the same sparkle and accent tint, with a short legend under the
+Experience heading explaining the sparkle. The story picker marks them with a
+trailing ✦ (native options can't hold the SVG icon).
 On desktop its native scrollbar sits in the outer mica gutter to the right of the inset
 reading surface, rather than inside the story panel. Only the reading surface
 has rounded corners, so the scrollbar thumb is not clipped at either end.
