@@ -70,7 +70,6 @@ export const UI = {
   later: 'More recent chapter',
   pause: 'Pause motion',
   resume: 'Resume motion',
-  sound: 'Sound effects',
   skip: 'Skip to content',
   details: 'Technical details',
   settings: 'Settings',

@@ -188,6 +188,43 @@ test('the pearlescent sheen only lightens the minimum-contrast backplate', () =>
   }
 });
 
+test('surface grains average to their surface colors', () => {
+  for (const [grain, surface] of [
+    ['--bg-grain', '--bg'],
+    ['--panel-light-grain', '--panel-light'],
+  ]) {
+    const value = css.match(new RegExp(`${grain}:\\s*url\\(([^;]+)\\);`))?.[1];
+    assert.ok(value, `Missing ${grain}`);
+    const matrix = value
+      .match(/feColorMatrix values='([^']+)'/)?.[1]
+      ?.split(/\s+/)
+      .map(Number);
+    assert.ok(matrix?.length === 20, `Missing ${grain} color matrix`);
+    // fractalNoise averages 0.5, so each channel averages gain * 0.5 + offset.
+    const mean = [0, 1, 2].map(
+      (row) => (matrix[row * 5] * 0.5 + matrix[row * 5 + 4]) * 255,
+    );
+    rgb(color(surface)).forEach((channel, index) =>
+      assert.ok(
+        Math.abs(mean[index] - channel) <= 1,
+        `${grain} channel ${index} averages ${mean[index].toFixed(1)}, not ${channel}`,
+      ),
+    );
+    assert.equal(matrix[19], 1, `${grain} must be opaque`);
+  }
+  assert.match(
+    css,
+    /^html \{\s*background:\s*var\(--bg-grain\)[^;]*var\(--bg\);/m,
+  );
+  const poiSurfaces = [
+    ...css.matchAll(
+      /background:\s*var\(--panel-light-grain\)[^;]*,\s*(#[\da-f]{6});/g,
+    ),
+  ];
+  assert.equal(poiSurfaces.length, 2, 'Both POI content surfaces need grain');
+  for (const [, hex] of poiSurfaces) assert.equal(hex, color('--panel-light'));
+});
+
 test('boot surface and browser theme match the light page surface', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const layout = readFileSync(
@@ -288,11 +325,9 @@ test('intro shadow reaches the top and left viewport edges', () => {
 
 test('navigation headers have no surrounding glow or shadow', () => {
   const header = css.match(/^\.topnav \{([^}]+)\}/m)?.[1];
-  const solid = css.match(/^\.topnav\.solid \{([^}]+)\}/m)?.[1];
   assert.ok(header, 'Missing navigation header style');
-  assert.ok(solid, 'Missing static-page header style');
   assert.match(header, /box-shadow:\s*none;/);
-  assert.doesNotMatch(solid, /box-shadow:/);
+  assert.doesNotMatch(css, /^\.topnav\.[\w-]+ \{[^}]*box-shadow:/m);
 });
 
 test('expanded photos have no drop shadow', () => {

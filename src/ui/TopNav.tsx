@@ -5,15 +5,12 @@ import { NAV, SITE, UI } from './strings';
 export function TopNav({
   onToggleSettings,
   settingsOpen = false,
-  solid = false,
 }: {
   onToggleSettings?: () => void;
   settingsOpen?: boolean;
-  /** Opaque bar for static content pages, so scrolled text passes behind it. */
-  solid?: boolean;
 }) {
   return (
-    <header className={`topnav${solid ? ' solid' : ''}`}>
+    <header className="topnav">
       <Link className="brand" to="/" aria-label={`${SITE.name}, home`}>
         <span className="brand-mark" aria-hidden="true">
           <span />

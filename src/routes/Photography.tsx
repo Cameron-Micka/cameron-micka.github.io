@@ -73,7 +73,7 @@ export default function Photography() {
 
   return (
     <>
-      <TopNav solid />
+      <TopNav />
       <main id="main-content" className="page photography" tabIndex={-1}>
         <h1>{PHOTOGRAPHY.title}</h1>
         <p className="lede">{PHOTOGRAPHY.lede}</p>

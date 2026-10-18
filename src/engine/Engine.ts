@@ -76,7 +76,6 @@ export interface EngineSnapshot {
   activeTier: QualityTier;
   reducedMotion: ReducedMotionPref;
   motionPaused: boolean;
-  sound: boolean;
   forceBackend: BackendPref;
   debugHud: boolean;
   wireframe: boolean;
@@ -1292,12 +1291,6 @@ export class Engine {
     this.commit();
   };
 
-  setSound(on: boolean): void {
-    this.settings.sound = on;
-    saveSettings(this.settings);
-    this.commit();
-  }
-
   setForceBackend(pref: BackendPref): void {
     if (this.settings.forceBackend === pref) return;
     this.settings.forceBackend = pref;
@@ -1455,7 +1448,6 @@ export class Engine {
       activeTier: this.activeTier,
       reducedMotion: this.settings.reducedMotion,
       motionPaused: this.paused,
-      sound: this.settings.sound,
       forceBackend: this.settings.forceBackend,
       debugHud: this.settings.debugHud,
       wireframe: this.settings.wireframe,

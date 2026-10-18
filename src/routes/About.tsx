@@ -24,7 +24,7 @@ export default function About() {
 
   return (
     <>
-      <TopNav solid />
+      <TopNav />
       <main id="main-content" className="page about-page" tabIndex={-1}>
         <header className="about-header">
           <div>

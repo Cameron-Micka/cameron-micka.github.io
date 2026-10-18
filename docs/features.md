@@ -9,7 +9,9 @@ rounded corners, top-left highlights, and diffuse lower-right shadows. Raised
 buttons and inset readouts share the tokens in `src/ui/styles.css`; coral is
 reserved for actions and selected states. Navigation, story dialogs, Settings,
 and the static pages use the same system, without panel wear, background grids,
-or LCD textures. The 3D scene and photo-viewing backdrop stay dark so the work
+or LCD textures. The page background and the POI story surface carry a fine
+monochrome grain whose average matches their base color, so it adds texture
+without lowering text contrast. The 3D scene and photo-viewing backdrop stay dark so the work
 remains the focus.
 
 Backplates have a translucent mica finish with a 70%-opaque base tint and a static pink, sage,
@@ -36,7 +38,7 @@ Floating panels and standalone scene buttons frost the scene behind them;
 nested controls reuse their panel's blur. Story content remains opaque and
 text stays crisp. Secondary labels use darker ink to maintain AA contrast even
 over a black backdrop.
-Static-page navigation stays opaque so scrolled text cannot bleed through;
+Static-page navigation uses the same frosted backplate as the scene header;
 card frames share the sheen without adding backdrop-blur layers to the gallery.
 Navigation headers have no surrounding shadow or glow.
 The desktop introduction's soft shadow extends to the viewport's top and left
@@ -110,7 +112,7 @@ navigation until the page is reloaded.
 The About page provides a conventional, newest-first career summary and direct
 links to every story. Writing is currently a coming-soon page, and Photography
 provides separate Nature and Automotive galleries with a native lightbox.
-Sound effects are on by default (toggle them in Settings) and never start before a user gesture.
+Sound effects are always on and never start before a user gesture.
 
 ## Screenshots
 

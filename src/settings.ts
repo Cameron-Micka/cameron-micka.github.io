@@ -16,7 +16,6 @@ export interface PersistedSettings {
   freeCamera: boolean;
   flightPath: boolean;
   crt: boolean;
-  sound: boolean;
 }
 
 const KEY = 'cm-portfolio-settings';
@@ -30,7 +29,6 @@ const DEFAULTS: PersistedSettings = {
   freeCamera: false,
   flightPath: false,
   crt: false,
-  sound: true,
 };
 
 function isValidQuality(q: unknown): q is QualityPreference {
@@ -70,7 +68,7 @@ export function loadSettings(): PersistedSettings {
         merged.forceBackend = backend;
       } else invalid.push('forceBackend');
     }
-    for (const key of ['debugHud', 'crt', 'sound'] as const) {
+    for (const key of ['debugHud', 'crt'] as const) {
       if (key in parsed) {
         const value: unknown = Reflect.get(parsed, key);
         if (typeof value === 'boolean') merged[key] = value;

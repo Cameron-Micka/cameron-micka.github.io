@@ -16,11 +16,15 @@
   --danger: #b33345;
   --panel: #eef0f3;
   --panel-light: #f7f8fa;
+  /* Opaque grain tiles whose average equals the named surface color, so they
+     add texture without changing the contrast measured against it. */
+  --bg-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0.09 0 0 0 0.888 0.09 0 0 0 0.896 0.09 0 0 0 0.908 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  --panel-light-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0.09 0 0 0 0.924 0.09 0 0 0 0.928 0.09 0 0 0 0.935 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   --panel-edge: #d3d8e0;
   --backplate-tint: #eef0f3b3;
   --backplate-muted: #363e48;
   --backplate-accent: #70202e;
-  --backplate-filter: blur(18px) saturate(1.12);
+  --backplate-filter: blur(10px) saturate(1.12);
   --backplate-sheen:
     linear-gradient(135deg, #ffffff70, #ffffff08 35%, #ffffff00 60%, #ffffff30),
     linear-gradient(
@@ -110,7 +114,9 @@ body,
 }
 
 html {
-  background: var(--bg);
+  background:
+    var(--bg-grain) 0 0 / 160px 160px,
+    var(--bg);
 }
 
 /* ---- CRT overlay: scanlines (::before) + grain/vignette (::after) ----
@@ -489,10 +495,6 @@ main:focus {
   border: 1px solid #ffffffc7;
   border-radius: var(--radius);
   box-shadow: none;
-}
-.topnav.solid {
-  --backplate-tint: var(--panel);
-  --backplate-filter: none;
 }
 .topnav .brand {
   position: relative;
@@ -1313,7 +1315,9 @@ main:focus {
   position: absolute;
   inset: 0 var(--poi-scrollbar-gutter) 0 0;
   pointer-events: none;
-  background: #f7f8fa;
+  background:
+    var(--panel-light-grain) 0 0 / 160px 160px,
+    #f7f8fa;
   border-radius: var(--poi-content-radius);
 }
 .modal.poi-modal .modal-content {
@@ -2605,7 +2609,9 @@ main:focus {
   }
   .modal.poi-modal .poi-content-frame {
     border-top: 1px solid var(--rule);
-    background: #f7f8fa;
+    background:
+      var(--panel-light-grain) 0 0 / 160px 160px,
+      #f7f8fa;
   }
   .modal.poi-modal .poi-content-frame::before {
     display: none;

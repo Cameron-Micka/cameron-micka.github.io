@@ -4,7 +4,7 @@ import { TopNav } from '@/ui/TopNav';
 export default function NotFound() {
   return (
     <>
-      <TopNav solid />
+      <TopNav />
       <main id="main-content" className="page" tabIndex={-1}>
         <h1>404</h1>
         <p className="lede">This page drifted out of orbit.</p>

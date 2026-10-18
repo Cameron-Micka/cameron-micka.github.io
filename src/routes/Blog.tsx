@@ -7,7 +7,7 @@ import { assetUrl } from '@/content/schema';
 export default function Blog() {
   return (
     <>
-      <TopNav solid />
+      <TopNav />
       <main id="main-content" className="page" tabIndex={-1}>
         <p className="eyebrow">Field notes / Coming soon</p>
         <h1>Blog</h1>

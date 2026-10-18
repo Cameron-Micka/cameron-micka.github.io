@@ -18,13 +18,11 @@ import { HINTS, INTRO, UI } from './strings';
 
 function SoundBridge() {
   const engine = useEngine();
-  const enabled = useEngineValue((s) => s.sound);
   useEffect(() => {
-    if (!enabled) return;
     const sound = new SoundManager(engine);
     sound.setEnabled(true);
     return () => sound.destroy();
-  }, [engine, enabled]);
+  }, [engine]);
   return null;
 }
 

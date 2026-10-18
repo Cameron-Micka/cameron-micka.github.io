@@ -12,7 +12,7 @@ export function PortfolioFallback({
 }) {
   return (
     <>
-      <TopNav solid />
+      <TopNav />
       <main id="main-content" className="page resume-page" tabIndex={-1}>
         {error && (
           <section className="fallback-notice" role="alert">
