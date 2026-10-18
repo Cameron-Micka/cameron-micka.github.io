@@ -174,6 +174,7 @@ test('career highlights flag exactly the headline stories', () => {
     .map((poi) => poi.slug)
     .sort();
   assert.deepEqual(highlighted, [
+    'escape-plan',
     'fat-princess-adventures',
     'force-unleashed-ii',
     'graphics-tools-unity',

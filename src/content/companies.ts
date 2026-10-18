@@ -481,6 +481,7 @@ const raw: CompanyInput[] = [
       {
         slug: 'escape-plan',
         title: 'Escape Plan & DLC',
+        highlight: true,
         platforms: 'PS Vita & PS4',
         engine: 'Unity 3 (Custom Port)',
         accent: '#ffe1a8',

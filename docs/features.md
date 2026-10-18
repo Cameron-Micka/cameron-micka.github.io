@@ -78,7 +78,7 @@ disable control transitions as well as scene animation.
 ## Finding the work
 
 On roomy viewports, the landing introduction explains the experience and
-provides an explicit **Explore the work** action. Narrow screens (720px and
+provides an explicit **Explore my work** action. Narrow screens (720px and
 below) and short landscape windows hide that introduction so the canvas and
 controls have room; the lower readout remains the primary chapter and story
 entry point.
@@ -89,7 +89,9 @@ story access without overlapping the floating header.
 
 The POI dialog is a scrollable, snap-aligned feed of every story across the
 career timeline. The feed opens with a portrait and the About page's first three
-introduction paragraphs above the first story. **Explore the work** and the lower readout open the dialog at that
+introduction paragraphs above the first story. Projects named in that
+introduction link to their stories: inside the dialog they scroll the feed to the
+story, and on the About page they open the timeline at it. **Explore my work** and the lower readout open the dialog at that
 introduction when they target the newest chapter. The header reads "About" until
 the first story scrolls into view. Clicking a story marker, a story link, or a
 deep link opens directly at that story, and the readout for an older chapter

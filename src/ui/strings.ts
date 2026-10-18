@@ -10,7 +10,7 @@ export const SITE = {
 export const INTRO = {
   title: 'Design meets real-time engineering.',
   body: 'Games, mixed reality, and tools that give creative people superpowers.',
-  explore: 'Explore the work',
+  explore: 'Explore my work',
 };
 
 export const NAV = {

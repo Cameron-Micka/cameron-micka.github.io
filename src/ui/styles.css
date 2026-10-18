@@ -261,6 +261,11 @@ a:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* Inline story links in prose are underlined so they don't rely on color. */
+a.story-ref {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 .skip-link {
   position: fixed;

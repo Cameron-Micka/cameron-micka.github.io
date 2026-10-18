@@ -378,7 +378,12 @@ export function PoiModal({ companies }: { companies: Company[] }) {
                     </figure>
                   </div>
                   <div className="body">
-                    <AboutIntro siteNote={false} />
+                    <AboutIntro
+                      siteNote={false}
+                      onOpenStory={(company, poi) =>
+                        engine.openPoiRef(company, poi)
+                      }
+                    />
                   </div>
                 </div>
               </section>
