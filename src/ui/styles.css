@@ -1412,6 +1412,20 @@ main:focus {
 .modal.poi-modal .poi-section:first-child {
   padding-top: 24px;
 }
+.modal.poi-modal .poi-intro-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 24px;
+}
+.modal.poi-modal .poi-intro-header h2 {
+  margin-bottom: 8px;
+}
+.modal.poi-modal .poi-intro-header .profile-photo {
+  width: 120px;
+  height: 120px;
+  margin: 0;
+}
 .modal.poi-modal .body {
   color: var(--fg);
 }
@@ -2430,14 +2444,14 @@ main:focus {
     min-width: 0;
     margin-top: 0;
   }
-  .modal.poi-modal .poi-section:has(> .media):nth-child(even) {
+  .modal.poi-modal .poi-section:has(> .media):nth-child(even of .poi-story) {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   }
-  .modal.poi-modal .poi-section:nth-child(even) > .poi-copy {
+  .modal.poi-modal .poi-section:nth-child(even of .poi-story) > .poi-copy {
     grid-column: 2;
     grid-row: 1;
   }
-  .modal.poi-modal .poi-section:nth-child(even) > .media {
+  .modal.poi-modal .poi-section:nth-child(even of .poi-story) > .media {
     grid-column: 1;
     grid-row: 1;
   }
@@ -2679,6 +2693,14 @@ main:focus {
   }
   .modal.poi-modal .poi-section:first-child {
     padding-top: 18px;
+  }
+  .modal.poi-modal .poi-intro-header {
+    grid-template-columns: minmax(0, 1fr) 72px;
+    gap: 16px;
+  }
+  .modal.poi-modal .poi-intro-header .profile-photo {
+    width: 72px;
+    height: 72px;
   }
   /* Bottom breathing room lives inside the scroller, so content scrolls all
      the way to the window's bottom edge instead of clipping above it. */

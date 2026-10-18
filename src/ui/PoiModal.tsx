@@ -7,9 +7,10 @@ import {
   type Media,
 } from '@/content/schema';
 import { useEngine, useEngineValue } from './EngineContext';
+import { AboutIntro } from './AboutIntro';
 import { Markdown } from './Markdown';
 import { PhotoLightbox, type LightboxImage } from './PhotoLightbox';
-import { UI } from './strings';
+import { SITE, UI } from './strings';
 
 // Extract a YouTube video id from common URL shapes (youtu.be/ID,
 // youtube.com/watch?v=ID, youtube.com/embed/ID, youtube.com/shorts/ID).
@@ -137,6 +138,9 @@ export function PoiModal({ companies }: { companies: Company[] }) {
   // moved last and avoid fighting each other.
   const activeKey = useRef<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  // True while the About intro above the first story fills the top of the
+  // feed, so the header names it instead of the first story's company.
+  const [introInView, setIntroInView] = useState(false);
   // Images of the POI whose picture was clicked, shown full-screen.
   const [lightbox, setLightbox] = useState<{
     images: LightboxImage[];
@@ -160,11 +164,16 @@ export function PoiModal({ companies }: { companies: Company[] }) {
 
   const openKey = openPoi ? `${openPoi.company}/${openPoi.poi}` : null;
   const isOpen = openKey !== null && entries.some((e) => e.key === openKey);
+  // The intro sits directly above the first story, so an "explore" open only
+  // starts there when it targets that story; any other chapter opens on its
+  // own story so the feed and the camera agree.
+  const startAtIntro = openPoi?.intro === true && openKey === entries[0]?.key;
 
   useEffect(() => {
     if (!isOpen) {
       setExpanded(false);
       setLightbox(null);
+      setIntroInView(false);
       activeKey.current = null;
     }
   }, [isOpen]);
@@ -187,8 +196,10 @@ export function PoiModal({ companies }: { companies: Company[] }) {
     activeKey.current = openKey;
     const list = listRef.current;
     const section = sectionRefs.current.get(openKey);
-    if (list && section) list.scrollTop = section.offsetTop;
-  }, [isOpen, openKey]);
+    if (list && startAtIntro) list.scrollTop = 0;
+    else if (list && section) list.scrollTop = section.offsetTop;
+    setIntroInView(startAtIntro);
+  }, [isOpen, openKey, startAtIntro]);
 
   if (!isOpen || !openKey) return null;
 
@@ -218,6 +229,8 @@ export function PoiModal({ companies }: { companies: Company[] }) {
   const onScroll = () => {
     const list = listRef.current;
     if (!list) return;
+    const first = entries[0] && sectionRefs.current.get(entries[0].key);
+    setIntroInView(!!first && list.scrollTop + 24 < first.offsetTop);
     const key = activeFromScroll(list);
     if (!key || key === activeKey.current) return;
     activeKey.current = key;
@@ -226,13 +239,14 @@ export function PoiModal({ companies }: { companies: Company[] }) {
   };
 
   const titleId = (key: string) => `poi-title-${key.replace('/', '--')}`;
+  const introTitleId = 'poi-title-about';
 
   return (
     <>
       <dialog
         ref={dialogRef}
         className="modal-scrim"
-        aria-labelledby={titleId(openKey)}
+        aria-labelledby={introInView ? introTitleId : titleId(openKey)}
         onCancel={(e) => {
           e.preventDefault();
           engine.closePoi();
@@ -254,10 +268,16 @@ export function PoiModal({ companies }: { companies: Company[] }) {
             <div className="modal-title">
               <span
                 className="accent-bar"
-                style={{ background: activeCompany?.palette.high }}
+                style={{
+                  background: introInView
+                    ? 'var(--accent)'
+                    : activeCompany?.palette.high,
+                }}
                 aria-hidden="true"
               />
-              <span className="company-name">{activeCompany?.name}</span>
+              <span className="company-name">
+                {introInView ? UI.about : activeCompany?.name}
+              </span>
             </div>
             <div className="modal-actions">
               <button
@@ -329,9 +349,36 @@ export function PoiModal({ companies }: { companies: Company[] }) {
               tabIndex={-1}
               aria-label={UI.poiList}
             >
+              <section
+                className="poi-section poi-intro"
+                aria-labelledby={introTitleId}
+              >
+                <div className="poi-copy">
+                  <div className="poi-intro-header">
+                    <div>
+                      <h2 id={introTitleId}>{UI.about}</h2>
+                      <p className="story-meta">
+                        {SITE.name} · {SITE.role}
+                      </p>
+                    </div>
+                    <figure className="profile-photo">
+                      <img
+                        src={SITE.photo}
+                        alt={`Portrait of ${SITE.name}`}
+                        width={120}
+                        height={120}
+                        decoding="async"
+                      />
+                    </figure>
+                  </div>
+                  <div className="body">
+                    <AboutIntro siteNote={false} />
+                  </div>
+                </div>
+              </section>
               {entries.map((entry) => (
                 <section
-                  className="poi-section"
+                  className="poi-section poi-story"
                   key={entry.key}
                   aria-labelledby={titleId(entry.key)}
                   aria-current={entry.key === openKey ? 'true' : undefined}

@@ -249,7 +249,7 @@ function SceneIntro({ companies }: { companies: Company[] }) {
             disabled={!firstPoi}
             onClick={() => {
               if (company && firstPoi)
-                engine.openPoiRef(company.slug, firstPoi.slug);
+                engine.openPoiRef(company.slug, firstPoi.slug, 'intro');
             }}
           >
             {INTRO.explore} <ArrowRight size={16} aria-hidden="true" />

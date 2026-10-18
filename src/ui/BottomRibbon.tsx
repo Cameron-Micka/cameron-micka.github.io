@@ -55,7 +55,7 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
         onClick={() => {
           if (!firstPoi) return;
           openedFromReadout.current = true;
-          engine.openPoiRef(company.slug, firstPoi.slug);
+          engine.openPoiRef(company.slug, firstPoi.slug, 'intro');
         }}
       >
         <span className="ribbon-identity">

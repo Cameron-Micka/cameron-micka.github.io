@@ -562,3 +562,11 @@ test('toggle tracks and thumbs include borders in their declared size', () => {
     assert.match(rule, /box-sizing:\s*border-box;/);
   }
 });
+
+test('story media alternation ignores the About intro section', () => {
+  assert.doesNotMatch(css, /\.poi-section[^{,]*:nth-child\((?:even|odd)\)/);
+  assert.match(
+    css,
+    /\.poi-section:has\(> \.media\):nth-child\(even of \.poi-story\)/,
+  );
+});

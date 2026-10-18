@@ -86,7 +86,12 @@ place Pause and Free Camera below the header. The ribbon still provides
 story access without overlapping the floating header.
 
 The POI dialog is a scrollable, snap-aligned feed of every story across the
-career timeline. Its native project picker opens any story without requiring a
+career timeline. The feed opens with a portrait and the About page's first three
+introduction paragraphs above the first story. **Explore the work** and the lower readout open the dialog at that
+introduction when they target the newest chapter. The header reads "About" until
+the first story scrolls into view. Clicking a story marker, a story link, or a
+deep link opens directly at that story, and the readout for an older chapter
+opens at its first story. The dialog's native project picker opens any story without requiring a
 precise click on a 3D marker. The picker's visible "Jump to a story" label is
 hidden at narrow widths, while its accessible name remains available.
 On desktop its native scrollbar sits in the outer mica gutter to the right of the inset

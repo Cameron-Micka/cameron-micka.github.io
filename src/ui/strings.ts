@@ -2,6 +2,7 @@ export const SITE = {
   name: 'Cameron Micka',
   role: 'Principal Software Engineer',
   url: 'https://cameron-micka.github.io',
+  photo: 'https://avatars.githubusercontent.com/Cameron-Micka?s=360',
   tagline:
     'Engineer who loves bridging the gap between design and engineering.',
 };
@@ -62,6 +63,7 @@ export const UI = {
   expand: 'Expand',
   collapse: 'Collapse',
   poiList: 'Project stories',
+  about: 'About',
   viewLarger: 'View larger',
   imageViewer: 'Image viewer',
   projectJump: 'Jump to a story',

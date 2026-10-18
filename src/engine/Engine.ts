@@ -51,9 +51,16 @@ import {
   type ThemePref,
 } from '@/settings';
 
+/** `intro` opens the dialog at the About intro (see OpenPoiRef.intro);
+ *  `scroll` means the reader scrolled the story feed onto this story. */
+export type PoiOpenSource = 'direct' | 'scroll' | 'intro';
+
 export interface OpenPoiRef {
   company: string;
   poi: string;
+  /** Opened from an "explore" action: the story dialog starts at the About
+   *  intro above the first story instead of at the story itself. */
+  intro?: boolean;
 }
 
 // The POI size pulse is an attract loop: it tells first-time visitors the markers
@@ -97,7 +104,7 @@ export interface EngineSnapshot {
 
 export type EngineEvents = {
   focusChanged: number;
-  poiOpened: OpenPoiRef & { source: 'direct' | 'scroll' };
+  poiOpened: OpenPoiRef & { source: PoiOpenSource };
   poiClosed: null;
   qualityChanged: QualityTier;
   ready: null;
@@ -1177,7 +1184,7 @@ export class Engine {
   openPoiRef(
     company: string,
     poi: string,
-    source: 'direct' | 'scroll' = 'direct',
+    source: PoiOpenSource = 'direct',
   ): void {
     const idx = this.models.findIndex((m) => m.company.slug === company);
     if (
@@ -1191,7 +1198,8 @@ export class Engine {
     // A startup deep link should not begin the fly-in when its modal closes.
     this.onUserInteract();
     this.scrubTarget = idx;
-    this.openPoi = { company, poi };
+    this.openPoi =
+      source === 'intro' ? { company, poi, intro: true } : { company, poi };
     this.onOrbitEnd(true);
     // First POI opened this session: the markers no longer need to advertise
     // themselves, so stop the pulse until the next page load.

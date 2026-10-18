@@ -296,6 +296,39 @@ test('scrolling stories stays silent across POI and chapter changes', (t) => {
   );
 });
 
+test('explore opens mark the story dialog to start at the About intro', (t) => {
+  const { sound, events, contexts, snapshot } = audioProbe(t);
+  sound.setEnabled(true);
+  const opened = [];
+  events.on('poiOpened', (poi) => opened.push(poi));
+  const engine = Object.assign(Object.create(Engine.prototype), {
+    events,
+    models: [
+      { company: { slug: 'first', pois: [{ slug: 'one' }, { slug: 'two' }] } },
+    ],
+    openPoi: null,
+    onUserInteract() {},
+    onOrbitEnd() {},
+    commit() {
+      snapshot.openPoi = this.openPoi;
+    },
+  });
+  engine.openPoiRef('first', 'one', 'intro');
+  assert.deepEqual(snapshot.openPoi, {
+    company: 'first',
+    poi: 'one',
+    intro: true,
+  });
+  assert.equal(opened[0].source, 'intro');
+  assert.equal(contexts[0].oscillators.length, 1, 'Explore opens still chime');
+  engine.openPoiRef('first', 'two', 'scroll');
+  assert.deepEqual(
+    snapshot.openPoi,
+    { company: 'first', poi: 'two' },
+    'Scrolling to another story drops the intro flag',
+  );
+});
+
 test('scroll updates do not create an audio context', (t) => {
   const { sound, events, contexts, snapshot } = audioProbe(t);
   sound.setEnabled(true);
