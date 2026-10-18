@@ -203,7 +203,7 @@ the scene at 85% resolution and composites at native output resolution.
 ### 4.2 Scrubbing
 
 - **Desktop:** Mouse wheel + trackpad vertical scroll scrubs the camera along Z. Up travels into earlier work, down toward the present. Side ruler is also clickable to jump.
-- **Mobile:** Two-finger drag scrubs; the lower ribbon provides explicit previous/next chapter buttons. One-finger drag rotates the planet.
+- **Mobile:** Two-finger drag scrubs. One-finger drag rotates the planet.
 - **Keyboard:** Up moves toward the present; Down moves into earlier work. Home / PageUp → "Now"; End / PageDown → oldest. Shortcuts ignore interactive controls, editable content, and dialogs.
 - **Snap behavior:** During input, scrub is free and continuous. **On release**, the camera eases (cubic out, ~400ms) to the **nearest planet**. URL hash updates only on snap settling.
 
@@ -240,7 +240,7 @@ On the **first** mount of the landing route:
 │                                                            │  │
 │                                                            │  │
 ├───────────────────────────────────────────────────────────────┤
-│        ◀  [ Microsoft · 2016 – present ]  ▶                  │ ← bottom ribbon
+│           [ Microsoft · 2016 – present ]                     │ ← bottom ribbon
 └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -248,8 +248,8 @@ On the **first** mount of the landing route:
 - **Top nav:** Warm hardware-style bar, visible on all routes.
 - **Introduction:** Brief value proposition and an explicit work action. Compact layouts prioritize the canvas and use the lower readout as the work action.
 - **Interaction hint:** Dismissed after wheel, pointer, touch, or keyboard scene input, chapter navigation, or story opening. Stays dismissed across client-side navigation until a full page reload.
-- **Side ruler:** Right edge, newest-to-oldest chapter buttons in a capsule-shaped housing with semicircular top and bottom ends. Hidden on narrow screens, where the ribbon supplies navigation.
-- **Bottom ribbon:** Shows the current chapter, role, dates, and an explicit story-count action. Chevrons step to neighbors.
+- **Side ruler:** Right edge, newest-to-oldest chapter buttons in a capsule-shaped housing with semicircular top and bottom ends. Hidden on narrow screens, where touch scrubbing supplies navigation.
+- **Bottom ribbon:** Shows the current chapter, role, dates, and an explicit story-count action.
 - **Motion:** Controlled by the pause/resume button beside the free-camera button, not in Settings. Follows the OS reduced-motion preference by default.
 - **Settings gear:** Top-right, opens the settings panel (see §10).
 
@@ -528,8 +528,8 @@ Boot sequence:
   - Single-finger drag on focused planet → orbit.
   - Two-finger vertical drag (or single-finger vertical swipe in empty space) → scrub timeline.
   - Pinch on planet → zoom focused planet (clamped range).
-- **Side ruler:** Hidden on narrow screens; the bottom ribbon remains the chapter navigator.
-- **Bottom ribbon:** Always visible; chevrons are large tap targets.
+- **Side ruler:** Hidden on narrow screens; two-finger drag scrubs between chapters.
+- **Bottom ribbon:** Always visible; the story action is a large tap target.
 - **Modal:** Full viewport width minus 16px margins. Body scrolls within the modal if content overflows viewport.
 - **Address bar / 100vh issues:** Use `100dvh` for canvas sizing; subscribe to `visualViewport.resize` to adapt during browser-chrome show/hide.
 - **Orientation change:** On rotation, debounce 200ms then re-measure canvas and update camera aspect. The scrub position and any open modal are preserved.

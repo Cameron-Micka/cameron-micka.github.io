@@ -919,10 +919,10 @@ main:focus {
   bottom: max(24px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 104px;
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 16px;
   align-items: center;
-  width: min(800px, calc(100% - 200px));
+  width: min(560px, calc(100% - 200px));
   min-height: 112px;
   padding: 14px 18px;
   text-align: left;
@@ -938,8 +938,7 @@ main:focus {
   align-items: center;
   gap: 7px;
 }
-.channel-label,
-.transport-label {
+.channel-label {
   color: var(--ink-muted);
   font-size: 11px;
 }
@@ -1060,19 +1059,6 @@ main:focus {
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
-}
-.ribbon-transport {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.transport-keys {
-  display: flex;
-  gap: 8px;
-}
-.transport-keys .icon-btn {
-  border-radius: 50%;
 }
 
 /* ---- Story dialogs ---- */
@@ -2508,8 +2494,8 @@ main:focus {
     min-width: 0;
   }
   .ribbon {
-    width: min(700px, calc(100% - 148px));
-    grid-template-columns: 54px minmax(0, 1fr) 98px;
+    width: min(560px, calc(100% - 148px));
+    grid-template-columns: 54px minmax(0, 1fr);
     gap: 10px;
     padding: 8px 12px;
   }
@@ -2591,13 +2577,12 @@ main:focus {
   .ribbon {
     width: calc(100% - 24px);
     bottom: max(12px, env(safe-area-inset-bottom));
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     padding: 12px;
     min-height: 140px;
   }
-  .ribbon-channel,
-  .transport-label {
+  .ribbon-channel {
     display: none;
   }
   .ribbon-readout {
@@ -2616,10 +2601,6 @@ main:focus {
   }
   .ribbon .dates {
     font-size: 10px;
-  }
-  .transport-keys {
-    flex-direction: column;
-    gap: 8px;
   }
   .freecam {
     right: calc(max(16px, env(safe-area-inset-right)) + 3px);
@@ -2862,17 +2843,13 @@ main:focus {
   .ribbon {
     width: min(460px, calc(100% - 100px));
     min-height: 100px;
-    grid-template-columns: minmax(0, 1fr) 98px;
+    grid-template-columns: minmax(0, 1fr);
   }
   .ribbon-readout {
     padding: 8px 10px;
   }
   .ribbon .company {
     font-size: 16px;
-  }
-  .transport-keys {
-    flex-direction: row;
-    gap: 6px;
   }
 }
 

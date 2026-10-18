@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { assetUrl, tenureLabel, type Company } from '@/content/schema';
 import { useEngine, useEngineValue } from './EngineContext';
 import { UI } from './strings';
@@ -84,31 +84,6 @@ export function BottomRibbon({ companies }: { companies: Company[] }) {
           <ArrowUpRight size={14} aria-hidden="true" />
         </span>
       </button>
-      <div className="ribbon-transport">
-        <span className="transport-label">Timeline</span>
-        <div className="transport-keys">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={UI.earlier}
-            title={UI.earlier}
-            disabled={focusedIndex === 0}
-            onClick={() => engine.jumpToPlanet(focusedIndex - 1)}
-          >
-            <ArrowUp size={19} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label={UI.later}
-            title={UI.later}
-            disabled={focusedIndex === companies.length - 1}
-            onClick={() => engine.jumpToPlanet(focusedIndex + 1)}
-          >
-            <ArrowDown size={19} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

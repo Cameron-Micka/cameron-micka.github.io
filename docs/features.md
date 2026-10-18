@@ -81,9 +81,9 @@ below) and short landscape windows hide that introduction so the canvas and
 controls have room; the lower readout remains the primary chapter and story
 entry point.
 
-Desktop and tablet windows 501-720px tall hide the duplicate side ruler and
+Desktop and tablet windows 501-720px tall hide the side ruler and
 place Pause and Free Camera below the header. The ribbon still provides
-chapter navigation and story access without overlapping the floating header.
+story access without overlapping the floating header.
 
 The POI dialog is a scrollable, snap-aligned feed of every story across the
 career timeline. Its native project picker opens any story without requiring a
@@ -108,7 +108,7 @@ toward older work; scroll up or press **Up** to return toward the present.
 **Home / Page Up** go to the current role, and **End / Page Down** go to the
 earliest chapter.
 These shortcuts do not intercept links, form controls, editable content, or
-dialogs. On touch screens, use the ribbon arrows or a two-finger drag to travel.
+dialogs. On touch screens, use a two-finger drag to travel.
 
 Drag a planet to rotate it; faster swipes carry more momentum and coast farther
 after release. Grab again or hold still before releasing to stop the spin.
@@ -192,7 +192,7 @@ Paused motion and open POI dialogs also pause moon flight.
   changes reset scroll/focus unless navigating to a section anchor.
 - Settings controls have 44px hit targets. Narrow layouts hide the side ruler
   and landing introduction. Short landscape layouts also move Pause and Free
-  Camera to the upper left; touch layouts retain the larger ribbon controls.
+  Camera to the upper left.
 - `prefers-reduced-motion` and Paused motion freeze idle scene animation, skip
   the fly-in, and disable dialog entrance effects. Direct interaction remains
   available. Important company labels no longer animate or glitch.

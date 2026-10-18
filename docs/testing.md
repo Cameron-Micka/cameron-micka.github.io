@@ -44,7 +44,7 @@ In addition to typecheck, lint, and the production build, exercise:
   without rounding panels or media previews.
 - Continuous window resizing with motion running, paused, and a story open;
   no black frames during resizing, including when crossing layout breakpoints.
-- Wheel, keyboard, ribbon, and ruler navigation in both directions; form
+- Wheel, keyboard, touch, and ruler navigation in both directions; form
   controls and dialog scrolling must not also move the timeline.
 - Interaction-hint dismissal through wheel, mouse/pen, touch, keyboard,
   chapter buttons, and story opening; it stays hidden after closing a dialog
