@@ -624,12 +624,6 @@ const raw: CompanyInput[] = [
         media: [
           {
             type: 'video',
-            src: 'https://youtube.com/shorts/vc2ZDdOg7Zw?is=EmNwoELJn3KuEM-2',
-            alt: 'Hairball gameplay video',
-            description: 'The first version of Hairball, released in 2008.',
-          },
-          {
-            type: 'video',
             src: 'https://youtube.com/shorts/hUBL8_sYVQI?si=vKI0Gbj-D_CGLf3L',
             alt: 'Hairball for iOS gameplay video',
             description: 'The updated version of Hairball, released in 2014.',
